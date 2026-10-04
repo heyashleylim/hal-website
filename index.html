@@ -1,0 +1,1262 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>내성만방 코칭 프로그램 - Ashley Lim</title>
+<meta name="description" content="[내성만방]은 당신을 가로막고 있는 무의식적 블럭들을 제거하고, 당신이 원하는 삶을 현실로 만들 수 있도록 고안된 12주간의 코칭 프로그램입니다.">
+<meta property="og:title" content="내성만방 코칭 프로그램 - Ashley Lim">
+<meta property="og:image" content="nsmb-assets/images/NSMB-Social-Image.png">
+<link rel="icon" href="nsmb-assets/web/favicon.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cousine:wght@400;700&family=Nanum+Pen+Script&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=Noto+Serif+KR:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+
+<style>
+/* ===== Tokens: NSMB palette, ENGINE structure ===== */
+:root{
+  --cream:#FFFDF7;      /* page bg */
+  --stone:#F4F2EE;      /* alt section bg */
+  --butter:#F8F6D3;     /* highlight section bg */
+  --white:#FFFFFF;
+  --ink:#222222;
+  --muted:#555555;
+  --muted-2:#777777;
+  --terracotta:#C37568; /* accent (headline italics) */
+  --vermilion:#DB4A2B;  /* CTA */
+  --vermilion-deep:#B83A1F; /* same hue, darker: small accent text (AA contrast) */
+  --amber:#E8A030;      /* stars */
+  --forest:#3A7A4A;
+  --mint:#EDF7EE;
+  --blush:#F9F2F2;
+  --olive:#79764E;
+  --sand:#E9E5C4;
+  --teal:#082D2E;       /* footer / countdown */
+  --hair:rgba(34,34,34,.13);
+  --hair-strong:rgba(34,34,34,.22);
+
+  --serif:"Newsreader","Noto Serif KR",Georgia,serif;
+  --sans:"Pretendard Variable","Pretendard","Noto Sans KR",system-ui,sans-serif;
+  --mono:"Cousine","Pretendard Variable","Pretendard",ui-monospace,monospace;
+  --hand:"Nanum Pen Script",cursive;
+
+  --radius:18px;
+  --shadow:0 1px 0 rgba(34,34,34,.04),0 18px 40px -24px rgba(34,34,34,.35);
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --wrap:1180px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.75;word-break:keep-all;overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
+img{max-width:100%;display:block}
+a{color:inherit}
+p{margin:0 0 1.1em}
+p:last-child{margin-bottom:0}
+strong{font-weight:700}
+:focus-visible{outline:3px solid var(--vermilion);outline-offset:3px;border-radius:6px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:999px;z-index:100}
+.skip:focus{left:16px}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+.narrow{max-width:760px;margin-left:auto;margin-right:auto}
+.center{text-align:center}
+
+/* ===== Type ===== */
+.eyebrow{font-family:var(--sans);font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--vermilion-deep);margin:0 0 18px;display:inline-flex;align-items:center;gap:10px}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--vermilion)}
+.center .eyebrow{justify-content:center}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:500;letter-spacing:-.025em;margin:0;color:var(--ink)}
+h1{font-size:clamp(32px,3.7vw,54px);line-height:1.24}
+h2{font-size:clamp(30px,3.8vw,50px);line-height:1.25;margin-bottom:22px}
+h3{font-size:clamp(22px,2.2vw,28px);line-height:1.35}
+h4{font-size:21px;line-height:1.4}
+.em{font-style:italic;color:var(--terracotta);font-weight:400}
+.lead{font-size:clamp(17px,1.5vw,19px);color:var(--muted);line-height:1.75}
+.muted{color:var(--muted)}
+.hand{font-family:var(--hand);font-size:30px;line-height:1.1;color:var(--vermilion-deep);transform:rotate(-3deg);display:inline-block}
+.mono{font-family:var(--mono)}
+
+/* ===== Buttons ===== */
+.btn{display:inline-flex;align-items:center;gap:10px;min-height:56px;padding:0 30px;border-radius:999px;background:var(--vermilion);color:#fff;font-family:var(--sans);font-size:16px;font-weight:700;letter-spacing:.01em;text-decoration:none;border:0;cursor:pointer;box-shadow:0 10px 24px -12px rgba(219,74,43,.75);transition:transform .2s var(--ease),background-color .2s,box-shadow .2s;touch-action:manipulation}
+.btn:hover{background:#C9411F;transform:translateY(-2px);box-shadow:0 14px 28px -12px rgba(219,74,43,.8)}
+.btn:active{transform:translateY(0) scale(.98)}
+.btn svg{width:18px;height:18px;transition:transform .2s var(--ease)}
+.btn:hover svg{transform:translateX(3px)}
+.btn--ghost{background:transparent;color:var(--ink);border:1px solid var(--hair-strong);box-shadow:none}
+.btn--ghost:hover{background:var(--white);box-shadow:none}
+.btn--block{width:100%;justify-content:center}
+.link{font-family:var(--sans);font-size:14.5px;font-weight:700;letter-spacing:.01em;text-transform:uppercase;text-decoration:none;border-bottom:1px solid var(--hair-strong);padding:6px 0;color:var(--muted)}
+.link:hover{color:var(--ink);border-color:var(--ink)}
+.cta-row{display:flex;flex-wrap:wrap;align-items:center;gap:22px 28px;margin-top:34px}
+.center .cta-row{justify-content:center}
+
+/* ===== Sections ===== */
+main{overflow-x:clip}
+section{position:relative}
+.sec{padding:120px 0}
+.sec + .sec{border-top:1px solid var(--hair)}
+.bg-cream{background:var(--cream)}
+.bg-white{background:var(--white)}
+.bg-stone{background:var(--stone)}
+.bg-butter{background:var(--butter)}
+.sec-head{max-width:820px;margin:0 auto 64px;text-align:center}
+.sec-head p{max-width:680px;margin-left:auto;margin-right:auto}
+
+.card{background:var(--white);border:1px solid var(--hair);border-radius:var(--radius);box-shadow:var(--shadow)}
+
+/* ===== Header ===== */
+.site-header{position:sticky;top:0;z-index:50;background:rgba(255,253,247,.92);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--hair)}
+.site-header .wrap{display:flex;align-items:center;justify-content:space-between;height:72px;gap:24px}
+.logo img{height:30px;width:auto}
+.nav{display:flex;align-items:center;gap:34px}
+.nav a:not(.btn){font-family:var(--sans);font-size:14.5px;font-weight:600;letter-spacing:-.005em;text-decoration:none;color:var(--ink);padding:10px 0}
+.nav a:hover{color:var(--vermilion-deep)}
+.header-cta{min-height:44px;padding:0 20px;font-size:14px}
+
+/* ===== Countdown bar ===== */
+.countdown{background:var(--teal);color:#fff}
+.countdown .wrap{display:flex;align-items:center;justify-content:center;gap:16px 32px;flex-wrap:wrap;padding-top:12px;padding-bottom:12px}
+.cd-label{display:flex;align-items:center;gap:10px;font-family:var(--sans);font-size:14px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+.cd-dot{width:10px;height:10px;border-radius:50%;background:var(--vermilion);box-shadow:0 0 0 0 rgba(219,74,43,.7);animation:pulse 2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 10px rgba(219,74,43,0)}100%{box-shadow:0 0 0 0 rgba(219,74,43,0)}}
+.cd-timer{display:flex;align-items:flex-start;gap:8px;font-family:var(--mono)}
+.cd-unit{display:flex;flex-direction:column;align-items:center;min-width:44px}
+.cd-num{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.cd-cap{font-size:9.5px;letter-spacing:.18em;opacity:.7;margin-top:5px}
+.cd-sep{font-size:26px;line-height:1;opacity:.5}
+.cd-date{font-size:14px;opacity:.85}
+
+/* ===== Hero ===== */
+.hero{padding:96px 0 110px}
+.hero .wrap{display:grid;grid-template-columns:1.25fr .75fr;gap:56px;align-items:center}
+.hero h1 .em{display:block;margin-top:.15em}
+.hero .lead{margin-top:28px;max-width:560px}
+.hero-note{margin-top:34px;padding-top:22px;border-top:1px solid var(--hair);font-size:15px;color:var(--muted);max-width:560px}
+.hero-visual{position:relative;justify-self:center;width:100%;max-width:420px}
+.photo-frame{position:relative;border-radius:30px;padding:10px;background:var(--white);border:1px solid var(--hair-strong);box-shadow:0 40px 70px -40px rgba(34,34,34,.55);transform:rotate(2.5deg)}
+.photo-frame img{width:100%;aspect-ratio:4/5;object-fit:cover;object-position:28% 50%;border-radius:22px}
+.sticker{position:absolute;background:var(--white);border:1px solid var(--hair);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1.4}
+.sticker--a{left:-34px;bottom:56px;transform:rotate(-4deg)}
+.sticker--a b{display:block;font-family:var(--serif);font-size:24px;letter-spacing:-.02em;text-transform:none;color:var(--vermilion-deep);font-weight:500}
+.sticker--b{right:-22px;top:34px;transform:rotate(5deg);background:var(--butter);border-color:var(--sand);color:var(--olive)}
+
+/* ===== Ticker ===== */
+.ticker{background:var(--butter);border-top:1px solid var(--sand);border-bottom:1px solid var(--sand);overflow:hidden}
+.ticker-track{display:flex;width:max-content;animation:tick 38s linear infinite}
+.ticker:hover .ticker-track{animation-play-state:paused}
+.ticker-group{display:flex;align-items:center}
+.ticker span{font-family:var(--sans);font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;padding:16px 22px;color:var(--ink)}
+.ticker i{font-style:normal;color:var(--vermilion)}
+@keyframes tick{to{transform:translateX(-50%)}}
+
+/* ===== Pain section ===== */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:start}
+.pain-copy p{font-size:18px}
+.pain-card{padding:34px}
+.pain-card .hand{margin-bottom:6px}
+.pain-card h3{font-size:24px;margin-bottom:22px}
+.pain-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.pain-list li{display:grid;grid-template-columns:38px 1fr;gap:14px;align-items:start;padding:16px 18px;border:1px solid var(--hair);border-radius:14px;background:var(--cream);font-size:16px;line-height:1.65}
+.pain-list .num{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;background:var(--white);border:1px solid var(--hair);font-family:var(--mono);font-size:12px;font-weight:700;color:var(--vermilion-deep)}
+
+/* ===== Why (95/5) ===== */
+.why-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:stretch}
+.bars-card{padding:38px}
+.bars-card h3{margin-bottom:30px}
+.bar{margin-bottom:22px}
+.bar-top{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;font-size:16px;margin-bottom:10px}
+.bar-top .mono{font-size:22px}
+.bar-track{height:14px;border-radius:999px;background:var(--stone);overflow:hidden}
+.bar-fill{height:100%;border-radius:inherit;transform-origin:left;transform:scaleX(var(--v));transition:transform 1.4s var(--ease)}
+html.js .bars-card:not(.in) .bar-fill{transform:scaleX(0)}
+.bar--sub .bar-fill{background:var(--vermilion)}
+.bar--con .bar-fill{background:var(--olive)}
+.bar-defs{margin-top:28px;padding-top:24px;border-top:1px dashed var(--hair-strong);display:grid;gap:14px;font-size:15.5px;color:var(--muted)}
+.bar-defs strong{color:var(--ink)}
+.why-copy{padding:38px;border-radius:var(--radius);border:1px solid var(--hair);background:var(--cream)}
+.pull{max-width:900px;margin:90px auto 0;text-align:center}
+.pull blockquote{margin:0;font-family:var(--serif);font-size:clamp(26px,3.2vw,40px);line-height:1.35;letter-spacing:-.02em}
+.pull p{margin-top:34px;color:var(--muted)}
+
+/* ===== Method ===== */
+.method .split{align-items:center}
+.flow-card{padding:30px;background:var(--cream)}
+.window-dots{display:flex;gap:6px;margin-bottom:22px}
+.window-dots span{width:10px;height:10px;border-radius:50%;background:var(--sand)}
+.flow{display:grid;gap:14px}
+.flow-node{display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:14px;background:var(--white);border:1px solid var(--hair)}
+.flow-node .k{width:44px;height:44px;flex:0 0 44px;border-radius:50%;display:grid;place-items:center;background:var(--butter);border:1px solid var(--sand);font-family:var(--mono);font-weight:700;font-size:13px;color:var(--olive)}
+.flow-node b{font-family:var(--serif);font-weight:500;font-size:22px;letter-spacing:-.02em}
+.flow-join{text-align:center;color:var(--vermilion);font-size:18px;line-height:1}
+.flow-foot{margin-top:22px;padding:16px 18px;border-radius:12px;background:var(--butter);color:var(--olive);font-weight:600;font-size:15.5px}
+.method-copy .quote-line{font-family:var(--serif);font-size:24px;line-height:1.45;letter-spacing:-.02em;margin:26px 0;padding-left:20px;border-left:3px solid var(--vermilion)}
+
+/* ===== Testimonial cards ===== */
+.t-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.t-card{padding:30px;display:flex;flex-direction:column}
+.stars{color:var(--amber);letter-spacing:.12em;font-size:15px;margin-bottom:14px}
+.t-title{font-weight:700;font-size:17px;line-height:1.5;margin-bottom:12px}
+.t-body{font-size:15.5px;line-height:1.75;color:var(--muted);flex:1}
+.t-by{margin-top:22px;padding-top:16px;border-top:1px solid var(--hair);font-family:var(--sans);font-size:13.5px;font-weight:700;letter-spacing:.01em;color:var(--ink);display:flex;align-items:center;gap:8px}
+.t-by::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--vermilion)}
+.t-grid + .t-grid{margin-top:22px}
+
+/* ===== About ===== */
+.about .split{grid-template-columns:.85fr 1.15fr;gap:80px}
+.about-photo{position:sticky;top:110px}
+.about-photo .photo-frame{transform:rotate(-2deg)}
+.about-photo .photo-frame img{aspect-ratio:3/4;object-position:50% 30%}
+.tape{position:absolute;top:-14px;left:50%;width:120px;height:30px;margin-left:-60px;background:rgba(232,160,48,.35);transform:rotate(-3deg);border-radius:3px}
+.callout{font-family:var(--serif);font-size:clamp(22px,2.4vw,28px);line-height:1.45;letter-spacing:-.02em;margin:34px 0;padding:24px 28px;border-radius:16px;background:var(--stone);border-left:4px solid var(--vermilion)}
+.timeline{list-style:none;padding:0;margin:26px 0 34px;display:grid;gap:14px}
+.timeline li{display:grid;grid-template-columns:52px 1fr;gap:16px;padding:22px;border:1px solid var(--hair);border-radius:16px;background:var(--cream)}
+.timeline .n{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--vermilion-deep);letter-spacing:.1em;padding-top:3px}
+.timeline b{display:block;font-size:17px;margin-bottom:6px}
+.timeline p{font-size:15.5px;color:var(--muted);margin:0}
+.ready{font-family:"Newsreader",serif;font-style:italic;font-size:clamp(34px,4vw,48px);color:var(--terracotta);margin:44px 0 0;font-weight:400}
+
+/* ===== Video frames ===== */
+.yt{position:relative;display:block;width:100%;height:100%;padding:0;border:0;background:#000;cursor:pointer;overflow:hidden}
+.yt img{width:100%;height:100%;object-fit:cover;transition:transform .5s var(--ease),opacity .3s}
+.yt:hover img{transform:scale(1.03);opacity:.92}
+.yt .play{position:absolute;left:50%;top:50%;width:76px;height:76px;margin:-38px 0 0 -38px;border-radius:50%;background:var(--vermilion);display:grid;place-items:center;box-shadow:0 12px 30px -8px rgba(0,0,0,.5);transition:transform .25s var(--ease)}
+.yt:hover .play{transform:scale(1.08)}
+.yt .play svg{width:28px;height:28px;margin-left:4px;fill:#fff}
+.yt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.device{max-width:960px;margin:0 auto 80px;padding:12px;border-radius:26px;background:var(--white);border:1px solid var(--hair-strong);box-shadow:0 50px 80px -50px rgba(34,34,34,.55)}
+.device-bar{display:flex;align-items:center;gap:6px;padding:4px 8px 12px}
+.device-bar span{width:10px;height:10px;border-radius:50%;background:var(--stone);border:1px solid var(--hair)}
+.device-bar em{margin-left:10px;font-style:normal;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
+.device-screen{aspect-ratio:16/9;border-radius:16px;overflow:hidden}
+.phone{width:100%;max-width:290px;margin:0 auto;padding:9px;border-radius:38px;background:var(--white);border:1px solid var(--hair-strong);box-shadow:0 40px 60px -36px rgba(34,34,34,.55);transition:transform .35s var(--ease)}
+.phone-screen{aspect-ratio:9/16;border-radius:30px;overflow:hidden}
+.phone .play{width:62px;height:62px;margin:-31px 0 0 -31px}
+
+/* ===== Curriculum ===== */
+.steps{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.step{padding:34px;display:flex;flex-direction:column}
+.step-label{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--vermilion-deep);margin-bottom:12px}
+.step h3{margin-bottom:16px}
+.step p{font-size:16px;color:var(--muted);flex:1}
+.so{margin-top:20px;padding:14px 16px;border-radius:12px;background:var(--butter);border:1px solid var(--sand);color:var(--olive);font-weight:600;font-size:15px;line-height:1.6}
+.closing{max-width:760px;margin:64px auto 0;text-align:center;font-size:18px}
+
+/* ===== Video reviews ===== */
+.v-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:44px 30px;margin-bottom:80px}
+.v-item{display:flex;flex-direction:column}
+.v-item h3{font-size:21px;line-height:1.45;min-height:3.2em;margin-bottom:26px;text-align:center}
+.v-item:nth-child(1) .phone{transform:rotate(-2deg)}
+.v-item:nth-child(3) .phone{transform:rotate(2deg)}
+.v-item .phone:hover{transform:rotate(0) translateY(-4px)}
+.v-name{margin:26px 0 10px;text-align:center;font-weight:700;font-size:15px}
+.v-item > p{font-size:15.5px;color:var(--muted);text-align:center}
+.v-item .link{align-self:center;margin-top:8px}
+
+/* ===== Fit ===== */
+.fit{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:56px}
+.fit-col{padding:34px;border-radius:var(--radius);border:1px solid var(--hair)}
+.fit-col--yes{background:var(--mint);border-color:rgba(58,122,74,.25)}
+.fit-col--no{background:var(--blush);border-color:rgba(219,74,43,.2)}
+.fit-col h3{font-family:var(--sans);font-size:17px;font-weight:700;letter-spacing:-.01em;margin-bottom:22px;display:flex;align-items:center;gap:10px}
+.fit-col--yes h3{color:var(--forest)}
+.fit-col--no h3{color:var(--vermilion-deep)}
+.fit-col ul{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.fit-col li{display:grid;grid-template-columns:24px 1fr;gap:12px;font-size:16px;line-height:1.65}
+.fit-col li svg{width:20px;height:20px;margin-top:4px}
+.fit-col--yes svg{stroke:var(--forest)}
+.fit-col--no svg{stroke:var(--vermilion)}
+
+/* ===== Program components ===== */
+.extras{display:grid;grid-template-columns:repeat(6,1fr);gap:22px}
+.extra{grid-column:span 2;padding:32px}
+.extra:nth-child(4){grid-column:2 / span 2}
+.ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:var(--blush);border:1px solid rgba(219,74,43,.18);margin-bottom:22px;transition:transform .3s var(--ease)}
+.extra:hover .ic{transform:rotate(-8deg) scale(1.06)}
+.ic svg{width:22px;height:22px;stroke:var(--vermilion-deep)}
+.extra h3{font-family:var(--sans);font-size:18px;font-weight:700;letter-spacing:-.01em;margin-bottom:10px}
+.extra p{font-size:15.5px;color:var(--muted)}
+
+/* ===== Investment ===== */
+.invest .split{grid-template-columns:1.1fr .9fr}
+.invest-copy p{font-size:17px}
+.invest-copy .hl{font-family:var(--serif);font-size:22px;line-height:1.5;letter-spacing:-.015em;padding:22px 24px;border-radius:14px;background:var(--white);border:1px solid var(--hair)}
+.quotes{display:grid;gap:18px}
+.quote{padding:28px 30px;position:relative}
+.quote::before{content:"\201C";position:absolute;top:6px;right:22px;font-family:"Newsreader",serif;font-size:80px;line-height:1;color:var(--sand)}
+.quote p{font-family:var(--serif);font-size:19px;line-height:1.55;letter-spacing:-.01em}
+
+/* ===== Enrollment ===== */
+.enroll-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:980px;margin:0 auto}
+.enroll[data-enroll="waitlist"] .enroll-grid,.enroll[data-enroll="checkout"] .enroll-grid{grid-template-columns:1fr;max-width:560px}
+.enroll[data-enroll="waitlist"] .checkout-card,.enroll[data-enroll="checkout"] .waitlist-card{display:none}
+.enroll-card{padding:38px}
+.enroll-card h3{margin-bottom:8px}
+.enroll-card > p{color:var(--muted);font-size:15.5px}
+.field{display:grid;gap:8px;margin-top:20px}
+.field label{font-weight:700;font-size:14.5px}
+.field label span{color:var(--vermilion-deep)}
+.field input{height:52px;padding:0 16px;border-radius:12px;border:1px solid var(--hair-strong);background:var(--cream);font:inherit;font-size:16px;color:var(--ink);transition:border-color .2s,box-shadow .2s}
+.field input:focus{outline:none;border-color:var(--vermilion);box-shadow:0 0 0 3px rgba(219,74,43,.18)}
+.field input[aria-invalid="true"]{border-color:var(--vermilion-deep)}
+.err{font-size:13.5px;color:var(--vermilion-deep);min-height:1em}
+.consent{display:grid;grid-template-columns:22px 1fr;gap:12px;margin:22px 0 26px;font-size:13.5px;line-height:1.6;color:var(--muted)}
+.consent input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--vermilion)}
+.form-msg{margin-top:16px;font-size:14.5px;padding:12px 14px;border-radius:10px;background:var(--stone);display:none}
+.form-msg.show{display:block}
+.pay-list{display:grid;gap:12px;margin-top:26px}
+.pay-btn{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:60px;padding:0 22px;border-radius:14px;border:1px solid var(--hair-strong);background:var(--cream);text-decoration:none;font-weight:700;transition:border-color .2s,transform .2s var(--ease),background-color .2s}
+.pay-btn:hover{border-color:var(--ink);transform:translateY(-2px);background:var(--white)}
+.pay-btn small{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--muted-2);font-weight:700}
+.pay-btn--primary{background:var(--vermilion);border-color:var(--vermilion);color:#fff}
+.pay-btn--primary small{color:rgba(255,255,255,.85)}
+.pay-btn--primary:hover{background:#C9411F;border-color:#C9411F}
+.pay-note{margin-top:18px;font-size:13.5px;color:var(--muted)}
+
+/* ===== Guarantee ===== */
+.guarantee .wrap{display:grid;grid-template-columns:240px 1fr;gap:64px;align-items:center;max-width:1000px}
+.seal{width:220px;height:220px;justify-self:center}
+.seal text{font-family:var(--mono);font-weight:700;letter-spacing:.2em;font-size:11px;fill:var(--olive)}
+.seal .big{font-family:"Newsreader",serif;font-size:64px;letter-spacing:-.02em;fill:var(--vermilion-deep);font-weight:500}
+.seal .small{font-size:12px;letter-spacing:.24em;fill:var(--ink)}
+.fine{font-size:14px;color:var(--muted)}
+
+/* ===== Featured + long stories ===== */
+.feature{padding:48px;max-width:900px;margin:0 auto 40px}
+.feature h3,.story h3{display:flex;gap:10px;align-items:flex-start}
+.feature h3::before,.story h3::before{content:"✦";color:var(--vermilion);font-size:.8em;margin-top:.25em}
+.feature h3{font-size:clamp(24px,2.6vw,32px);margin-bottom:24px}
+.feature .body{font-size:16.5px;color:var(--muted)}
+.big-quote{font-family:var(--serif);font-size:clamp(30px,4vw,52px);line-height:1.3;letter-spacing:-.025em;margin:0 0 16px}
+.stories{columns:2;column-gap:22px}
+.story{break-inside:avoid;margin-bottom:22px;padding:32px}
+.story h3{font-size:21px;line-height:1.45;margin-bottom:16px}
+.story .body{font-size:15.5px;color:var(--muted);position:relative}
+html.js .story.clamp .body{max-height:300px;overflow:hidden}
+html.js .story.clamp .body::after{content:"";position:absolute;left:0;right:0;bottom:0;height:100px;background:linear-gradient(rgba(255,255,255,0),var(--white))}
+.more{display:none;margin-top:16px;background:none;border:0;padding:8px 0;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:700;color:var(--vermilion-deep);border-bottom:1px solid currentColor}
+html.js .story.can-clamp .more{display:inline-block}
+
+/* ===== FAQ ===== */
+.faq{max-width:860px;margin:0 auto}
+.faq details{border-bottom:1px solid var(--hair-strong)}
+.faq details:first-child{border-top:1px solid var(--hair-strong)}
+.faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:24px;padding:26px 4px;font-family:var(--serif);font-size:clamp(19px,2vw,23px);letter-spacing:-.015em;line-height:1.45}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:hover{color:var(--vermilion-deep)}
+.pm{flex:0 0 28px;width:28px;height:28px;position:relative}
+.pm::before,.pm::after{content:"";position:absolute;left:5px;right:5px;top:13px;height:2px;background:var(--vermilion);transition:transform .3s var(--ease)}
+.pm::after{transform:rotate(90deg)}
+details[open] .pm::after{transform:rotate(0)}
+.faq .ans{padding:0 48px 30px 4px;color:var(--muted);font-size:16px}
+.faq .ans a{color:var(--vermilion-deep);font-weight:700}
+.faq-mail{text-align:center;margin:40px 0 56px;color:var(--muted)}
+.faq-mail a{color:var(--ink);font-weight:700}
+.solo{max-width:720px;margin:0 auto}
+
+/* ===== Final ===== */
+.final h2{font-size:clamp(32px,4.4vw,58px)}
+.final .sub{font-family:var(--serif);font-size:clamp(19px,2vw,23px);line-height:1.6;color:var(--muted);margin:0 auto 30px;max-width:720px}
+
+/* ===== Footer ===== */
+.footer{background:var(--teal);color:rgba(255,255,255,.78);padding:64px 0 40px;font-size:14px;line-height:1.85}
+.footer .top{display:flex;justify-content:space-between;gap:40px;flex-wrap:wrap;padding-bottom:30px;border-bottom:1px solid rgba(255,255,255,.14)}
+.footer strong{color:#fff}
+.footer a{color:#fff}
+.social{display:flex;gap:12px}
+.social a{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(255,255,255,.25);transition:background-color .2s}
+.social a:hover{background:rgba(255,255,255,.1)}
+.social svg{width:19px;height:19px;stroke:#fff}
+.footer .bottom{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;padding-top:24px}
+.footer .legal{display:flex;gap:22px;flex-wrap:wrap}
+.footer .legal a{text-decoration:none;opacity:.85}
+.footer .legal a:hover{opacity:1;text-decoration:underline}
+
+/* ===== Reveal ===== */
+html.js .reveal{opacity:0;transform:translateY(22px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+html.js .reveal.in{opacity:1;transform:none}
+html.js .reveal.d1{transition-delay:.08s}
+html.js .reveal.d2{transition-delay:.16s}
+
+/* ===== Responsive ===== */
+@media (max-width:1024px){
+  .hero .wrap,.split,.about .split,.invest .split,.why-grid{grid-template-columns:1fr;gap:56px}
+  .hero-visual{max-width:380px}
+  .about-photo{position:relative;top:0;max-width:420px;margin:0 auto}
+  .t-grid,.v-grid{grid-template-columns:1fr 1fr}
+  .extras{grid-template-columns:1fr 1fr}
+  .extra,.extra:nth-child(4){grid-column:auto}
+  .nav a:not(.btn){display:none}
+}
+@media (max-width:760px){
+  body{font-size:16px}
+  .wrap{padding:0 16px}
+  .sec{padding:76px 0}
+  .hero{padding:56px 0 72px}
+  .sec-head{margin-bottom:44px}
+  .site-header .wrap{height:64px}
+  .logo img{height:24px}
+  .header-cta{padding:0 16px;font-size:13px}
+  .cd-num{font-size:24px}
+  .cd-unit{min-width:36px}
+  .cd-date{width:100%;text-align:center;font-size:13px}
+  .countdown .wrap{gap:8px 18px}
+  .hero-visual{max-width:320px}
+  .photo-frame{transform:rotate(1.5deg)}
+  .sticker--a{left:-6px}
+  .sticker--b{right:-4px}
+  .t-grid,.v-grid,.steps,.fit,.enroll-grid,.extras{grid-template-columns:1fr}
+  .stories{columns:1}
+  .pain-card,.bars-card,.why-copy,.step,.enroll-card,.fit-col,.story{padding:24px}
+  .feature{padding:28px}
+  .guarantee .wrap{grid-template-columns:1fr;gap:28px;text-align:center}
+  .seal{width:180px;height:180px}
+  .faq .ans{padding-right:4px}
+  .v-item h3{min-height:0}
+  .device{padding:8px;border-radius:20px;margin-bottom:56px}
+  .callout{padding:20px}
+  .timeline li{grid-template-columns:1fr;gap:6px}
+  .btn{width:100%;justify-content:center}
+  .cta-row{flex-direction:column;align-items:stretch;text-align:center}
+  .cta-row .link{align-self:center}
+  .header-cta{width:auto}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+  html.js .reveal{opacity:1;transform:none}
+  html.js .bars-card:not(.in) .bar-fill{transform:scaleX(var(--v))}
+}
+</style>
+<script>document.documentElement.classList.add('js')</script>
+</head>
+<body>
+<a class="skip" href="#main">본문으로 건너뛰기</a>
+
+<!-- ============ Header ============ -->
+<header class="site-header">
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="Ashley Lim 홈"><img src="nsmb-assets/web/logo.webp" alt="Ashley Lim" width="348" height="80"></a>
+    <nav class="nav" aria-label="페이지 내 이동">
+      <a href="#curriculum">커리큘럼</a>
+      <a href="#reviews">후기</a>
+      <a href="#faq">자주 묻는 질문</a>
+      <a class="btn btn--ghost header-cta" href="#price">내성만방 신청하기</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ Countdown (deadline is a placeholder: edit data-deadline) ============ -->
+<div class="countdown" id="countdown" data-deadline="2026-10-18T23:59:00+09:00" role="region" aria-label="모집 마감 카운트다운">
+  <div class="wrap">
+    <div class="cd-label"><span class="cd-dot" aria-hidden="true"></span><span id="cd-text">모집 마감까지</span></div>
+    <div class="cd-timer" id="cd-timer" aria-live="off">
+      <div class="cd-unit"><span class="cd-num" data-u="d">00</span><span class="cd-cap">DAYS</span></div><span class="cd-sep" aria-hidden="true">:</span>
+      <div class="cd-unit"><span class="cd-num" data-u="h">00</span><span class="cd-cap">HRS</span></div><span class="cd-sep" aria-hidden="true">:</span>
+      <div class="cd-unit"><span class="cd-num" data-u="m">00</span><span class="cd-cap">MIN</span></div><span class="cd-sep" aria-hidden="true">:</span>
+      <div class="cd-unit"><span class="cd-num" data-u="s">00</span><span class="cd-cap">SEC</span></div>
+    </div>
+    <div class="cd-date" id="cd-date"></div>
+  </div>
+</div>
+
+<main id="main">
+
+<!-- ============ Hero ============ -->
+<section class="hero bg-cream" id="top">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow reveal">내성만방 · 내가 원하는 성공의 삶을 만드는 방법</p>
+      <h1 class="reveal d1">내가 아닌 기준에서 벗어나,<br>담대하게, 온전히 나답게,<span class="em">내가 원하는 삶을 창조하는 여성으로</span></h1>
+      <p class="lead reveal d2">아무리 노력해도 중요한 순간마다 압도감과 불안, 자기 의심에 멈춰섰다면,<br>당신에게 부족한 건 의지가 아니라 변화의 방식이에요.</p>
+      <div class="cta-row reveal d2">
+        <a class="btn" href="#price">내성만방 신청하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+        <a class="link" href="#curriculum">커리큘럼 보기</a>
+      </div>
+      <p class="hero-note reveal d2">내성만방은 나를 온전히 신뢰하고, 내 안의 목소리를 용기있게 따르며,<br>나만의 진정한 성공을 만들어가는 12주 변화의 여정입니다.</p>
+    </div>
+    <div class="hero-visual reveal d1">
+      <div class="photo-frame">
+        <img src="nsmb-assets/web/hero.webp" alt="몽생미셸 성벽에 기대어 햇살을 받고 있는 애슐리 림" width="1400" height="731" fetchpriority="high">
+      </div>
+      <div class="sticker sticker--a"><b>12주</b>4단계 변화의 여정</div>
+      <div class="sticker sticker--b">High Self-Worth Method™</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Ticker ============ -->
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track">
+    <div class="ticker-group"><span>내성만방</span><i>◆</i><span>12주 변화의 여정</span><i>◆</i><span>High Self-Worth Method™</span><i>◆</i><span>신경계</span><i>◆</i><span>잠재의식</span><i>◆</i><span>감정 &amp; 에너지</span><i>◆</i><span>라이프 아티스트™</span><i>◆</i></div>
+    <div class="ticker-group"><span>내성만방</span><i>◆</i><span>12주 변화의 여정</span><i>◆</i><span>High Self-Worth Method™</span><i>◆</i><span>신경계</span><i>◆</i><span>잠재의식</span><i>◆</i><span>감정 &amp; 에너지</span><i>◆</i><span>라이프 아티스트™</span><i>◆</i></div>
+  </div>
+</div>
+
+<!-- ============ Pain ============ -->
+<section class="sec bg-white">
+  <div class="wrap split">
+    <div class="pain-copy">
+      <h2 class="reveal">모든 걸 정석대로 해왔는데도,<br>왜 나는 여전히<br><span class="em">내가 원하는 삶을 살고 있지 못할까요?</span></h2>
+      <div class="reveal d1">
+        <p>책을 수십 권, 어쩌면 180권 이상 읽었어요.<br>명상도 해봤고, 내면아이 치유, 심리상담도 받아봤어요.<br>사주, 타로… 다 해봤어요.</p>
+        <p>그런데 정작<br>내가 진짜 원하는 삶을 선택해야 하는 순간엔…<br>또 몸이 멈춰버려요.</p>
+        <p>머리로는 알아요.</p>
+        <p>‘나를 사랑해야 한다’는 것도,<br>‘제한적 믿음을 바꿔야 한다’는 것도,<br>‘잠재의식을 재프로그래밍해야 한다’는 것도.</p>
+      </div>
+    </div>
+    <div class="card pain-card reveal d1">
+      <span class="hand">그런데… 삶에서 뭐가 달라졌나요?</span>
+      <h3>이 지식이 아직 삶으로 안 내려오고 있어요.</h3>
+      <ul class="pain-list">
+        <li><span class="num">01</span><span>겉으로는 잘나가 보이지만, 속으로는 ‘이게 내가 정말 원하는 삶인가?’라는 의심이 든다.</span></li>
+        <li><span class="num">02</span><span>성취는 많지만 여전히 불안하다. 더 열심히 해도 채워지지 않는다.</span></li>
+        <li><span class="num">03</span><span>마음공부를 충분히 했는데도 늘 같은 패턴이 반복된다. ‘혼자서는 한계’라는 걸 느낀다.</span></li>
+        <li><span class="num">04</span><span>나를 갈아 넣어야만 성공할 수 있다는 방식에 지쳐가고 있다.</span></li>
+        <li><span class="num">05</span><span>유튜브와 책에서 비슷한 이야기는 많이 들었지만, ‘그래서 뭘 어떻게 해야 하지?’에서 막힌다.</span></li>
+        <li><span class="num">06</span><span>이제는 더 애쓰는 대신, 나답고 단단하면서도 여유로운 방식으로 삶을 바꾸고 싶다.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Why ============ -->
+<section class="sec bg-stone">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow reveal">왜 열심히 해도 안 바뀔까요</p>
+      <h2 class="reveal d1">문제는 <span class="em">노력이 부족한 게 아니에요.</span></h2>
+    </div>
+    <div class="why-grid">
+      <div class="card bars-card reveal">
+        <h3>우리 인생의 95% 이상이 의식이 아닌, 무의식으로부터 만들어져요.</h3>
+        <div class="bar bar--sub">
+          <div class="bar-top"><span>무의식과 신경계</span><span class="mono">95%</span></div>
+          <div class="bar-track" role="img" aria-label="무의식과 신경계 95%"><div class="bar-fill" style="--v:.95"></div></div>
+        </div>
+        <div class="bar bar--con">
+          <div class="bar-top"><span>의식</span><span class="mono">5%</span></div>
+          <div class="bar-track" role="img" aria-label="의식 5%"><div class="bar-fill" style="--v:.05"></div></div>
+        </div>
+        <div class="bar-defs">
+          <p><strong>무의식과 신경계:</strong><br>감정 패턴 · 제한적 믿음 · 신경계 자동 반응. '머리로는 아는데 몸이 안 움직여' — 그 이유가 여기 있어요</p>
+          <p><strong>의식:</strong><br>결심 · 계획 · 다짐 · 지식 — 우리는 이 층에서 정말 열심히 살아왔어요</p>
+        </div>
+      </div>
+      <div class="why-copy reveal d1">
+        <p>다시 말해서 — 내가 의식적으로 계획하고, 다짐하는 그 5%만으로는 나머지 95%의 무의식적 프로그램을 이길 수 없어요.</p>
+        <p>그래서 매일 아침 긍정확언을 100번씩 써도, 내 몸이 받아들이지 못하는 확언은 현실이 되기 어려워요. '머리로는 아는데 몸이 안 움직여' — 바로 이 이유예요.</p>
+      </div>
+    </div>
+    <div class="pull">
+      <blockquote class="reveal">무의식과 의식 사이에 배틀이 붙으면,<br><span class="em">언제나 무의식이 이겨요.</span></blockquote>
+      <div class="reveal d1">
+        <p>우리가 흔히 알고 있는 변화의 방향은 한 가지예요 — 더 생산적으로 사는 것.</p>
+        <p>아침 루틴을 바꾸고, 더 많은 목표를 세우고, 자격증을 하나 더 따고…</p>
+        <p>하지만 이건 '더 나은 머신’이 되는 법이지, '진짜 나'로 사는 법이 아니에요.<br>과한 애씀은 늘어나는데, 삶은 그대로인 이유예요.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Method ============ -->
+<section class="sec bg-butter method">
+  <div class="wrap split">
+    <div class="card flow-card reveal">
+      <div class="window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="flow">
+        <div class="flow-node"><span class="k">01</span><b>신경계</b></div>
+        <div class="flow-join" aria-hidden="true">◇</div>
+        <div class="flow-node"><span class="k">02</span><b>잠재의식</b></div>
+        <div class="flow-join" aria-hidden="true">◇</div>
+        <div class="flow-node"><span class="k">03</span><b>감정 &amp; 에너지</b></div>
+      </div>
+      <p class="flow-foot">이들이 하나의 흐름으로 이어질 때, 내가 원하는 현실도 비로소 따라오기 시작해요.</p>
+    </div>
+    <div class="method-copy">
+      <p class="eyebrow reveal">새로운 변화 방식</p>
+      <h2 class="reveal d1">High Self-Worth <span class="em">Method™</span></h2>
+      <div class="reveal d2">
+        <p class="lead">내성만방은 의식 수준의 인지와 의지만으로는 닿기 어려운, 무의식과 신경계 차원의 변화에서 시작해요.</p>
+        <p class="quote-line">‘자기 증명’이 아니라 <span class="em">‘자기 가치’</span>에서 출발하는 변화의 여정</p>
+        <p>그때 변화는 가능이 아니라, ‘필연’이 될 거예요.</p>
+        <div class="cta-row"><a class="btn" href="#price">내성만방 신청하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Results ============ -->
+<section class="sec bg-cream">
+  <div class="wrap">
+    <div class="sec-head"><h2 class="reveal">실제로 어떤 변화가 <span class="em">일어났을까요?</span></h2></div>
+    <div class="t-grid">
+      <article class="card t-card reveal">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">막막했던 결혼·잔고 → 관계와 기회가 달라짐 🕊️</p>
+        <p class="t-body">특히 남편과의 관계는 거의 불가능하게 느껴졌어요. 도망갈수도 없는 현실에 갇힌 느낌… 돈은 거의 바닥이었고 희망이 없었어요. → 특히 남편과의 관계가 결혼생활을 통틀어 가장 좋아졌습니다. 현실은 크게 달라지지 않았지만, 관계의 모든 것이 달라졌습니다. 돈도 충분히 필요한 만큼 자꾸 생기는 기회가 많아졌습니다.</p>
+        <p class="t-by">김00 (교사, 40대)</p>
+      </article>
+      <article class="card t-card reveal d1">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">'인생 붕괴의 위기' → 되찾은 용기 🌅</p>
+        <p class="t-body">내성만방 프로그램에 참여하기 직전, 저는 '인생 붕괴의 위기'에 처해 있었습니다. 일, 인간 관계, 몸과 정신 건강, 그 모든 것이 툭 건드리기만 해도 쓰러질 것만 같았습니다. → 잃어버렸던 용기를 되찾고 원하는 삶으로 나아갈 힘을 얻은 것만으로도, 저에게는 그 무엇보다도 귀중한 보물 같은 경험이었습니다.</p>
+        <p class="t-by">김00 (프리랜서, 40대)</p>
+      </article>
+      <article class="card t-card reveal d2">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">책 180권에도 제자리 → 몇 년 미룬 퇴사 결심 ⛓️‍💥</p>
+        <p class="t-body">'이렇게까지 했는데도 바뀌는 게 없으면 이제 그냥 받아들이고 살자.' 내성만방이 스스로에게 주는 마지막 기회였던 셈이죠. → 가장 놀랍고 예상 밖이었던 변화는, 몇 년 동안 고민만 하던 퇴사를 결심한 것이에요. 이제는 언젠가 넘어지더라도 다시 일어설 수 있고, 스스로를 지탱할 힘이 제 안에 있다는 것을 믿어요.</p>
+        <p class="t-by">이00 (직장인, 30대)</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ About ============ -->
+<section class="sec bg-white about">
+  <div class="wrap split">
+    <div class="about-photo reveal">
+      <div class="photo-frame">
+        <span class="tape" aria-hidden="true"></span>
+        <img src="nsmb-assets/web/profile.webp" alt="내성만방 코치 애슐리 림의 프로필 사진" width="1000" height="1333" loading="lazy">
+      </div>
+    </div>
+    <div>
+      <h2 class="reveal">Hello! <span class="em">애슐리에요</span> 🙂</h2>
+      <div class="reveal d1">
+        <p>뉴로사이언스, 무의식, 감정 패턴에 대한 탐구와 경험을 바탕으로, 한국 여성들이 <strong>‘자기 증명’ 대신 ‘높은 자기 가치감’</strong>에 기반한 풍요의 삶을 만들도록 돕고 있어요.</p>
+        <p>왜냐하면 진짜 내가 원하는 삶은 나를 몰아붙여 얻어내는 것이 아니라, 내 가치가 이미 충분하다는 감각 위에서 만들어갈 때 더 지속가능하고 깊은 만족으로 이어진다는 것을 깨달았기 때문이에요.</p>
+        <p>호주에서 친구들이 저를 뭐라고 불렀는지 아세요?</p>
+      </div>
+      <p class="callout reveal">DOER — 어떤 일이든 결국 결과로 만드는 사람.</p>
+      <div class="reveal">
+        <p>그러니 얼마나 열심히 살았겠어요. 갓생의 삶이었죠. 목표를 세우면 해냈고, 큰 성과도 많이 만들었어요. 그런데 해낼수록 더 편안해지는 게 아니라, 여전히 불안했고 오히려 더 지쳐갔어요.</p>
+        <p>제가 지나온 변화의 과정:</p>
+      </div>
+      <ol class="timeline reveal">
+        <li><span class="n">01</span><div><b>겉으로는 잘해내는 사람, 속으로는 번아웃</b><p>잠시라도 멈추면 뒤처질 것 같고, 쉬면 내 가치가 하락하는 것 같았어요. 번아웃도 여러 번 겪었죠. 남들이 보기엔 잘해내는 사람이었지만, 행복하지 않았어요.</p></div></li>
+        <li><span class="n">02</span><div><b>답을 찾아 헤맨 첫 10년</b><p>2011년에 시작한 자기계발 여정의 첫 10년은 솔직히, 나 자신과 내 삶을 빨리 바꾸고 싶어서 더 좋은 생각, 더 강한 의지, 더 효율적인 습관을 끊임없이 찾아 헤매던 시간이었어요. — 하지만 답은 ‘더 생산적으로 사는 법’이 아니었어요.</p></div></li>
+        <li><span class="n">03</span><div><b>알면서도 반복되는 무의식 패턴</b><p>머리로는 이미 많은 것을 알고 있었지만, 내 감정과 신경계는 여전히 불안했고, 무의식 속 오래된 패턴은 저를 다시 과잉 노력과 자기 증명으로 데려갔어요.</p></div></li>
+      </ol>
+      <div class="reveal">
+        <p>그래서 저는 제 안의 성취 지향적 성향과 그 불균형을 오랫동안 관찰하고 실험할 수밖에 없었어요 — 제가 살아야 했으니까요. 왜 어떤 변화는 결심한 지 며칠 만에 원래대로 돌아가고, 어떤 변화는 삶의 방식 자체를 바꿔놓는지.</p>
+        <p>그 과정에서 발견한 건, <strong>지속되는 변화는 나를 더 몰아붙이는 데서 오지 않는다는 것이었어요.</strong><br>내 신경계가 안전을 반복적으로 경험하고, 감정 패턴과 무의식의 믿음이 달라질 때, 비로소 내가 이미 알고 있는 것을 살아낼 수 있게 된다는 것.</p>
+      </div>
+      <p class="callout reveal">그렇게 제 삶과 많은 여성들의 변화 속에서 탄생한 것이 High Self-Worth Method™입니다.</p>
+      <div class="reveal">
+        <p>성공이 ‘자기 증명의 수단’이었던 삶에서, ‘나다움의 아름다운 표현’이 되는 삶으로.<br>과한 애씀 대신 단단한 여유에서 오는 힘으로,<br>삶·사랑·성공·풍요를 작품처럼 창조하는 여성 — <strong>라이프 아티스트™</strong></p>
+        <p>내성만방은 그 여정의 시작이에요.</p>
+        <p>누구에게나 가능해요. 하지만 모두가 그 길을 선택하지는 않아요. 원리는 단순해 보이지만, 늘 쉬운 여정도 아니에요.<br><strong>하지만 무엇보다 가치 있는 여정이에요.</strong></p>
+      </div>
+      <h3 class="ready reveal">Are you ready?</h3>
+      <div class="cta-row reveal" style="margin-top:22px"><a class="btn" href="#price">내성만방 신청하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Curriculum ============ -->
+<section class="sec bg-cream" id="curriculum">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow reveal">변화를 이끄는 커리큘럼</p>
+      <h2 class="reveal d1">High Self-Worth Method™<br><span class="em">12주, 4단계에 걸친 변화의 여정</span></h2>
+      <div class="reveal d2 muted">
+        <p>내성만방은 오래된 패턴과 스스로 설정한 한계를 넘어, 내가 원하는 삶을 선택하고 살아낼 수 있도록 돕는 12주간의 심층 경험 프로그램입니다.</p>
+        <p>단순히 듣기 좋은 정보를 배우는 것이 아니라, 신경과학·심리학·영성적 지혜를 바탕으로 배움을 실제 삶의 변화로 연결합니다.</p>
+      </div>
+    </div>
+    <div class="device reveal">
+      <div class="device-bar" aria-hidden="true"><span></span><span></span><span></span><em>내성만방 · High Self-Worth Method™</em></div>
+      <div class="device-screen">
+        <button class="yt" type="button" data-yt="qAx6n3vHT_8" aria-label="내성만방 소개 영상 재생">
+          <img src="nsmb-assets/web/yt-qAx6n3vHT_8.webp" alt="" width="1280" height="720" loading="lazy">
+          <span class="play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></span>
+        </button>
+      </div>
+    </div>
+    <div class="steps">
+      <article class="card step reveal">
+        <p class="step-label">STEP 1 · WEEK 1–2</p>
+        <h3>Foundation — 안정화</h3>
+        <p>“나는 왜 알면서도 다시 원래대로 돌아갈까?”<br>의지 부족이 아니라, 내 몸과 마음이 익숙한 패턴으로 돌아가는 이유를 이해합니다.<br>그리고 변화의 과정을 버틸 수 있는 안전한 기반을 만들어요.</p>
+        <p class="so">그래서 — 반복되는 동기부여가 아니라, 지속되는 변화의 토대가 생겨요.</p>
+      </article>
+      <article class="card step reveal d1">
+        <p class="step-label">STEP 2 · WEEK 3–4</p>
+        <h3>Personal Power — 방향 설정</h3>
+        <p>사회나 타인의 기준이 아니라, <strong>내가 진짜 원하는 삶</strong>과 선택의 기준을 다시 세웁니다.<br>결핍과 조급함이 아닌, 무한한 가능성의 에너지에서 나만의 큰 그림을 그리기 시작해요.</p>
+        <p class="so">그래서 — 무엇에 집중해야 할지, 지금 잘 가고 있는지 확신이 생겨요.</p>
+      </article>
+      <article class="card step reveal">
+        <p class="step-label">STEP 3 · WEEK 5–9</p>
+        <h3>Emotional Mastery — 패턴 통합</h3>
+        <p>나를 멈추게 해온 믿음과 감정, 오래된 패턴을 더 이상 분석하는 데서 멈추지 않습니다.<br>회피해온 감정을 안전하게 만나고 통합할 때, 머리로만 알던 변화가 몸에서 시작돼요.</p>
+        <p class="so">그래서 — 몇 년 미뤄온 그 결정 앞에서, 드디어 몸이 움직이기 시작해요.</p>
+      </article>
+      <article class="card step reveal d1">
+        <p class="step-label">STEP 4 · WEEK 10–12</p>
+        <h3>Embodiment — 체화</h3>
+        <p>인사이트가 ‘좋은 생각’만으로 남지 않고, 새로운 선택과 결정으로 이어집니다.<br>12주 여정을 넘어, 변화를 내 삶에 정착시키는 힘을 갖춰요.</p>
+        <p class="so">그래서 — 프로그램이 끝난 뒤에도, 스스로 변화를 지속할 수 있어요.</p>
+      </article>
+    </div>
+    <p class="closing reveal">안전감 없이 깊은 감정을 다루면 버거워지고, 방향 없이 치유만 하면 삶은 달라지지 않아요. 내성만방은 이해에서 끝나지 않고, 느끼고, 통합하고, 선택하는 삶으로 이어지도록 설계되었습니다.</p>
+    <div class="cta-row center reveal" style="justify-content:center"><a class="btn" href="#price">내성만방 신청하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></div>
+  </div>
+</section>
+
+<!-- ============ Video reviews ============ -->
+<section class="sec bg-stone" id="reviews">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow reveal">영상 후기</p>
+      <h2 class="reveal d1">그 후, <span class="em">모든 것이 달라졌어요</span></h2>
+      <p class="reveal d2 muted">내성만방 졸업생들의 진솔한 이야기를 들어보세요.</p>
+    </div>
+    <div class="v-grid">
+      <article class="v-item reveal">
+        <h3>“아무리 긍정적으로 살려고 해도 왜 안 바뀌는지 알았어요”</h3>
+        <div class="phone"><div class="phone-screen">
+          <button class="yt" type="button" data-yt="XIKew0EspSE" aria-label="김소희 님 후기 영상 재생">
+            <img src="nsmb-assets/web/yt-XIKew0EspSE.webp" alt="" width="540" height="960" loading="lazy">
+            <span class="play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></span>
+          </button>
+        </div></div>
+        <p class="v-name">김소희 · 직장인</p>
+        <p>늘 남과 비교하며 불안했고, 사랑받지 못할까 봐 관계 속에서 지쳤어요. 지금은 관계에 집착하지 않아도, 언제든 나와 맞는 사람들을 만날 수 있다는 안정감이 있어요. 무엇보다 ‘나는 내 삶을 창조하는 사람’이라는 걸 진짜 믿게 됐어요.</p>
+        <a class="link" href="https://youtu.be/dux3Jcjor-I" target="_blank" rel="noopener">인터뷰 전체 보기 ↗</a>
+      </article>
+      <article class="v-item reveal d1">
+        <h3>“사주도 타로도 다 해봤어요. 달라지는 건 아무것도 없었어요.”</h3>
+        <div class="phone"><div class="phone-screen">
+          <button class="yt" type="button" data-yt="akQttKM-gtg" aria-label="조혜주 님 후기 영상 재생">
+            <img src="nsmb-assets/web/yt-akQttKM-gtg.webp" alt="" width="540" height="960" loading="lazy">
+            <span class="play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></span>
+          </button>
+        </div></div>
+        <p class="v-name">조혜주 · 요가 지도자</p>
+        <p>5년 사귄 남자친구와 헤어진 뒤, 사주와 타로에 기대며 답을 찾던 때가 있었어요. 내 안의 패턴을 마주하고 바꾸며, 이제는 내 삶의 답을 내가 선택해요. 그 과정에서 소울메이트와 결혼했고, 상담사 일을 내려놓은 뒤 요가 지도자의 길을 걷고 있어요.</p>
+        <a class="link" href="https://youtu.be/4mst74m6fQQ" target="_blank" rel="noopener">인터뷰 전체 보기 ↗</a>
+      </article>
+      <article class="v-item reveal d2">
+        <h3>“아무것도 변하지 않고, 모든 것이 다 변했어요”</h3>
+        <div class="phone"><div class="phone-screen">
+          <button class="yt" type="button" data-yt="eBSHbFeEMBE" aria-label="김이경 님 후기 영상 재생">
+            <img src="nsmb-assets/web/yt-eBSHbFeEMBE.webp" alt="" width="540" height="960" loading="lazy">
+            <span class="play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></span>
+          </button>
+        </div></div>
+        <p class="v-name">김이경 · 초등학교 교사</p>
+        <p>책임감으로 겨우 사는 인생이라고 느꼈어요. 깊은 슬픔과 외로움에 쌓여 있었죠. 지금은 아픔과 힘듦이 더 이상 없어요. 결혼 13년 차에 남편과 가장 깊고 좋은 관계를 살고 있고, 아이들도 훨씬 더 밝고 편안해졌어요.</p>
+        <a class="link" href="https://youtu.be/BGz9c_2MJ38" target="_blank" rel="noopener">인터뷰 전체 보기 ↗</a>
+      </article>
+    </div>
+    <div class="t-grid">
+      <article class="card t-card reveal">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">잔고 $1,000에서 → 간호학 석사 과정으로 🎓</p>
+        <p class="t-body">처음엔 학비를 어떻게 낼지 너무너무 걱정됐어요. 그런데… 일이 아주 쉽게 구해졌고, 학교 측에서 석사 과정으로 입학시켜주겠다고 연락이 왔어요. 학비도 약 5천만 원 아낄 수 있게 되었고요. 내성만방 수업료 이상 충분히 뽑아낼 것 같아요 ㅋㅋㅋ 감사해요 🩷🩷</p>
+        <p class="t-by">김00 (호주 유학생, 30대)</p>
+      </article>
+      <article class="card t-card reveal d1">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">수업 후 세운 비전 → 현실화 🎬</p>
+        <p class="t-body">장편독립영화캐스팅, 연극주인공캐스팅, 단편영화 촬영완료 — 이렇게 변화가 찾아왔어요. 정말 신기하게 제가 애슐리님과 수업(내성만방)이 끝나고 설정해 뒀던 비전들이에요...</p>
+        <p class="t-by">이00 (배우, 30대)</p>
+      </article>
+      <article class="card t-card reveal d2">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">설명할 수 없던 몸의 긴장 → 어느 날 멈춤 🌿</p>
+        <p class="t-body">원인을 알 수 없는 몸의 이상 반응이 어느 날부터 멈췄어요! 약도 안 먹고 있는데… 너무 신기해요!</p>
+        <p class="t-by">이00 (직장인, 30대)</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Fit ============ -->
+<section class="sec bg-white">
+  <div class="wrap">
+    <div class="sec-head"><h2 class="reveal">내성만방은 <span class="em">모든 분을 위한</span> 프로그램이 아니에요.</h2></div>
+    <div class="fit">
+      <div class="fit-col fit-col--yes reveal">
+        <h3>이런 분께 추천해요</h3>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>이미 자기계발을 상당히 해봤지만, 결정적으로 “머리로는 아는데 삶이 안 바뀐다”는 느낌이 있다</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>오래 고민해온 문제 앞에서, 나에게 맞는 답과 방향을 분명히 알고 싶다</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>사회적 기대보다 내면의 목소리를 따르는 삶을 진심으로 원한다</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>어려운 순간이 와도 “trust the process” — 이 여정을 믿고 탐험해볼 준비가 됐다</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>불편한 감정과 결정을 마주하는 일이 두렵더라도, 해볼 준비가 됐다</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>내성만방을 내 미래를 위한 의미 있는 투자라고 여긴다</span></li>
+        </ul>
+      </div>
+      <div class="fit-col fit-col--no reveal d1">
+        <h3>이런 분이라면 아직은 아니에요</h3>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg><span>“그거 이미 아는 거야”라는 생각이 새로운 가능성에 열려있는 마음보다 앞서는 분</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg><span>‘쉽고 빠르게 부자가 되는 법’을 찾고 있는 분</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg><span>내 안에서 답을 찾아가기보다, 누군가가 빨리 답을 주길 원하는 분</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg><span>내 삶에 스스로 책임질 준비가 아직 되지 않은 분</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="cta-row reveal" style="justify-content:center"><a class="btn" href="#price">내성만방 신청하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></div>
+  </div>
+</section>
+
+<!-- ============ Program components ============ -->
+<section class="sec bg-cream">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow reveal">프로그램 구성</p>
+      <h2 class="reveal d1">내성만방, <span class="em">이렇게 함께합니다</span></h2>
+      <p class="reveal d2 muted">각 구성은 High Self-Worth Method™의 하나의 흐름 안에서, 통찰을 삶의 변화로 연결하도록 설계되어 있습니다.</p>
+    </div>
+    <div class="extras">
+      <article class="card extra reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9M12.4 3.4l3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></div>
+        <h3>12개 심층 모듈</h3>
+        <p>High Self-Worth Method™의 4단계를 따라 오래된 패턴을 이해하고 내려놓으며, 새로운 선택과 행동의 기반을 만들어갑니다. 모듈은 매주 하나씩 순차적으로 열리며, 녹화본으로 내 속도에 맞춰 반복하고 적용할 수 있어요.</p>
+      </article>
+      <article class="card extra reveal d1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg></div>
+        <h3>격주 라이브 그룹 코칭</h3>
+        <p>격주 토요일 오전 10시, 배운 내용을 삶에 적용하는 라이브 코칭이 진행됩니다. 질문·감정·패턴·선택의 순간을 가져오면 지금 내 상황에 맞게 함께 풀어드립니다. 오프닝 라이브 포함, 총 7번 라이브로 만나요.</p>
+      </article>
+      <article class="card extra reveal d2">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg></div>
+        <h3>주간 통합 과제</h3>
+        <p>배운 내용을 일상의 선택과 행동으로 연결해, 변화가 실제 삶에 자리 잡도록 돕습니다.</p>
+      </article>
+      <article class="card extra reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3>비공개 페이스북 커뮤니티</h3>
+        <p>안전한 공간에서, 12주 동안 막히는 지점부터 소중한 깨달음, 함께 축하하고 싶은 변화까지 나누며 함께 나아갑니다. 더 이상 혼자 버틸 필요 없어요! 🙂</p>
+      </article>
+      <article class="card extra reveal d1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></svg></div>
+        <h3>전 세션 녹화본 + 자료 1년 이용</h3>
+        <p>12주가 끝난 후에도 필요한 순간마다 돌아와, 내 페이스에 맞춰 복습하고 깊이 있게 체화할 수 있어요.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Investment ============ -->
+<section class="sec bg-stone invest">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow reveal">투자에 대해</p>
+      <h2 class="reveal d1">이건 '강의료'가 아니에요.<br><span class="em">평생 가는 자산이에요.</span></h2>
+    </div>
+    <div class="split">
+      <div class="invest-copy reveal">
+        <p>내성만방이 12주 만에 당신의 모든 것을 바꿔준다고 말하지 않을게요.</p>
+        <p>하지만 이 여정을 통해 오래된 패턴을 단계적으로 내려놓으며, 감정에 휩쓸리던 순간에 다르게 반응하고, 나를 믿는 선택을 작게라도 해내간다면 — 그 경험은 내 삶 속에 자리 잡게 돼요.</p>
+        <p>그 선택이 삶 속에서 반복될수록, 그것은 단순한 인사이트가 아니라 나를 이끄는 새로운 기준이자 자기 가치감과 정체성이 됩니다.</p>
+        <p>지난 몇 년 동안 같은 고민을 반복하며 강의, 상담, 그리고 감정에 쓴 시간과 비용을 떠올려보세요.</p>
+        <p class="hl">만약 앞으로도 같은 패턴 속에서 나를 의심하고, 미루고, 작은 선택 앞에서 흔들린다면 — 그 대가는 얼마일까요?</p>
+        <p><strong>내성만방은 그 굴레를 끊는 투자예요.</strong></p>
+      </div>
+      <div class="quotes">
+        <figure class="card quote reveal"><p>올해에 있어서, 제 인생에 있어서 제일 큰 ROI가 이 코칭을 들은 것이 될것임을 확신해요!</p><figcaption class="t-by">유00 (프리랜서, 30대)</figcaption></figure>
+        <figure class="card quote reveal d1"><p>시작 전엔 비싼듯 느껴졌지만, 끝나고 나니 “와 이래서 이 정도 비용이 드는구나” 싶음! 아깝지 않음</p><figcaption class="t-by">이00 (30대)</figcaption></figure>
+        <figure class="card quote reveal d2"><p>처음에 내성만방을 신청할 때, 의심이 되게 많았어요... '고민한 시간이 아깝다'라는 생각이 들 정도로 얻은 게 정말 컸어요.</p><figcaption class="t-by">김00 (30대)</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Enrollment ============
+     data-enroll = "waitlist" | "checkout" | "both"   (preview any mode with ?enroll=both) -->
+<section class="sec bg-cream enroll" id="price" data-enroll="waitlist">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow reveal">등록 안내</p>
+      <h2 class="reveal d1">나에게 맞는 방식으로 <span class="em">시작하세요</span></h2>
+      <div class="reveal d2 muted">
+        <p>지금은 내성만방 다음 기수를 준비하고 있어요.</p>
+        <p>대기리스트에 등록하시면, 다음 기수 오픈 소식과 대기자 우선 안내를 가장 먼저 받아보실 수 있어요 💌</p>
+      </div>
+    </div>
+    <div class="enroll-grid">
+      <!-- Waitlist: set data-endpoint to your form handler (e.g. Fluent Forms / ESP) -->
+      <div class="card enroll-card waitlist-card reveal">
+        <p class="step-label">NSMB WAITLIST</p>
+        <h3>대기리스트 등록</h3>
+        <form id="waitlist" data-endpoint="" novalidate>
+          <div class="field">
+            <label for="wl-name">이름 <span aria-hidden="true">*</span></label>
+            <input id="wl-name" name="name" type="text" autocomplete="name" required aria-describedby="wl-name-err">
+            <p class="err" id="wl-name-err" aria-live="polite"></p>
+          </div>
+          <div class="field">
+            <label for="wl-email">이메일 <span aria-hidden="true">*</span></label>
+            <input id="wl-email" name="email" type="email" autocomplete="email" inputmode="email" required aria-describedby="wl-email-err">
+            <p class="err" id="wl-email-err" aria-live="polite"></p>
+          </div>
+          <label class="consent"><input type="checkbox" name="consent" id="wl-consent" required aria-describedby="wl-consent-err"><span>[필수] 신청하신 서비스 제공과 소식·혜택 이메일 수신에 동의합니다. 언제든지 수신거부 가능하며, 자세한 내용은 <a href="https://ashleylim.com/privacy-policy/" target="_blank" rel="noopener">개인정보처리방침</a>을 확인해 주세요.</span></label>
+          <p class="err" id="wl-consent-err" aria-live="polite"></p>
+          <button class="btn btn--block" type="submit">지금 등록하기</button>
+          <p class="form-msg" id="wl-msg" role="status"></p>
+        </form>
+      </div>
+      <div class="card enroll-card checkout-card reveal d1">
+        <p class="step-label">ENROLL NOW</p>
+        <h3>내성만방 신청하기</h3>
+        <p>12개 심층 모듈 · 격주 라이브 그룹 코칭 · 주간 통합 과제 · 비공개 커뮤니티 · 녹화본 + 자료 1년 이용</p>
+        <div class="pay-list">
+          <a class="pay-btn pay-btn--primary" href="https://ashleylim.com/?product=2882&amp;currency=KRW">내성만방 신청하기 → <small>KRW</small></a>
+          <a class="pay-btn" href="https://ashleylim.com/?product=2882&amp;currency=KRW&amp;plan=instalment">분할 결제로 신청하기 <small>KRW</small></a>
+          <a class="pay-btn" href="https://ashleylim.com/?product=4536&amp;currency=USD">PayPal로 결제하기 <small>USD</small></a>
+        </div>
+        <p class="pay-note">14일 전액 환불 보장 · <a href="https://ashleylim.com/refund-policy/" target="_blank" rel="noopener">환불정책</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Guarantee ============ -->
+<section class="sec bg-butter guarantee">
+  <div class="wrap">
+    <svg class="seal reveal" viewBox="0 0 220 220" role="img" aria-label="14일 전액 환불 보장 인증 마크">
+      <defs><path id="ring" d="M110,110 m-84,0 a84,84 0 1,1 168,0 a84,84 0 1,1 -168,0"/></defs>
+      <circle cx="110" cy="110" r="106" fill="#FFFDF7" stroke="#E9E5C4" stroke-width="2"/>
+      <circle cx="110" cy="110" r="70" fill="none" stroke="#DB4A2B" stroke-width="1.5" stroke-dasharray="3 5"/>
+      <text><textPath href="#ring" startOffset="0">MONEY-BACK GUARANTEE ✦ 내성만방 ✦ MONEY-BACK GUARANTEE ✦</textPath></text>
+      <text class="big" x="110" y="124" text-anchor="middle">14</text>
+      <text class="small" x="110" y="146" text-anchor="middle">DAYS</text>
+    </svg>
+    <div>
+      <p class="eyebrow reveal">부담 없이 시작하세요</p>
+      <h2 class="reveal d1">14일 <span class="em">전액 환불 보장</span></h2>
+      <div class="reveal d2">
+        <p class="lead">내성만방의 참여가 당신에게 현명한 선택이자 큰 배움의 기회이길 바랍니다.</p>
+        <p>프로그램에 성실히 참여해본 후 결정하실 수 있도록 14일 전액 환불 보장을 제공합니다. 프로그램 시작 후 14일 이내에 내성만방이 나에게 맞지 않는다고 느끼신다면, 전액 환불을 요청하실 수 있습니다.</p>
+        <p>이러한 취지에 따라, 이 보장은 첫 14일 동안 오픈되는 2개의 모듈을 수강하고 해당 과제를 성실히 완료하며, 라이브 세션에 실제로 참여하신 경우에 한해 적용됩니다.</p>
+        <p>환불 요청은 9월 20일 일요일 오후 11시 59분(KST)까지 이메일로 완료한 과제 증빙 자료와 함께 제출해주세요.</p>
+        <p class="fine">*14일 이후 또는 보장 조건에 해당하지 않는 경우에는 기본 환불 정책에 따라 처리됩니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Featured story + short reviews ============ -->
+<section class="sec bg-cream">
+  <div class="wrap">
+    <article class="card feature reveal">
+      <h3>미래의 나를 구해줘서 고마워</h3>
+      <div class="body">
+        <p>오랜 시간 비슷한 패턴을 반복하며 상담도 받아보고, 많은 책을 읽으며 저를 이해하려 애썼거든요. 분명 마이너스에서 0까지는 가까스로 올라온 것 같았지만, 그 이상 앞으로 나아가지는 못했어요. 오히려 “여기서 내가 뭘 얼마나 더 해야 하지?”라는 마음으로 점점 지쳐가고 있었습니다. 내성만방은 그런 저 자신에게 주는 마지막 기회였어요.</p>
+        <p>오랜 시간 비슷한 패턴을 반복하며 심리상담도 받아보고, 많은 책을 읽으며 저를 분석하는 데 시간과 에너지를 많이 썼어요. 분명 마이너스에서 0까지는 가까스로 올라왔지만, 그 이상 앞으로 나아가지는 못했어요. 오히려 ‘여기서 내가 뭘 어떻게, 얼마나 더…?’라는 자조적인 태도로 조금씩 기울고 있을 쯤, 내성만방을 만났습니다.</p>
+        <p>가장 놀랍고 큰 변화는, 몇 년 동안 고민만 하던 퇴사를 결심한 것이에요. 퇴사는 너무나 하고 싶었지만, 제 발로 회사를 나가는 것이 무서워서 “차라리 회사에서 나를 내쫓았으면 좋겠다”라고 생각할 정도였어요.</p>
+        <p>이제는 저를 있는 그대로 바라보며 조금씩 자유로워지고 있어요. 억눌러왔던 진짜 욕구를 발견했고, 나를 감추는 데 쓰던 에너지 대신 저를 솔직하게 표현하는 데 집중하기 시작했습니다. 그러자 타인을 바라보는 마음도 한결 편안해졌어요.</p>
+        <p>몇 개월의 코칭으로 사람이 바뀔 수 있을까?라는 의심은, 제가 변화하고 있음을 느끼는 순간 가볍게 날아갔습니다. 깨우침을 주셔서, 그리고 용기를 주셔서 감사합니다!</p>
+      </div>
+      <p class="t-by">이00 (직장인, 30대)</p>
+    </article>
+    <div class="t-grid">
+      <article class="card t-card reveal">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">자기계발 전전 → 뿌리까지 치유 🌱</p>
+        <p class="t-body">그동안 여러 자기계발, 배움, 코칭을 통해 저의 변화를 위해 힘써왔지만, 그럼에도 채워지지 않는 내면의 갈증이 있었습니다. 무언가가 항상 저를 가로막았어요… 내성만방에서 저의 모든 모습과 뿌리 깊은 아픔까지 마주하며, 비로소 스스로 치유할 수 있었습니다. 나는 잘못된 것이 없는 완전한 존재임을 깊이 깨닫게 되었어요.</p>
+        <p class="t-by">이00 (배우/프로듀서, 30대)</p>
+      </article>
+      <article class="card t-card reveal d1">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">동기부여의 한계 → 본질적인 변화 🔍</p>
+        <p class="t-body">단순히 동기부여와 마인드셋의 문제가 아닌 진짜 본질적인 변화를 불러올 수 있게 하는 법을 배웠어요.</p>
+        <p class="t-by">유00 (프리랜서, 30대)</p>
+      </article>
+      <article class="card t-card reveal d2">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">알던 문제 너머 → 삶의 궤적이 달라짐 📈</p>
+        <p class="t-body">능력있는 코치와 함께 탐구하면, 내가 알던 문제 그 이상이 풀립니다. 나의 삶에 생각치도 못한 부분이 보이게 되고 결과적으로 삶의 궤적이 달라지게 됩니다.</p>
+        <p class="t-by">최00 (코치, 30대)</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="sec bg-stone" id="faq">
+  <div class="wrap">
+    <div class="sec-head"><h2 class="reveal">자주 묻는 <span class="em">질문</span></h2></div>
+    <div class="faq reveal">
+      <details>
+        <summary>심리상담이나 다른 코칭 프로그램과 뭐가 다른가요?<span class="pm" aria-hidden="true"></span></summary>
+        <div class="ans">
+          <p>심리상담은 과거의 경험을 이해하고 언어화하는 데 도움을 줍니다.</p>
+          <p>일반적인 자기계발 코칭은 목표를 설정하고, 전략과 행동을 만들어가는 데 집중합니다.</p>
+          <p>내성만방은 그 사이의 공간을 다룹니다. 왜 알면서도 행동으로 옮기기 어려운지, 반복되는 패턴과 감정적 반응을 알아차리고 새로운 선택으로 연결하는 과정입니다.</p>
+          <p>신경과학 기반의 신경계 안정화 작업, 감정 패턴의 전환, 잠재의식 재프로그래밍을 통해 이해에만 머물지 않고 실제 삶에서 다르게 느끼고 행동할 수 있도록 돕습니다. 또한 구체적이고 체계적인 실천 과정으로 안내합니다.</p>
+          <p>심리상담을 받고 계신 분도 함께 참여하실 수 있습니다.</p>
+        </div>
+      </details>
+      <details>
+        <summary>자기계발을 이미 많이 해봤어요. 이번에도 별 차이가 없으면 어쩌죠?<span class="pm" aria-hidden="true"></span></summary>
+        <div class="ans">
+          <p>그 마음을 깊이 이해해요. 이미 책, 상담, 프로그램에 시간과 돈을 많이 쓴 분이라면 더 그럴 수 있습니다.</p>
+          <p>내성만방이 모든 사람에게 같은 결과를 약속할 수는 없어요. 다만 이 과정은 정보를 더 쌓는 대신, 반복되는 감정 반응과 선택의 패턴을 12주 동안 구조적으로 탐색하고 새로운 패턴을 연습하도록 설계되어 있습니다.</p>
+          <p>수강생들이 가장 자주 말하는 변화도 “갑자기 완벽해졌다”가 아니라, “왜 내가 멈추는지 알게 됐고, 전에는 하지 못했던 선택을 시작하게 됐다”는 것이에요.</p>
+          <p>실제로 한 졸업생은 180권이 넘는 책을 읽고 상담도 받아본 뒤, “이렇게까지 했는데도 바뀌지 않으면 이제 그냥 받아들이고 살자”는 마음으로 신청했다고 해요. 그리고 12주 후, 7년 이상 망설였던 퇴사를 결심했습니다.</p>
+          <p>이미 많은 것을 해봤는데도 반복되는 패턴이 남아 있다면, 더 많은 정보보다 나의 잠재의식과 신경계 반응을 다루는 새로운 접근이 도움이 될 수 있어요.</p>
+        </div>
+      </details>
+      <details>
+        <summary>혼자서도 할 수 있지 않을까요?<span class="pm" aria-hidden="true"></span></summary>
+        <div class="ans">
+          <p>물론 혼자서도 할 수 있어요. 실제로 이 페이지를 읽고 있는 당신도 이미 오랫동안 혼자 많은 것을 해내온 분일 거예요.</p>
+          <p>다만 혼자 작업할 때는 내가 반복하는 패턴을 알고 있어도, 정작 중요한 순간에는 놓치기 쉬워요. 그래서 늘 이해는 깊어지지만, 삶은 같은 자리에서 맴돌게 돼요.</p>
+          <p>내성만방은 더 많은 정보를 제공하는 과정이 아닙니다. 순서 있는 구조, 직접 그 과정을 통과해온 코치의 관점, 라이브 코칭, 그리고 매주 실제 삶에 적용하는 과제를 통해 변화가 일상으로 이어질 수 있는 실행의 모멘텀을 만듭니다.</p>
+          <p>혼자 해내는 데 한계를 느끼거나, 이제는 아는 것을 실제 변화로 연결하고 싶은 분에게 맞는 과정입니다.</p>
+        </div>
+      </details>
+      <details>
+        <summary>라이브 세션에 실시간 참여가 어려워도 괜찮나요?<span class="pm" aria-hidden="true"></span></summary>
+        <div class="ans">
+          <p>괜찮아요. 핵심 커리큘럼은 모두 녹화본으로 제공되기 때문에, 내 페이스에 맞춰 따라갈 수 있어요.</p>
+          <p>라이브 그룹 코칭은 격주로 총 6회 진행되며, 실시간 참여가 어려운 경우에도 녹화본으로 다시 볼 수 있어요. 모든 녹화본과 자료는 1년간 이용할 수 있습니다.</p>
+        </div>
+      </details>
+      <details>
+        <summary>프로그램 일정과 진행 방식은 어떻게 되나요?<span class="pm" aria-hidden="true"></span></summary>
+        <div class="ans">
+          <p>총 12개의 심층 모듈을 내 일정과 페이스에 맞춰 따라갈 수 있어요. 각 모듈은 약 60분 정도로 구성되어 있습니다.</p>
+          <p>격주로 진행되는 라이브 그룹 코칭 세션에서는 모듈을 진행하며 생긴 질문을 나누고, 필요한 부분에 대해 코칭을 받을 수 있어요.</p>
+          <p>라이브 세션 전체 일정은 결제 후 발송되는 온보딩 이메일을 통해 안내해 드립니다.</p>
+          <p>각 모듈에는 실천 과제가 포함되어 있으며, 과제를 위한 시간으로 매주 약 1시간을 확보하시는 것을 권장해요.</p>
+        </div>
+      </details>
+      <details>
+        <summary>내성만방은 의료적 치료를 대체하나요?<span class="pm" aria-hidden="true"></span></summary>
+        <div class="ans">
+          <p>아니에요.</p>
+          <p>내성만방은 의료적 진단이나 치료를 대체하지 않는 교육 과정입니다. 현재 의료적 또는 정신건강 관련 치료가 필요한 경우, 담당 전문가와 먼저 상담해 주세요.</p>
+        </div>
+      </details>
+      <details>
+        <summary>환불 정책은 어떻게 되나요?<span class="pm" aria-hidden="true"></span></summary>
+        <div class="ans">
+          <p>프로그램에 성실히 참여해본 후 결정하실 수 있도록 14일 전액 환불 보장을 제공합니다. 프로그램 시작 후 14일 이내에 내성만방이 나에게 맞지 않는다고 느끼신다면 전액 환불을 요청하실 수 있습니다.</p>
+          <p>이러한 취지에 따라, 이 보장은 첫 14일 동안 오픈되는 2개의 모듈을 수강하고 해당 과제를 성실히 완료하며, 라이브 세션에 실제로 참여하신 경우에 한해 적용됩니다.</p>
+          <p>환불 요청은 9월 20일 일요일 오후 11시 59분(KST)까지 이메일로 완료한 과제 증빙 자료와 함께 제출해주세요.</p>
+          <p>14일 이후 또는 보장 조건에 해당하지 않는 경우에는 기본 환불 정책에 따라 처리됩니다.</p>
+          <p>내성만방 구매 시, 결제 시점에 내성만방의 환불 정책을 확인하고 동의하신 것으로 간주됩니다.</p>
+          <p><a href="https://ashleylim.com/refund-policy/" target="_blank" rel="noopener">기본 환불 정책 보기</a></p>
+        </div>
+      </details>
+    </div>
+    <p class="faq-mail">더 궁금한 점이 있다면 <a href="mailto:hello@ashleylim.com">hello@ashleylim.com</a> 으로 문의해주세요.</p>
+    <article class="card t-card solo reveal">
+      <div class="stars" aria-label="별점 5점">★★★★★</div>
+      <p class="t-title">적용은 막막 → 인생의 마스터 키🔑</p>
+      <p class="t-body">자기계발과 마음공부에 관심이 많아 책과 유튜브를 찾아봤지만, 그때그때 위안이나 깨달음을 얻을 뿐 삶에 어떻게 적용해야 할지는 늘 막막했어요. … 내성만방을 통해 어렴풋이 알던 것들을 체계적으로 이해하고, 지속적인 변화를 만드는 방법을 배웠습니다. 정말 “인생의 마스터 키를 쥔 기분”이에요.</p>
+      <p class="t-by">유00 (프리랜서, 30대)</p>
+    </article>
+    <div class="cta-row reveal" style="justify-content:center;margin-top:48px"><a class="btn" href="#price">내성만방 신청하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></div>
+  </div>
+</section>
+
+<!-- ============ Student stories ============ -->
+<section class="sec bg-cream">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow reveal">수강생 후기</p>
+      <p class="big-quote reveal d1">"그냥 강의가 아니에요, <span class="em">제겐 바이블이에요.</span>"</p>
+      <p class="t-by reveal d2" style="justify-content:center;border:0">권00 (음악 교사, 30대)</p>
+    </div>
+    <div class="stories">
+      <article class="card story reveal">
+        <h3>첫 기수 결혼 → 재수강, 커리어 성장 🔁</h3>
+        <div class="body">
+          <p>내가 원하는 사람이 분명 있을것이라는 마음으로 목록을 작성하였고, 이후 적었던 분과 똑같은 사람이 제 삶에 나타났습니다. … 안정적인 연애 중이며, 남자친구 부모님을 1월에 뵙기로 하였습니다 🙂<br>↓<br>이번 내성만방은 내게 두 번째 내성만방이었다. 지난 첫번째 내성만방을 통해 내가 원하는 삶인 소울메이트를 만나게 되었고, 실제로 결혼식을 앞두고 있다. … '소울메이트&amp;사랑에 대한 챕터를 다시 잘 썼으니, 이제는 커리어에 대한 내 내면을 잘 봐야한다'는 것을 알고 있었다.</p>
+        </div>
+        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
+        <p class="t-by">조혜주 (요가 지도자, 30대)</p>
+      </article>
+      <article class="card story reveal">
+        <h3>아이에게 반복되던 화와 죄책감 → 나와 아이를 함께 돌보게 된 변화</h3>
+        <div class="body">
+          <p>모든게 아이의 문제라고만 생각했다... 내성만방의 단계들을 거쳐서 내 안에 많은 슬픔과 아픔을 알 수 있었고 그것을 인정해주고 토닥거려주니 내면의 변화가 생겼다.</p>
+          <p>몸에서부터의 변화가 시작이었다. 다음으로는 아이를 대하는 내가 달라졌다. 나의 안정감에 아이도 안정감을 찾는게 눈에 보였다. 지금은 아이와 서로 아낌없이 사랑을 표현하며 매일을 보내고 있다.</p>
+          <p>육아문제가 아니더라도 불안, 두려움, 반복되는 트리거(분노, 좌절, 슬픔 등)로 힘들어하고 있다면 꼭 내성만방 수업을 듣기를 추천합니다. 내성만방 수업을 통해 내가 얼마나 소중하고 가치있는 사람인지 알게되고, 내가 원하는 것을 이룰 수 있는 파워를 가지게 되는 경험을 해보셨으면 좋겠습니다.</p>
+        </div>
+        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
+        <p class="t-by">서00 (주부, 40대)</p>
+      </article>
+      <article class="card story reveal">
+        <h3>내가 원하는 성공의 삶을 만드는 방법</h3>
+        <div class="body">
+          <p>내성만방을 시작하기 전에도 변화와 성공을 위해 할 수 있는 시도는 거의 다 해본 느낌이었다. 끌어당김을 위한 100번 쓰기, 시각화, 긍정확언, 미래일기 쓰기 등등. 그런데 하면 할수록 ‘내가 너무 폭력적인데?’라는 생각이 들었다. '드디어 알았다'는 방법들을 시도할 때마다, 감정은 다른 신호를 보내고 있었다.</p>
+          <p>내성만방을 통해 진정한 변화는 환경이나 행동을 바꾸는 데서 시작되는 것이 아니라, 내가 누구인지를 알고 나의 가치와 믿음을 돌아보는 것에서 시작된다는 것을 알게 되었다. 늘 결핍과 ‘없는 것’에 주의를 두던 내가 아닌, 이미 충분하고 온전한 나를 기억하기로 했다.</p>
+          <p>감정을 정화하고, 감추고 살았던 부분을 마주하고, 내면아이를 만나는 과정은 내 삶의 오래된 패턴을 이해하게 해주었다. 무의식 속에 있던 믿음을 발견했고, 그 아이를 연민과 사랑으로 돌보며 축복받은 존재로 다시 환영해줄 수 있었다.</p>
+          <p>이후 친구들과의 만남이나 직장 회의에서도 자연스럽게 뒤로 물러서던 내가, 말하는 속도와 내용까지 조율하며 대화의 중심에 있는 모습을 발견하게 되었다. 마음은 한결 평온해졌고, 관계 안에서는 더 자유롭고 단단한 힘이 생겼다.</p>
+          <p>나는 상담사이다. 내성만방은 자신뿐 아니라 타인에게도 기여할 수 있게 한다. 나를 온전히 찾는 작업, 잠재의식의 중요성, 감정 정화, 변화의 단계는 상담 장면에서도 충분히 힘을 발휘하고 있다.</p>
+        </div>
+        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
+        <p class="t-by">천00 (상담사, 50대)</p>
+      </article>
+      <article class="card story reveal">
+        <h3>심한 스트레스와 방황 속에서 → 나를 이해하고 해결의 방향을 찾았어요</h3>
+        <div class="body">
+          <p>저는 내성만방 시작 전에 정신적인 스트레스가 감당이 안될정도로 심한 상태였고 심리상담이 필요하다고 생각이 들어서 심리상담을 몇번 받아본 뒤 지속하기에는 부족하고 어떻게 해야할까 하는 생각이 들던 중이었습니다.</p>
+          <p>내성만방 12주라는 시간동안 내 감정에 대한 이해를 할 수 있게 되었고, 그 과정에서 수업이 있다는게 안도감을 주어서 그런지 힘든 일과중이나 일들이 생겨도 수업을 하며 많은 위로를 받기도 하고 해결방법을 찾을 수 있었어요. 저에게 가장 큰 변화는 해결방법을 이해했다 앞으로 이걸 찾기위해 더이상 두려워하거나 방황하지 않을 수 있다는 확신이 생긴거예요</p>
+          <p>내성만방을 망설이고 있다면, 꼭 하시라고 하고 싶어요. 애슐리님 같은 선생님이 있을까요 생각해봤을때 글쎄요… 이 수업을 받게된건 저에게 행운이 따라주었기 때문이라고 생각합니다.</p>
+          <p>마지막으로… 애슐리님에게 말씀드렸다시피 기회가 상황이 따라주어야 하겠지만 허락된다면 애슐리님의 수업 지도는 평생 받고 싶어요 얼마나 많은 노력을 하셨을지, 그리도 계속 하실지 조금은 알 것 같아요. 모범이 되어주시고 지도해주심에 감사했습니다!</p>
+        </div>
+        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
+        <p class="t-by">김00 (직장인, 30대)</p>
+      </article>
+      <article class="card story reveal">
+        <h3>확실한 변화를 원한다면 의식적 차원, 무의식적 차원을 함께 다뤄주는 내성만방, 정말 강추에요!</h3>
+        <div class="body">
+          <p>저는 마음공부 초심자는 아니었는데도 내성만방을 통해 완전히 새로운 루틴이 잡힌 것 같아서 너무 만족스럽습니다. 내 일상에 확실한 변화를 원한다면 의식적 차원, 무의식적 차원을 함께 다뤄주는 내성만방 프로그램, 정말 강추에요!</p>
+          <p>장점 1: 짱짱한 커리큘럼<br>장점 2: 살아있는 지식 -&gt; 삶에 바로 적용 가능!<br>장점 3: 일주일동안 성장하도록 등떠밀어주는 구체적인 과제들<br>장점 4: 따뜻하고 통찰력있는 애슐리 코치의 리딩</p>
+        </div>
+        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
+        <p class="t-by">최00 (코치, 30대)</p>
+      </article>
+    </div>
+    <div class="t-grid" style="margin-top:22px">
+      <article class="card t-card reveal">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">방향 없던 마음 → 나를 보는 관점의 방향키🧭</p>
+        <p class="t-body">내가 원하는 것들을 충분히 이룰 수 있다는 확신을 얻었어요. 막연히 알고 있던 개념들을 삶에 적용하며, 이전보다 더 편안히 호흡하는 저를 만나고 있습니다.</p>
+        <p class="t-by">안00 (직장인, 20대)</p>
+      </article>
+      <article class="card t-card reveal d1">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">흐트러진 마음 → 은은한 자신감 💪</p>
+        <p class="t-body">진정 강인한 여성이란 무엇인지를 보고 느낄 수 있는 시간이었고, 그래서 제 안의 강인한 나와도 만날 수 있어 소중했습니다.</p>
+        <p class="t-by">김00 (직장인, 30대)</p>
+      </article>
+      <article class="card t-card reveal d2">
+        <div class="stars" aria-label="별점 5점">★★★★★</div>
+        <p class="t-title">불안하고 위태롭던 나 → 태풍에도 단단하게 🌳</p>
+        <p class="t-body">불안하고 위태하던 내모습이 지금은 단단하고, 비가 오고 태풍이 와도 잘 견뎌낼 수 있는 자신감·확신·충만함이 생겼습니다</p>
+        <p class="t-by">문00 (자영업, 30대)</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Final CTA ============ -->
+<section class="sec bg-white final">
+  <div class="wrap center narrow">
+    <h2 class="reveal">완벽주의, 경쟁, 생존이 아닌<br><span class="em">위대한 삶을 창조하는 여성으로</span></h2>
+    <p class="sub reveal d1">삶, 사랑, 성공, 풍요가 자기 증명의 수단이 아니라,<br>나다움의 자연스러운 표현이 되도록.</p>
+    <div class="reveal d2 muted">
+      <p>정보는 차고 넘치지만, 그것을 삶으로 살아내는 법은 체계적으로 배워야 해요. High Self-Worth Method™가 그 깊은 층위의 변화를 함께합니다.</p>
+      <p>이제부터가 시작이에요 — 라이프 아티스트의 여정으로 들어오세요.</p>
+    </div>
+    <div class="cta-row reveal"><a class="btn" href="#price">내성만방 신청하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============ Footer ============ -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <p><strong>주식회사 애슐리림</strong><br>
+        대표 : ASHLEY GAYOUNG LIM | 주소 : 서울 용산구 이촌로 72, 4층 124호 (이촌동)<br>
+        사업자등록번호 : 708-81-01999 | 통신판매업신고 : 2024-서울용산-0378 <a href="https://www.ftc.go.kr/bizCommPop.do?wrkr_no=7088101999" target="_blank" rel="noopener">사업자정보 확인</a><br>
+        TEL : 010-2071-5727 | 이메일 : <a href="mailto:hello@ashleylim.com">hello@ashleylim.com</a></p>
+      </div>
+      <div class="social">
+        <a href="https://www.instagram.com/heyashleylim" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="20" x="2" y="2" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/></svg></a>
+        <a href="https://www.threads.com/@heyashleylim" target="_blank" rel="noopener" aria-label="Threads"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg></a>
+        <a href="https://www.youtube.com/@heyashleylim" target="_blank" rel="noopener" aria-label="YouTube"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 17a24 24 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.6 49.6 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24 24 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.6 49.6 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg></a>
+      </div>
+    </div>
+    <div class="bottom">
+      <nav class="legal" aria-label="법적 고지">
+        <a href="https://ashleylim.com/terms-and-conditions/" target="_blank" rel="noopener">이용약관</a>
+        <a href="https://ashleylim.com/refund-policy/" target="_blank" rel="noopener">환불정책</a>
+        <a href="https://ashleylim.com/privacy-policy" target="_blank" rel="noopener">개인정보처리방침</a>
+      </nav>
+      <p>Copyright © 2026 ASHLEY LIM. All rights reserved.</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  /* Reveal on scroll */
+  var els=document.querySelectorAll('.reveal,.bars-card');
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{rootMargin:'0px 0px -8% 0px',threshold:.12});
+    els.forEach(function(el){io.observe(el)});
+  }else{els.forEach(function(el){el.classList.add('in')})}
+
+  /* Countdown */
+  var cd=document.getElementById('countdown');
+  var end=new Date(cd.dataset.deadline);
+  var days=['일','월','화','수','목','금','토'];
+  document.getElementById('cd-date').textContent=(end.getMonth()+1)+'월 '+end.getDate()+'일 ('+days[end.getDay()]+') '+end.toLocaleTimeString('ko-KR',{hour:'numeric',minute:'2-digit'});
+  var nums={};cd.querySelectorAll('[data-u]').forEach(function(n){nums[n.dataset.u]=n});
+  function pad(n){return String(n).padStart(2,'0')}
+  function tickCd(){
+    var diff=Math.max(0,end-new Date());
+    var s=Math.floor(diff/1000);
+    nums.d.textContent=pad(Math.floor(s/86400));nums.h.textContent=pad(Math.floor(s%86400/3600));
+    nums.m.textContent=pad(Math.floor(s%3600/60));nums.s.textContent=pad(s%60);
+    if(diff<=0){document.getElementById('cd-text').textContent='이번 기수 모집이 마감되었어요';clearInterval(t)}
+  }
+  var t=setInterval(tickCd,1000);tickCd();
+
+  /* Lite YouTube */
+  document.querySelectorAll('.yt').forEach(function(b){
+    b.addEventListener('click',function(){
+      var f=document.createElement('iframe');
+      f.src='https://www.youtube-nocookie.com/embed/'+b.dataset.yt+'?autoplay=1&rel=0&playsinline=1';
+      f.title=b.getAttribute('aria-label').replace(' 재생','');
+      f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
+      f.allowFullscreen=true;
+      b.replaceWith(f);
+    });
+  });
+
+  /* Long stories: clamp + expand */
+  document.querySelectorAll('.story').forEach(function(s){
+    var body=s.querySelector('.body'),btn=s.querySelector('.more');
+    if(body.scrollHeight>340){
+      s.classList.add('clamp','can-clamp');
+      btn.addEventListener('click',function(){
+        var open=s.classList.toggle('clamp')===false;
+        btn.setAttribute('aria-expanded',open);
+        btn.textContent=open?'접기 −':'전체 읽기 +';
+      });
+    }
+  });
+
+  /* Enrollment mode override for previews: ?enroll=waitlist|checkout|both */
+  var m=new URLSearchParams(location.search).get('enroll');
+  if(m&&/^(waitlist|checkout|both)$/.test(m))document.getElementById('price').dataset.enroll=m;
+
+  /* Waitlist form: inline validation; posts to data-endpoint when set */
+  var form=document.getElementById('waitlist');
+  function setErr(input,id,msg){input.setAttribute('aria-invalid',msg?'true':'false');document.getElementById(id).textContent=msg||''}
+  form.addEventListener('submit',function(e){
+    e.preventDefault();
+    var f=form.elements,n=f.namedItem('name'),em=f.namedItem('email'),c=f.namedItem('consent'),first=null;
+    if(!n.value.trim()){setErr(n,'wl-name-err','이름을 입력해 주세요.');first=first||n}else setErr(n,'wl-name-err','');
+    if(!/^\S+@\S+\.\S+$/.test(em.value.trim())){setErr(em,'wl-email-err','올바른 이메일 주소를 입력해 주세요. 예: name@example.com');first=first||em}else setErr(em,'wl-email-err','');
+    if(!c.checked){setErr(c,'wl-consent-err','안내 수신에 동의해 주셔야 등록할 수 있어요.');first=first||c}else setErr(c,'wl-consent-err','');
+    if(first){first.focus();return}
+    var msg=document.getElementById('wl-msg'),btn=form.querySelector('button[type=submit]');
+    if(!form.dataset.endpoint){msg.textContent='폼이 아직 연결되지 않았어요. (data-endpoint 설정 필요)';msg.classList.add('show');return}
+    btn.disabled=true;btn.textContent='등록 중…';
+    fetch(form.dataset.endpoint,{method:'POST',body:new FormData(form)}).then(function(r){
+      if(!r.ok)throw 0;
+      form.reset();msg.textContent='등록되었어요! 다음 기수 오픈 소식을 가장 먼저 보내드릴게요 💌';
+    }).catch(function(){msg.textContent='등록에 실패했어요. 잠시 후 다시 시도하거나 hello@ashleylim.com 으로 문의해 주세요.'})
+    .finally(function(){msg.classList.add('show');btn.disabled=false;btn.textContent='지금 등록하기'});
+  });
+})();
+</script>
+</body>
+</html>
