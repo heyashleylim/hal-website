@@ -181,15 +181,15 @@ html.js .bars-card:not(.in) .bar-fill{transform:scaleX(0)}
 
 /* ===== Method ===== */
 .method .split{align-items:center}
-.flow-card{padding:30px;background:var(--cream)}
-.window-dots{display:flex;gap:6px;margin-bottom:22px}
-.window-dots span{width:10px;height:10px;border-radius:50%;background:var(--sand)}
-.flow{display:grid;gap:14px}
-.flow-node{display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:14px;background:var(--white);border:1px solid var(--hair)}
-.flow-node .k{width:44px;height:44px;flex:0 0 44px;border-radius:50%;display:grid;place-items:center;background:var(--butter);border:1px solid var(--sand);font-family:var(--mono);font-weight:700;font-size:13px;color:var(--olive)}
-.flow-node b{font-family:var(--serif);font-weight:500;font-size:22px;letter-spacing:-.02em}
-.flow-join{text-align:center;color:var(--vermilion);font-size:18px;line-height:1}
-.flow-foot{margin-top:22px;padding:16px 18px;border-radius:12px;background:var(--butter);color:var(--olive);font-weight:600;font-size:15.5px}
+.flow-card{padding:6px 0}
+.pillars{list-style:none;margin:0;padding:0}
+.pillar{position:relative;display:grid;grid-template-columns:34px 1fr;column-gap:22px;padding-bottom:42px}
+.pillar::before{content:"";position:absolute;left:16px;top:42px;bottom:4px;border-left:2px dotted var(--olive);opacity:.45}
+.pillar .k{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--vermilion-deep);color:var(--cream);font-family:var(--mono);font-weight:700;font-size:13px;box-shadow:0 0 0 4px var(--butter),0 0 0 5px rgba(184,58,31,.35)}
+.pillar-tag{display:block;margin-top:4px;font-family:var(--mono);font-weight:700;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink)}
+.pillar b{display:block;margin-top:4px;font-family:var(--serif);font-weight:500;font-size:26px;line-height:1.3;letter-spacing:-.02em}
+.flow-foot{margin:0 0 0 56px;padding-top:4px;color:var(--muted);font-size:16px}
+.flow-foot strong{color:var(--ink)}
 .method-copy .quote-line{font-family:var(--serif);font-size:24px;line-height:1.45;letter-spacing:-.02em;margin:26px 0;padding-left:20px;border-left:3px solid var(--vermilion)}
 
 /* ===== Testimonial cards ===== */
@@ -561,16 +561,13 @@ html.js .reveal.d2{transition-delay:.16s}
 <!-- ============ Method ============ -->
 <section class="sec bg-butter method">
   <div class="wrap split">
-    <div class="card flow-card reveal">
-      <div class="window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-      <div class="flow">
-        <div class="flow-node"><span class="k">01</span><b>신경계</b></div>
-        <div class="flow-join" aria-hidden="true">◇</div>
-        <div class="flow-node"><span class="k">02</span><b>잠재의식</b></div>
-        <div class="flow-join" aria-hidden="true">◇</div>
-        <div class="flow-node"><span class="k">03</span><b>감정 &amp; 에너지</b></div>
-      </div>
-      <p class="flow-foot">이들이 하나의 흐름으로 이어질 때, 내가 원하는 현실도 비로소 따라오기 시작해요.</p>
+    <div class="flow-card reveal">
+      <ol class="pillars">
+        <li class="pillar"><span class="k">1</span><div><span class="pillar-tag">Nervous System</span><b>신경계</b></div></li>
+        <li class="pillar"><span class="k">2</span><div><span class="pillar-tag">Subconscious</span><b>잠재의식</b></div></li>
+        <li class="pillar"><span class="k">3</span><div><span class="pillar-tag">Emotion &amp; Energy</span><b>감정 &amp; 에너지</b></div></li>
+      </ol>
+      <p class="flow-foot"><strong>하나의 흐름.</strong> 이들이 하나의 흐름으로 이어질 때, 내가 원하는 현실도 비로소 따라오기 시작해요.</p>
     </div>
     <div class="method-copy">
       <p class="eyebrow reveal">새로운 변화 방식</p>
