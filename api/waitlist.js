@@ -23,6 +23,10 @@
  *   AC_FORM_U       the embed's hidden `u` value (a hash, not secret)
  *   AC_FORM_OR      the embed's hidden `or` value (a hash, not secret)
  *
+ * Location: ActiveCampaign geolocates a contact from the IP that submits the
+ * form, which is this function. vercel.json pins functions to Seoul (icn1),
+ * so contacts show Seoul rather than the visitor's own city.
+ *
  * Spam protection: server-side validation, a hidden honeypot field ("website"),
  * a minimum fill time, and a per-IP rate limit (best effort, per instance).
  */
