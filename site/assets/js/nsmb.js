@@ -32,6 +32,12 @@
     limited:'잠시 후 다시 시도해 주세요.',
     fail:'등록에 실패했어요. 잠시 후 다시 시도하거나 hello@ashleylim.com 으로 문의해 주세요.'
   };
+  function sendOptin(o,name,email){
+    var body=new URLSearchParams(o.fields);
+    body.set('firstname',name);body.set('fullname',name);body.set('email',email);
+    /* Cross-site form post: the response can't be read (opaque), only network errors reject */
+    return fetch(o.action,{method:'POST',mode:'no-cors',body:body});
+  }
   form.addEventListener('submit',function(e){
     e.preventDefault();
     var f=form.elements,n=f.namedItem('name'),em=f.namedItem('email'),c=f.namedItem('consent'),first=null;
@@ -40,14 +46,17 @@
     if(!c.checked){setErr(c,'wl-consent-err','안내 수신에 동의해 주셔야 등록할 수 있어요.');first=first||c}else setErr(c,'wl-consent-err','');
     if(first){first.focus();return}
     var msg=document.getElementById('wl-msg'),btn=form.querySelector('button[type=submit]'),label=btn.textContent;
+    var name=n.value.trim(),email=em.value.trim(); /* read once: the form is reset after success */
     btn.disabled=true;btn.textContent='등록 중…';msg.textContent='';
     fetch(form.dataset.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      name:n.value.trim(),email:em.value.trim(),consent:c.checked,website:f.namedItem('website').value,t:startedAt
+      name:name,email:email,consent:c.checked,website:f.namedItem('website').value,t:startedAt
     })}).then(function(r){
       return r.json().catch(function(){return {}}).then(function(d){
         if(r.status===429){msg.textContent=MSG.limited;return}
         if(!r.ok||!d.ok)throw 0;
-        form.reset();msg.textContent=d.confirm?MSG.confirm:MSG.done;
+        /* Double opt-in: submit the ActiveCampaign form from the browser, so AC records the visitor's real location */
+        var optin=d.optin?sendOptin(d.optin,name,email):Promise.resolve();
+        return optin.then(function(){form.reset();msg.textContent=d.confirm?MSG.confirm:MSG.done});
       });
     }).catch(function(){msg.textContent=MSG.fail})
     .finally(function(){btn.disabled=false;btn.textContent=label});

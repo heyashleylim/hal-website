@@ -8,10 +8,13 @@
  *
  * Double opt-in: ActiveCampaign only sends its confirmation email when the
  * subscription goes through one of its own forms. When AC_FORM_ACTION and
- * AC_FORM_ID are set, step 3 is done by submitting that form (configure the
- * form in ActiveCampaign to subscribe to Master Contact List with opt-in
- * confirmation ON). Without them, the contact is subscribed directly via the
- * API and no confirmation email is sent.
+ * AC_FORM_ID are set, this function does NOT subscribe the contact itself;
+ * it returns the form's public fields and the visitor's browser submits the
+ * ActiveCampaign form directly (step 3). That way ActiveCampaign records the
+ * visitor's real location instead of Vercel's data centre. Configure the form
+ * in ActiveCampaign to subscribe to Master Contact List with opt-in
+ * confirmation ON. Without those variables, the contact is subscribed directly
+ * via the API and no confirmation email is sent.
  *
  * Environment variables (Vercel → Project → Settings → Environment Variables):
  *   AC_API_URL      e.g. https://youraccount.api-us1.com   (Settings → Developer)
@@ -71,12 +74,12 @@ async function getListId() {
   return (listIdCache = match.id);
 }
 
-async function subscribeViaForm(email, name) {
-  // Same hidden fields the ActiveCampaign embed sends (u and or are form hashes from the embed code).
-  // The name goes in both firstname and fullname, so it works whichever name field the form uses.
-  const form = new URLSearchParams({ u: process.env.AC_FORM_U || process.env.AC_FORM_ID, f: process.env.AC_FORM_ID, s: '', c: '0', m: '0', act: 'sub', v: '2', or: process.env.AC_FORM_OR || '', firstname: name, fullname: name, email });
-  const res = await fetch(process.env.AC_FORM_ACTION, { method: 'POST', body: form, redirect: 'manual' });
-  if (res.status >= 400) throw new Error('form submit failed: ' + res.status);
+// Public hidden fields of the ActiveCampaign form (the same values its embed code contains).
+function optinForm() {
+  return {
+    action: process.env.AC_FORM_ACTION,
+    fields: { u: process.env.AC_FORM_U || process.env.AC_FORM_ID, f: process.env.AC_FORM_ID, s: '', c: '0', m: '0', act: 'sub', v: '2', or: process.env.AC_FORM_OR || '' },
+  };
 }
 
 module.exports = async function handler(req, res) {
@@ -116,7 +119,8 @@ module.exports = async function handler(req, res) {
 
     const doubleOptIn = Boolean(process.env.AC_FORM_ACTION && process.env.AC_FORM_ID);
     if (doubleOptIn) {
-      await subscribeViaForm(email, name);
+      // The browser submits the opt-in form next (see site/assets/js/nsmb.js).
+      return res.status(200).json({ ok: true, confirm: true, optin: optinForm() });
     } else {
       const listId = await getListId();
       const listed = await ac('/contactLists', { method: 'POST', body: JSON.stringify({ contactList: { list: listId, contact: contactId, status: 1 } }) });
