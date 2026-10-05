@@ -175,6 +175,7 @@
 .faq .ans p + p{margin-top:12px}
 .faq .ans a{color:var(--accent)}
 .faq-note{width:100%;max-width:800px;align-self:center;padding:0 4px;line-height:1.5}
+.faq-card{width:100%;max-width:800px;align-self:center}
 
 /* ---------- Final ---------- */
 .final h6{font-size:18px;line-height:1.5}
