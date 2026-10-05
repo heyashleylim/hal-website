@@ -6,3 +6,10 @@
 
 # Unoptimized source files (originals before WebP conversion, unused downloads)
 _originals/
+site/_debug/
+
+# Page rebuild working files
+tools/rebuild/dumps/
+tools/rebuild/imgcache/
+tools/rebuild/proxycache/
+tools/rebuild/__pycache__/

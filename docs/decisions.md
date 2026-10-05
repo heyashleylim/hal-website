@@ -2,6 +2,17 @@
 
 Newest first. One entry per decision: what, why, date.
 
+## 2026-10-05 — Live pages rebuilt by capture + generation
+- /lifeartist2026, /eft, /chosen, /switch and the three policy pages are generated from the live pages
+  (computed styles captured at 1440/900/390px) instead of hand-built, to match them as closely as possible.
+  Verified section heights match the captures to within ~0–45px at all three widths.
+- Fonts: same families as live (Gmarket Sans, Pretendard; metrics identical), plus Google Fonts where the
+  live page uses them (Poppins, Abhaya Libre, Newsreader on the NSMB preview).
+- Links, checkout buttons and footer links keep pointing at ashleylim.com (the live site).
+- Private copies with hidden elements at /preview/<page> (incl. /preview/nsmb from the live NSMB page),
+  protected by Basic Auth middleware, noindex, and robots.txt. EFT and SWITCH have no hidden elements.
+- Body text uses the live kit's 15px/21px on phones; Hangul breaking follows the live site (no keep-all) on generated pages.
+
 ## 2026-10-05 — Homepage rebuilt from ashleylim.com
 - `/` now mirrors the live ashleylim.com home: profile (avatar, name, tagline, bio) and the two visible program
   cards (내성만방 → /nsmb, EFT 태핑 마스터클래스 → ashleylim.com/eft). Hidden live cards (CHOSEN, 스위치, 얼라인먼트 세션,
