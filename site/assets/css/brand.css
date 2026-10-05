@@ -1,0 +1,139 @@
+/* =========================================================
+   Ashley Lim brand system — implements docs/DESIGN.md.
+   Shared by every page built in Ashley's own style (e.g. /nsmb).
+   Fonts are self-hosted subsets (KS X 1001 Hangul + Latin + symbols).
+   ========================================================= */
+
+@font-face{font-family:"GmarketSans";src:url("/assets/fonts/gmarket-sans-300.woff2") format("woff2");font-weight:300;font-display:swap}
+@font-face{font-family:"GmarketSans";src:url("/assets/fonts/gmarket-sans-500.woff2") format("woff2");font-weight:400 500;font-display:swap}
+@font-face{font-family:"GmarketSans";src:url("/assets/fonts/gmarket-sans-700.woff2") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-500.woff2") format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-600.woff2") format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-700.woff2") format("woff2");font-weight:700;font-display:swap}
+
+:root{
+  /* Fonts */
+  --font-head:"GmarketSans","Pretendard","Noto Sans KR",sans-serif;
+  --font-body:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,sans-serif;
+
+  /* Color: core */
+  --accent:#DB4A2B;
+  --accent-hover:#F16344;
+  --rose:#C37568;
+  --ink:#222222;
+  --ink-2:#555555;
+  --muted:#777777;
+  --strike:#BABABA;
+
+  /* Color: surfaces */
+  --bg:#FFFDF7;
+  --surface:#FFFFFF;
+  --bg-alt:#F4F2EE;
+  --bg-butter:#F8F6D3;
+  --bg-blush:#F9F2F2;
+  --deep:#082D2E;
+
+  /* Color: proof */
+  --star:#E8A030;
+  --proof-bg:#EDF7EE;
+  --proof-fg:#3A7A4A;
+
+  /* Lines */
+  --line:#D7D7D7;
+  --line-soft:#E5E5E5;
+  --line-butter:#E6E3C9;
+
+  /* Radius */
+  --r-sm:10px;
+  --r-md:15px;
+  --r-lg:20px;
+  --r-xl:30px;
+  --r-pill:100px;
+
+  /* Layout */
+  --w-full:1280px;
+  --w-wide:1000px;
+  --w-text:760px;
+  --w-narrow:600px;
+  --gutter:20px;
+
+  /* Shadow (rare) */
+  --shadow:0 4px 6px rgba(0,0,0,.1);
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:80px}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.4 var(--font-body);-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:break-word}
+img{max-width:100%;display:block}
+a{color:inherit}
+p{margin:0}
+h1,h2,h3{font-family:var(--font-head);font-weight:500;line-height:1.4;margin:0;color:var(--ink)}
+h4,h5,h6{font-family:var(--font-body);line-height:1.4;margin:0;color:var(--ink)}
+h1{font-size:50px;line-height:1.5}
+h2{font-size:38px}
+h3{font-size:28px}
+h4{font-size:22px;font-weight:500}
+h5{font-size:19px;font-weight:500}
+h6{font-size:16px;font-weight:400}
+strong{font-weight:700}
+em{font-style:italic}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:6px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip{position:absolute;left:-999px;top:8px;z-index:200;background:var(--ink);color:#fff;padding:10px 18px;border-radius:var(--r-pill);text-decoration:none}
+.skip:focus{left:16px}
+
+/* ---------- Type helpers ---------- */
+.eyebrow{font:400 16px/1.95 var(--font-body);color:var(--rose)}
+.mark{background:var(--bg-butter);padding:2px 6px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.muted{color:var(--muted)}
+
+/* ---------- Buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4em;background:var(--accent);color:#fff;font:700 16px/1.4 var(--font-body);padding:15px 30px;border:0;border-radius:var(--r-xl);text-decoration:none;cursor:pointer;transition:background-color .2s ease;touch-action:manipulation}
+.btn:hover,.btn:focus-visible{background:var(--accent-hover)}
+.btn--header{padding:12px 20px;border-radius:var(--r-pill)}
+.btn--block{width:100%}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+/* ---------- Header ---------- */
+.site-header{position:sticky;top:0;z-index:50;background:var(--bg)}
+.site-header__in{max-width:1210px;height:60px;margin:0 auto;padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.site-header__logo img{width:148px;height:auto}
+
+/* ---------- Cards ---------- */
+.stars{color:var(--star);font-size:16px;line-height:1.4;letter-spacing:0}
+.proof-tag{align-self:flex-start;display:inline-block;background:var(--proof-bg);color:var(--proof-fg);font:700 12px/22.4px var(--font-body);padding:4px 12px;border-radius:var(--r-xl)}
+.t-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:20px;display:flex;flex-direction:column;gap:20px}
+.t-card__body{line-height:1.5}
+.t-card__by{color:var(--muted)}
+
+/* ---------- Footer ---------- */
+.site-footer{background:var(--deep);color:#fff}
+.site-footer__in{max-width:var(--w-wide);margin:0 auto;padding:60px var(--gutter)}
+.site-footer__top{display:flex;justify-content:space-between;align-items:flex-start;gap:30px}
+.site-footer__biz{font-size:13px;line-height:22.4px}
+.site-footer__biz a{color:#fff}
+.site-footer__social{display:flex;gap:16px}
+.site-footer__social a{display:grid;place-items:center;width:44px;height:44px;color:#69727D;transition:color .2s}
+.site-footer__social a:hover{color:#fff}
+.site-footer__social svg{width:25px;height:25px;fill:currentColor}
+.site-footer__bottom{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-top:40px;padding-top:20px;border-top:1px solid rgba(255,255,255,.15);font-size:13px}
+.site-footer__links{display:flex;gap:20px;flex-wrap:wrap}
+.site-footer__links a{color:#fff;text-decoration:none;padding:6px 0}
+.site-footer__links a:hover{text-decoration:underline}
+
+@media (max-width:767px){
+  body{font-size:15px}
+  h1{font-size:32px}
+  h2{font-size:26px}
+  h3{font-size:22px}
+  h4{font-size:20px}
+  h5{font-size:18px}
+  .site-header__logo img{width:120px}
+  .btn--header{font-size:14px;padding:10px 16px}
+  .site-footer__top{flex-direction:column}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}

@@ -2,6 +2,16 @@
 
 Newest first. One entry per decision: what, why, date.
 
+## 2026-10-05 — /nsmb rebuilt from ashleylim.com/nsmb
+- Layout, colors, type and spacing measured from the live page at 1440px; built on DESIGN.md tokens (`brand.css`).
+- Only sections visible on the live page are included. Hidden live sections (screenshot gallery, three review images,
+  Path A/B, pricing cards, 4th star review) are left out.
+- Kept from the earlier homepage by request: sticky About photo, framed curriculum video, phone-framed video
+  testimonials with hover motion, waitlist form, FAQ accordion.
+- "Are you ready?" is set in GmarketSans instead of Newsreader, per DESIGN.md (no English accent serifs).
+- Copy is kept verbatim, including the live page's quirks: "멈춰버려요.머리로는" (no space) and the repeated
+  opening paragraph in the "미래의 나를 구해줘서 고마워" story.
+
 ## 2026-10-05 — Project restructure
 - Published files moved to `site/`; Vercel serves only that folder, so `docs/` and source files stay private.
 - Page CSS split into `tokens.css`, `base.css`, `components.css`; page JS moved to `main.js`.
