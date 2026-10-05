@@ -59,7 +59,7 @@
 .method-box p{margin-bottom:20px}
 
 /* ---------- Testimonial grids ---------- */
-.t-grid{width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:start}
+.t-grid{width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch}
 
 /* ---------- About (sticky photo + scrolling text) ---------- */
 .about{display:grid;grid-template-columns:400px minmax(0,1fr);gap:60px;align-items:start;width:100%}
@@ -163,20 +163,20 @@
 .story p{color:var(--ink-2);line-height:1.5}
 
 /* ---------- FAQ accordion ---------- */
-.faq{width:100%;max-width:800px;align-self:center;padding-top:20px}
+.faq{width:100%;padding-top:20px}
 .faq details{border-bottom:1px solid var(--line)}
-.faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 4px;font-size:18px;font-weight:500;line-height:1.4;transition:color .2s}
+.faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 0;font-size:18px;font-weight:500;line-height:1.4;transition:color .2s}
 .faq summary::-webkit-details-marker{display:none}
 .faq summary:hover{color:var(--accent)}
 .faq .pm{flex:0 0 auto;width:24px;height:24px;position:relative}
 .faq .pm::before,.faq .pm::after{content:'';position:absolute;left:4px;right:4px;top:50%;height:2px;margin-top:-1px;background:var(--rose);transition:transform .3s var(--ease)}
 .faq .pm::after{transform:rotate(90deg)}
 .faq details[open] .pm::after{transform:rotate(0)}
-.faq .ans{padding:0 4px 24px 4px;line-height:1.5}
+.faq .ans{padding:0 0 24px;line-height:1.5}
 .faq .ans p + p{margin-top:12px}
 .faq .ans a{color:var(--accent)}
-.faq-note{width:100%;max-width:800px;align-self:center;padding:0 4px;line-height:1.5}
-.faq-card{width:100%;max-width:800px;align-self:center}
+.faq-note{width:100%;line-height:1.5}
+.faq-card{width:100%}
 
 /* ---------- Final ---------- */
 .final h6{font-size:18px;line-height:1.5}
