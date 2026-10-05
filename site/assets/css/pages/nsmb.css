@@ -135,6 +135,7 @@
 .waitlist__intro .accent{color:var(--accent)}
 .waitlist__intro p:last-child{color:var(--ink-2);line-height:1.6}
 .waitlist-form{padding:0}
+.hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
 .field{margin-bottom:16px}
 .field label{display:block;font-size:15px;font-weight:600;margin-bottom:6px}
 .field .req{color:var(--accent)}

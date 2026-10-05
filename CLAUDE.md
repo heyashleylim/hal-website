@@ -15,6 +15,8 @@ hal-website/
 ├── CLAUDE.md              ← this file
 ├── README.md              ← human quick-start (preview, deploy)
 ├── vercel.json            ← outputDirectory: "site", clean URLs, cache headers
+├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
+├── .env.example           ← names of the env vars the function needs (values live in Vercel only)
 ├── .gitignore
 ├── .claude/
 │   ├── launch.json        ← local preview server ("site", port 8791)
@@ -114,7 +116,7 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 ## Open decisions
 
 - [ ] `/engine` uses the ENGINE palette (red `#bd1b1b`, Instrument Serif). DESIGN.md specifies Ashley's palette (terracotta/coral, Gmarket Sans + Pretendard). Decide which is canonical for the site, then update this file.
-- [ ] Connect the NSMB waitlist form (`data-endpoint`) to the real form handler.
+- [ ] Set the ActiveCampaign env vars in Vercel (see `.env.example`) and, for double opt-in, the AC form id.
 - [ ] Confirm "7일" vs "14일" refund wording on the NSMB page.
 - [ ] Check Gmarket Sans license terms for public web hosting (subset woff2 files are now served).
 - [ ] Decide whether to keep `/engine` or delete it.

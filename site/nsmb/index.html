@@ -339,8 +339,9 @@
         <h3>지금은 내성만방 <span class="accent">다음 기수</span>를 준비하고 있어요.</h3>
         <p>대기리스트에 등록하시면, 다음 기수 오픈 소식과 대기자 우선 안내를 가장 먼저 받아보실 수 있어요 💌</p>
       </div>
-      <!-- Set data-endpoint to the form handler (e.g. the Fluent Forms / ESP endpoint) to make it submit. -->
-      <form class="waitlist-form" id="waitlist-form" data-endpoint="" novalidate>
+      <!-- Posts to /api/waitlist (api/waitlist.js) → ActiveCampaign: tag signup_waitlist_nsmb + Master Contact List. -->
+      <form class="waitlist-form" id="waitlist-form" data-endpoint="/api/waitlist" novalidate>
+        <div class="hp" aria-hidden="true"><label for="wl-website">웹사이트</label><input id="wl-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
         <div class="field">
           <label for="wl-name">이름 <span class="req" aria-hidden="true">*</span></label>
           <input id="wl-name" name="name" type="text" autocomplete="name" placeholder="홍길동" required aria-describedby="wl-name-err">
