@@ -80,7 +80,8 @@ Rules for the structure:
 
 ## Code conventions
 
-- **Tokens only**: components use CSS variables (`var(--coral)`), never raw hex.
+- **Tokens only**: components use CSS variables (`var(--accent)`), never raw hex.
+- **"Accent color" = Vermilion `#DB4A2B`** (`--accent`, hover `--accent-hover` `#F16344`). Whenever the accent color is mentioned, use this — never the dusty rose `--rose` `#C37568` or the ENGINE red `#bd1b1b`.
 - **Korean typography**: `word-break: keep-all`; body line-height ≥ 1.6; no positive letter-spacing on Hangul (Latin-only labels may track out); never fake-italicize Korean (`font-synthesis: none` on `em`).
 - **Fonts**: pages in Ashley's style use the self-hosted subsets in `site/assets/fonts/` via `brand.css` (KS X 1001 Hangul + Latin + symbols; full originals live in `_originals/fonts/`). If new copy uses a rare Hangul syllable outside that set, re-run the subset with the extra characters. `/engine` still loads its ENGINE fonts from Google Fonts / Fontshare / jsDelivr.
 - **Images**: WebP (JPEG fallback only if needed), explicit `width`/`height`, `loading="lazy"` below the fold, `fetchpriority="high"` on the hero only. Max ~300 KB each, ~2000px on the long edge.
