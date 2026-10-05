@@ -5,7 +5,7 @@ Newest first. One entry per decision: what, why, date.
 ## 2026-10-05 — Homepage rebuilt from ashleylim.com
 - `/` now mirrors the live ashleylim.com home: profile (avatar, name, tagline, bio) and the two visible program
   cards (내성만방 → /nsmb, EFT 태핑 마스터클래스 → ashleylim.com/eft). Hidden live cards (CHOSEN, 스위치, 얼라인먼트 세션,
-  퀀텀점프 웨비나) are left out. Blush page background and rose card buttons follow the live page.
+  퀀텀점프 웨비나) are left out. Blush page background follows the live page; card buttons use the accent (vermilion) instead of the live rose, by request.
 - The previous ENGINE-style homepage moved to `/engine` instead of being deleted.
 
 ## 2026-10-05 — /nsmb rebuilt from ashleylim.com/nsmb
