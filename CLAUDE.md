@@ -27,17 +27,21 @@ hal-website/
 │   └── decisions.md       ← short log of design/content decisions and why
 ├── _originals/            ← git-ignored: unoptimized source images and unused downloads
 └── site/                  ← the ONLY folder Vercel serves
-    ├── index.html         ← homepage (currently the NSMB sales page)
+    ├── index.html         ← homepage (ENGINE-style NSMB page, ENGINE palette)
+    ├── nsmb/index.html    ← /nsmb — rebuild of ashleylim.com/nsmb in Ashley's design system
     ├── <page>/index.html  ← each new page gets a folder → clean URL /<page>
     ├── favicon.png, apple-touch-icon.png
     ├── og/                ← social share images (1200×630 JPEG)
     └── assets/
         ├── css/
-        │   ├── tokens.css      ← CSS variables
-        │   ├── base.css        ← reset, typography, layout primitives, reveal
-        │   └── components.css  ← buttons, cards, FAQ, countdown, etc. + responsive
-        ├── js/main.js          ← enrollment state, countdown, reveal, lite-YouTube, forms
-        ├── fonts/              ← Pretendard (woff2), Gmarket Sans (TTF, not yet used)
+        │   ├── brand.css       ← Ashley's design system (DESIGN.md): @font-face, tokens, base, buttons, header, footer
+        │   ├── pages/nsmb.css  ← /nsmb section layouts
+        │   ├── tokens.css      ← ENGINE palette variables (homepage only)
+        │   ├── base.css        ← homepage: reset, typography, layout, reveal
+        │   └── components.css  ← homepage: components + responsive
+        ├── js/main.js          ← homepage: enrollment state, countdown, reveal, lite-YouTube, forms
+        ├── js/nsmb.js          ← /nsmb: progress bars, lite-YouTube, waitlist form
+        ├── fonts/              ← subset woff2: gmarket-sans-300/500/700, pretendard-400/500/600/700
         └── img/
             ├── shared/         ← logo, Ashley portraits
             └── nsmb/           ← page-specific images (message-NN, review-*, yt-*)
@@ -76,7 +80,7 @@ Rules for the structure:
 
 - **Tokens only**: components use CSS variables (`var(--coral)`), never raw hex.
 - **Korean typography**: `word-break: keep-all`; body line-height ≥ 1.6; no positive letter-spacing on Hangul (Latin-only labels may track out); never fake-italicize Korean (`font-synthesis: none` on `em`).
-- **Fonts**: the homepage loads its fonts from Google Fonts, Fontshare (Clash Display) and jsDelivr (Pretendard dynamic subset, lighter than the full ~750 KB local files). Local files in `site/assets/fonts/` are for DESIGN.md pages: use woff2 with `font-display: swap`, convert the Gmarket Sans TTFs to subset woff2 before using them, and preload only the one or two weights used above the fold.
+- **Fonts**: pages in Ashley's style use the self-hosted subsets in `site/assets/fonts/` via `brand.css` (KS X 1001 Hangul + Latin + symbols; full originals live in `_originals/fonts/`). If new copy uses a rare Hangul syllable outside that set, re-run the subset with the extra characters. The homepage still loads its ENGINE fonts from Google Fonts / Fontshare / jsDelivr.
 - **Images**: WebP (JPEG fallback only if needed), explicit `width`/`height`, `loading="lazy"` below the fold, `fetchpriority="high"` on the hero only. Max ~300 KB each, ~2000px on the long edge.
 - **Video**: lite-YouTube pattern (thumbnail + play button, iframe on click, `youtube-nocookie.com`). No autoplaying embeds.
 - **JS**: vanilla, progressive enhancement. The page must read correctly with JS off (reveals default to visible).
@@ -109,4 +113,5 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 - [ ] The current homepage uses the ENGINE palette (red `#bd1b1b`, Instrument Serif). DESIGN.md specifies Ashley's palette (terracotta/coral, Gmarket Sans + Pretendard). Decide which is canonical for the site, then update this file.
 - [ ] Connect the NSMB waitlist form (`data-endpoint`) to the real form handler.
 - [ ] Confirm "7일" vs "14일" refund wording on the NSMB page.
-- [ ] Convert Gmarket Sans TTFs to subset woff2 (and check its license for public hosting).
+- [ ] Check Gmarket Sans license terms for public web hosting (subset woff2 files are now served).
+- [ ] Decide what `/` should be now that NSMB lives at `/nsmb`.
