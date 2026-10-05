@@ -27,25 +27,40 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
+// Browsers differ in how they encode non-ASCII credentials (Chrome/Firefox: UTF-8, Safari: Latin-1),
+// so decode both ways and accept either.
+function decodeBasic(b64) {
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return [new TextDecoder().decode(bytes), bin];
+}
+
+function matches(decoded, user, pass) {
+  const sep = decoded.indexOf(':');
+  if (sep < 0) return false;
+  const u = decoded.slice(0, sep).trim().normalize('NFC').toLowerCase();
+  const p = decoded.slice(sep + 1).normalize('NFC');
+  return safeEqual(u, user.toLowerCase()) && (safeEqual(p, pass) || safeEqual(p.trim(), pass));
+}
+
 export default function middleware(request) {
-  const user = process.env.PREVIEW_USER;
-  const pass = process.env.PREVIEW_PASSWORD;
+  // Trim: values pasted into Vercel often carry a trailing space or newline.
+  const user = (process.env.PREVIEW_USER || '').trim().normalize('NFC');
+  const pass = (process.env.PREVIEW_PASSWORD || '').trim().normalize('NFC');
   if (!user || !pass) {
     return new Response('Preview is not configured.', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', ...ROBOTS } });
   }
 
   const header = request.headers.get('authorization') || '';
-  if (!header.startsWith('Basic ')) return unauthorized('Login required.');
+  if (!/^Basic\s+/i.test(header)) return unauthorized('Login required.');
 
-  let decoded = '';
+  let candidates = [];
   try {
-    decoded = new TextDecoder().decode(Uint8Array.from(atob(header.slice(6)), (c) => c.charCodeAt(0)));
+    candidates = decodeBasic(header.replace(/^Basic\s+/i, '').trim());
   } catch (_) {
     return unauthorized('Login required.');
   }
-  const sep = decoded.indexOf(':');
-  const u = decoded.slice(0, sep), p = decoded.slice(sep + 1);
-  if (sep < 0 || !safeEqual(u, user) || !safeEqual(p, pass)) return unauthorized('Wrong username or password.');
+  if (!candidates.some((d) => matches(d, user, pass))) return unauthorized('Wrong username or password.');
 
   // Authorised: continue to the static file (returning nothing lets the request through).
   return undefined;
