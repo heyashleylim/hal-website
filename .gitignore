@@ -1,2 +1,8 @@
-.claude/
+# OS
 .DS_Store
+
+# Claude Code: personal settings stay local; shared settings, launch.json and skills are committed
+.claude/settings.local.json
+
+# Unoptimized source files (originals before WebP conversion, unused downloads)
+_originals/
