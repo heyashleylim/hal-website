@@ -3,978 +3,111 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>내성만방 코칭 프로그램 - Ashley Lim</title>
-<meta name="description" content="내성만방은 나를 온전히 신뢰하고, 내 안의 목소리를 용기있게 따르며, 나만의 진정한 성공을 만들어가는 12주 변화의 여정입니다.">
-<meta property="og:title" content="내성만방 코칭 프로그램 - Ashley Lim">
-<meta property="og:description" content="내가 아닌 기준에서 벗어나, 담대하게, 온전히 나답게, 내가 원하는 삶을 창조하는 여성으로.">
-<meta property="og:image" content="/og/nsmb.jpg">
+<title>애슐리림 - Ashley Lim</title>
+<meta name="description" content="라이프 아티스트 · 자기사랑 코치. 완벽주의, 만성적 불안, 번아웃의 삶에서 벗어나, 나의 불완전한 모든 면을 사랑하는 삶으로 – 그리고 다른 한국 여성들이 같은 변화를 만들어가도록 돕습니다.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="애슐리림 - Ashley Lim">
+<meta property="og:description" content="라이프 아티스트 · 자기사랑 코치 🇰🇷🇦🇺">
+<meta property="og:image" content="/assets/img/home/ashley-avatar.webp">
 <link rel="icon" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:opsz,wght@14..32,300..800&family=Cousine:ital,wght@0,400;0,700;1,400&family=Noto+Serif+KR:wght@400;500&family=Nanum+Pen+Script&display=swap">
-<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@500,700&display=swap">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-
-<script>document.documentElement.classList.add('js')</script>
-<link rel="stylesheet" href="/assets/css/tokens.css">
-<link rel="stylesheet" href="/assets/css/base.css">
-<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="preload" href="/assets/fonts/gmarket-sans-500.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/pretendard-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/css/brand.css">
+<style>
+/* Home (link-in-bio): mirrors ashleylim.com/ measured at 1440px. Small enough to stay inline. */
+body{background:var(--bg-blush)}
+.home-profile{padding:20px var(--gutter) 0;text-align:center}
+.home-profile__avatar{width:100px;height:100px;margin:0 auto;border-radius:50%}
+.home-profile__text{max-width:840px;margin:0 auto;padding-top:20px}
+.home-profile__text h1{font-size:38px;line-height:1.4;margin-bottom:16px}
+.home-profile__text h2{font-family:var(--font-body);font-size:19px;font-weight:700;margin-bottom:16px}
+.home-profile__text p{font-size:14px;line-height:22.4px;margin-bottom:16.8px}
+.offers{padding:0 10px 40px}
+.offer{max-width:550px;margin:0 auto;padding:10px 0}
+.offer__card{background:var(--surface);border-radius:var(--r-sm);padding:20px;display:flex;flex-direction:column;gap:20px}
+.offer__card h2{font-size:32px;line-height:1.4;text-align:center;padding-bottom:0}
+.offer__row{display:flex;gap:10px;align-items:flex-start}
+.offer__row img{flex:0 0 171px;width:171px;height:171px}
+.offer__text{font-size:14px;line-height:22.4px}
+.offer__text p + p{margin-top:16.8px}
+.offer__lead{color:var(--rose);font-weight:700}
+.offer__btn{display:flex;align-items:center;justify-content:center;background:var(--rose);color:#fff;font-size:14px;font-weight:500;line-height:1.4;padding:15px 20px;border-radius:5px;text-decoration:none;transition:opacity .2s}
+.offer__btn:hover,.offer__btn:focus-visible{opacity:.88}
+@media (max-width:767px){
+  .home-profile__text h1{font-size:28px}
+  .home-profile__text h2{font-size:17px}
+  .offer__card h2{font-size:24px}
+  .offer__row{flex-direction:column;align-items:center}
+  .offer__row img{flex-basis:auto;width:200px;height:200px}
+}
+</style>
 </head>
 <body>
 <a class="skip" href="#main">본문으로 건너뛰기</a>
 
-<!-- Icon sprite -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
-  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
-  <symbol id="i-dot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></symbol>
-  <symbol id="i-anchor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/></symbol>
-  <symbol id="i-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2.1 6.3-6.3 2.1 2.1-6.3z"/></symbol>
-  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/></symbol>
-  <symbol id="i-sprout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20h10M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8zM14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></symbol>
-  <symbol id="i-film" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5M2 12h20"/></symbol>
-  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/></symbol>
-  <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
-  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
-  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M8 13h8"/></symbol>
-  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
-  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4M12 17h.01"/></symbol>
-  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
-  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></symbol>
-</svg>
-
-<!-- =========================================================
-     ENROLLMENT STATE
-     data-state="closed" → registration closed: bar invites to the waitlist,
-                           price cards show the closed notice, waitlist form shown.
-     data-state="open"   → countdown to data-deadline, price cards active.
-     Preview either with ?enroll=open or ?enroll=closed
-     ========================================================= -->
-<div id="page" data-state="closed" data-deadline="2026-09-04T23:59:00+09:00">
-
-<!-- ============ Countdown bar ============ -->
-<div class="cdbar" role="region" aria-label="모집 안내">
-  <span class="cdbar__k"><span class="cd-open">등록 마감까지</span><span class="cd-closed">이번 기수 등록 마감</span></span>
-  <div class="cdbar__row cd-open" role="timer" aria-live="off">
-    <span class="cdbar__u"><b data-u="d">00</b><i>days</i></span><span class="cdbar__c" aria-hidden="true">:</span>
-    <span class="cdbar__u"><b data-u="h">00</b><i>hrs</i></span><span class="cdbar__c" aria-hidden="true">:</span>
-    <span class="cdbar__u"><b data-u="m">00</b><i>min</i></span><span class="cdbar__c" aria-hidden="true">:</span>
-    <span class="cdbar__u"><b data-u="s">00</b><i>sec</i></span>
-  </div>
-  <span class="cdbar__when"><span class="cd-open">등록 마감: 9월 4일(금) 자정</span><span class="cd-closed">지금은 다음 기수를 준비하고 있어요 · <a href="#waitlist">대기리스트 등록하기 →</a></span></span>
-</div>
-
-<!-- ============ Nav ============ -->
-<header class="nav">
-  <div class="nav__in">
-    <a class="nav__logo" href="#top" aria-label="Ashley Lim 홈">
-      <img src="/assets/img/shared/logo.webp" alt="Ashley Lim" width="348" height="80">
-      <span class="nav__note">내성만방 · 12주 변화의 여정</span>
-    </a>
-    <ul class="nav__links">
-      <li><a href="#method">Method</a></li>
-      <li><a href="#curriculum">커리큘럼</a></li>
-      <li><a href="#reviews">후기</a></li>
-      <li><a href="#faq">FAQ</a></li>
-    </ul>
-    <a class="nav__cta" href="#price">내성만방 신청하기 →</a>
-  </div>
-</header>
-
 <main id="main">
-
-<!-- ============ Hero ============ -->
-<section class="hero" id="top">
-  <div class="wrap split">
-    <div class="hero-copy">
-      <span class="eyebrow reveal">내성만방 · 내가 원하는 성공의 삶을 만드는 방법</span>
-      <h1 class="reveal d1"><span class="was">내가 아닌 기준</span>에서 벗어나,<br>담대하게, 온전히 나답게,<br><em>내가 원하는 삶을 창조하는 여성으로</em></h1>
-      <p class="lead reveal d2">아무리 노력해도 중요한 순간마다 압도감과 불안, 자기 의심에 멈춰섰다면, 당신에게 부족한 건 의지가 아니라 <strong>변화의 방식</strong>이에요.</p>
-      <div class="cta-pair reveal d3">
-        <a class="btn" href="#price">내성만방 신청하기 <span class="arrow" aria-hidden="true">→</span></a>
-        <a class="btn-soft" href="#curriculum">커리큘럼 보기 <span class="arrow" aria-hidden="true">↓</span></a>
-      </div>
-      <div class="hero__meta reveal d3"><span><b>12주</b> 변화의 여정</span><span class="x" aria-hidden="true">×</span><span>High Self-Worth Method™</span></div>
+  <section class="home-profile">
+    <img class="home-profile__avatar" src="/assets/img/home/ashley-avatar.webp" alt="애슐리림 프로필 사진" width="100" height="100">
+    <div class="home-profile__text">
+      <h1>애슐리림</h1>
+      <h2>라이프 아티스트 · 자기사랑 코치 🇰🇷🇦🇺</h2>
+      <p>완벽주의, 만성적 불안, 번아웃의 삶에서 벗어나, 나의 불완전한 모든 면을 사랑하는 삶으로 – 그리고 다른 한국 여성들이 같은 변화를 만들어가도록 돕습니다.</p>
+      <p>🧲 함께 할 수 있는 방법 ↓</p>
     </div>
-    <div class="reveal d2">
-      <div class="showcase">
-        <div class="photo-frame">
-          <img src="/assets/img/shared/ashley-hero.webp" alt="몽생미셸 성벽에 기대어 햇살을 받고 있는 애슐리 림" width="1400" height="731" fetchpriority="high">
+  </section>
+
+  <div class="offers">
+    <section class="offer" aria-labelledby="offer-nsmb">
+      <div class="offer__card">
+        <h2 id="offer-nsmb">내성만방 그룹 코칭 프로그램</h2>
+        <div class="offer__row">
+          <img src="/assets/img/home/nsmb.webp" alt="내성만방 그룹 코칭 프로그램" width="400" height="400" loading="lazy">
+          <div class="offer__text">
+            <p class="offer__lead">내가 아닌 기준에서 벗어나, 담대하게, 온전히 나답게, 내가 원하는 삶을 창조하는 여정 —</p>
+            <p>아무리 노력해도 중요한 순간마다 압도감, 불안, 자기 의심에 멈춰섰다면 당신에게 부족한 건 의지가 아니라 “변화의 방식”일 수 있어요.</p>
+            <p>내성만방은 나를 온전히 신뢰하고, 내 안의 목소리를 용기있게 따르며, 나만의 진정한 성공을 만들어가는 12주 변화의 여정입니다.</p>
+          </div>
         </div>
-        <div class="proof" aria-label="내성만방 요약">
-          <span class="proof__k">내성만방</span>
-          <div class="proof__big"><b>12</b><span>주 · 4단계</span></div>
-          <div class="proof__big proof__big--hot"><b>14</b><span>일 전액 환불 보장</span></div>
-          <div class="proof__row"><span class="stars" aria-label="별점 5점">★★★★★</span><span>졸업생 후기</span></div>
+        <a class="offer__btn" href="/nsmb">내성만방 자세히 알아보기 →</a>
+      </div>
+    </section>
+
+    <section class="offer" aria-labelledby="offer-eft">
+      <div class="offer__card">
+        <h2 id="offer-eft">EFT 태핑 마스터클래스</h2>
+        <div class="offer__row">
+          <img src="/assets/img/home/eft.webp" alt="EFT 태핑 마스터클래스" width="400" height="400" loading="lazy">
+          <div class="offer__text">
+            <p>EFT 태핑으로 만성적인 스트레스 반응에서 벗어나 신경계를 안정시키고, 더 큰 사랑과 풍요, 임팩트를 담아낼 수 있는 내면의 힘을 키우세요.</p>
+            <p>마스터클래스에 포함된 내용:<br>✔ 100분 마스터클래스 녹화본<br>✔ 신경계 안정화를 위한 과학적 테크닉<br>✔ 실제 상황별 EFT 태핑 스크립트 실습</p>
+          </div>
         </div>
+        <a class="offer__btn" href="https://ashleylim.com/eft" style="font-size:16px;font-weight:400">마스터클래스 구매하기</a>
       </div>
-    </div>
+    </section>
   </div>
-</section>
-
-<!-- ============ Ticker ============ -->
-<div class="ticker" aria-hidden="true">
-  <div class="ticker__track">
-    <span class="ticker__item">내성만방</span><span class="ticker__item">12주 변화의 여정</span><span class="ticker__item">High Self-Worth Method™</span><span class="ticker__item">신경계</span><span class="ticker__item">잠재의식</span><span class="ticker__item">감정 &amp; 에너지</span><span class="ticker__item">라이프 아티스트™</span>
-    <span class="ticker__item">내성만방</span><span class="ticker__item">12주 변화의 여정</span><span class="ticker__item">High Self-Worth Method™</span><span class="ticker__item">신경계</span><span class="ticker__item">잠재의식</span><span class="ticker__item">감정 &amp; 에너지</span><span class="ticker__item">라이프 아티스트™</span>
-  </div>
-</div>
-
-<!-- ============ Statement ============ -->
-<section class="statement bg-white">
-  <div class="narrow center">
-    <p class="big reveal">내성만방은 나를 온전히 신뢰하고, 내 안의 목소리를 용기있게 따르며, <em>나만의 진정한 성공</em>을 만들어가는 12주 변화의 여정입니다.</p>
-  </div>
-</section>
-
-<!-- ============ Pain: sound familiar ============ -->
-<section class="bg-cream hair-top">
-  <div class="wrap editorial">
-    <div>
-      <h2 class="reveal">모든 걸 정석대로 해왔는데도, 왜 나는 여전히 <em>내가 원하는 삶을 살고 있지 못할까요?</em></h2>
-      <div class="reveal d1">
-        <p>책을 수십 권, 어쩌면 180권 이상 읽었어요.<br>명상도 해봤고, 내면아이 치유, 심리상담도 받아봤어요.<br>사주, 타로… 다 해봤어요.</p>
-        <p>그런데 정작 <strong>내가 진짜 원하는 삶을 선택해야 하는 순간엔…</strong> 또 몸이 멈춰버려요.</p>
-        <p>머리로는 알아요.<br>‘나를 사랑해야 한다’는 것도,<br>‘제한적 믿음을 바꿔야 한다’는 것도,<br>‘잠재의식을 재프로그래밍해야 한다’는 것도.</p>
-      </div>
-      <div class="chips reveal d2" aria-hidden="true">
-        <span class="chip">책 180권</span><span class="chip">명상</span><span class="chip">내면아이 치유</span><span class="chip">심리상담</span><span class="chip">사주</span><span class="chip">타로</span>
-      </div>
-    </div>
-    <div class="familiar reveal d1">
-      <h3>그런데… 삶에서 <em>뭐가 달라졌나요?</em></h3>
-      <p>이 지식이 아직 삶으로 안 내려오고 있어요.</p>
-      <span class="hand" aria-hidden="true">혹시 나도?</span>
-      <ul class="checks">
-        <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>겉으로는 잘나가 보이지만, 속으로는 ‘이게 내가 정말 원하는 삶인가?’라는 의심이 든다.</span></li>
-        <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>성취는 많지만 여전히 불안하다. 더 열심히 해도 채워지지 않는다.</span></li>
-        <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>마음공부를 충분히 했는데도 늘 같은 패턴이 반복된다. ‘혼자서는 한계’라는 걸 느낀다.</span></li>
-        <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>나를 갈아 넣어야만 성공할 수 있다는 방식에 지쳐가고 있다.</span></li>
-        <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>유튜브와 책에서 비슷한 이야기는 많이 들었지만, ‘그래서 뭘 어떻게 해야 하지?’에서 막힌다.</span></li>
-        <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>이제는 더 애쓰는 대신, 나답고 단단하면서도 여유로운 방식으로 삶을 바꾸고 싶다.</span></li>
-      </ul>
-    </div>
-  </div>
-  <div class="pullquote reveal">
-    <blockquote>“이렇게까지 했는데도 바뀌는 게 없으면 이제 그냥 받아들이고 살자.”</blockquote>
-    <p>이런 생각이 슬그머니 올라온다면, 그 생각이 맞는 게 아니에요.<br>단지 지금까지와는 <strong>다른 층위에서의 접근</strong>이 필요한 거예요.</p>
-  </div>
-</section>
-
-<!-- ============ Why: 95 / 5 ============ -->
-<section class="bg-white hair-top">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow eyebrow--red reveal">왜 열심히 해도 안 바뀔까요</span>
-      <h2 class="reveal d1">문제는 노력이 부족한 게 <em>아니에요.</em></h2>
-      <p class="head-lead reveal d2">우리 인생의 95% 이상이 의식이 아닌, 무의식으로부터 만들어져요.</p>
-    </div>
-    <div class="mcards">
-      <div class="mcard reveal">
-        <div class="mcard__top"><span class="mcard__name">무의식과 신경계</span><span class="mcard__pct">95%</span></div>
-        <div class="mcard__bar" aria-hidden="true"><span style="--w:95%"></span></div>
-        <p>감정 패턴 · 제한적 믿음 · 신경계 자동 반응. '머리로는 아는데 몸이 안 움직여' — 그 이유가 여기 있어요</p>
-      </div>
-      <div class="mcard mcard--light reveal d1">
-        <div class="mcard__top"><span class="mcard__name">의식</span><span class="mcard__pct">5%</span></div>
-        <div class="mcard__bar" aria-hidden="true"><span style="--w:5%"></span></div>
-        <p>결심 · 계획 · 다짐 · 지식 — 우리는 이 층에서 정말 열심히 살아왔어요</p>
-      </div>
-    </div>
-    <div class="math-body">
-      <p class="reveal">다시 말해서 — 내가 의식적으로 계획하고, 다짐하는 그 5%만으로는 나머지 95%의 무의식적 프로그램을 이길 수 없어요.</p>
-      <p class="reveal">그래서 매일 아침 긍정확언을 100번씩 써도, 내 몸이 받아들이지 못하는 확언은 현실이 되기 어려워요. '머리로는 아는데 몸이 안 움직여' — 바로 이 이유예요.</p>
-      <p class="callout reveal">무의식과 의식 사이에 배틀이 붙으면, <em>언제나 무의식이 이겨요.</em></p>
-      <p class="reveal">우리가 흔히 알고 있는 변화의 방향은 한 가지예요 — 더 생산적으로 사는 것.<br>아침 루틴을 바꾸고, 더 많은 목표를 세우고, 자격증을 하나 더 따고…</p>
-      <p class="reveal">하지만 이건 <strong>'더 나은 머신’이 되는 법</strong>이지, <strong>'진짜 나'로 사는 법</strong>이 아니에요.<br>과한 애씀은 늘어나는데, 삶은 그대로인 이유예요.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Method ============ -->
-<section class="bg-wheat hair-top method" id="method">
-  <div class="narrow center">
-    <span class="eyebrow eyebrow--red reveal">새로운 변화 방식</span>
-    <h2 class="reveal d1">High Self-Worth <em>Method™</em></h2>
-    <p class="head-lead reveal d2">내성만방은 의식 수준의 인지와 의지만으로는 닿기 어려운, 무의식과 신경계 차원의 변화에서 시작해요.</p>
-    <p class="tag reveal d2">‘자기 증명’이 아니라 ‘자기 가치’에서 출발하는 변화의 여정</p>
-    <div class="trio reveal d3">
-      <span class="trio__pill">신경계</span><span class="trio__sep" aria-hidden="true">◇</span>
-      <span class="trio__pill">잠재의식</span><span class="trio__sep" aria-hidden="true">◇</span>
-      <span class="trio__pill trio__pill--hot">감정 &amp; 에너지</span>
-    </div>
-    <p class="reveal">이들이 하나의 흐름으로 이어질 때, 내가 원하는 현실도 비로소 따라오기 시작해요.</p>
-    <p class="reveal"><strong>그때 변화는 가능이 아니라, ‘필연’이 될 거예요.</strong></p>
-    <div class="cta-row reveal" style="margin-top:44px"><a class="btn" href="#price">내성만방 신청하기 <span class="arrow" aria-hidden="true">→</span></a></div>
-  </div>
-</section>
-
-<!-- ============ Testimonials 1 ============ -->
-<section class="bg-cream hair-top">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow reveal">수강생 후기</span>
-      <h2 class="reveal d1">실제로 어떤 변화가 <em>일어났을까요?</em></h2>
-    </div>
-    <div class="tcards">
-      <article class="tcard tcard--tilt reveal">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">막막했던 결혼·잔고 → 관계와 기회가 달라짐 🕊️</h3>
-        <p class="tcard__body">특히 남편과의 관계는 거의 불가능하게 느껴졌어요. 도망갈수도 없는 현실에 갇힌 느낌… 돈은 거의 바닥이었고 희망이 없었어요. → 특히 남편과의 관계가 결혼생활을 통틀어 가장 좋아졌습니다. 현실은 크게 달라지지 않았지만, 관계의 모든 것이 달라졌습니다. 돈도 충분히 필요한 만큼 자꾸 생기는 기회가 많아졌습니다.</p>
-        <span class="mono-k tcard__by">김00 · 교사, 40대</span>
-      </article>
-      <article class="tcard tcard--tilt reveal d1">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">'인생 붕괴의 위기' → 되찾은 용기 🌅</h3>
-        <p class="tcard__body">내성만방 프로그램에 참여하기 직전, 저는 '인생 붕괴의 위기'에 처해 있었습니다. 일, 인간 관계, 몸과 정신 건강, 그 모든 것이 툭 건드리기만 해도 쓰러질 것만 같았습니다. → 잃어버렸던 용기를 되찾고 원하는 삶으로 나아갈 힘을 얻은 것만으로도, 저에게는 그 무엇보다도 귀중한 보물 같은 경험이었습니다.</p>
-        <span class="mono-k tcard__by">김00 · 프리랜서, 40대</span>
-      </article>
-      <article class="tcard tcard--tilt reveal d2">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">책 180권에도 제자리 → 몇 년 미룬 퇴사 결심 ⛓️‍💥</h3>
-        <p class="tcard__body">'이렇게까지 했는데도 바뀌는 게 없으면 이제 그냥 받아들이고 살자.' 내성만방이 스스로에게 주는 마지막 기회였던 셈이죠. → 가장 놀랍고 예상 밖이었던 변화는, 몇 년 동안 고민만 하던 퇴사를 결심한 것이에요. 이제는 언젠가 넘어지더라도 다시 일어설 수 있고, 스스로를 지탱할 힘이 제 안에 있다는 것을 믿어요.</p>
-        <span class="mono-k tcard__by">이00 · 직장인, 30대</span>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ============ About Ashley ============ -->
-<section class="bg-white hair-top about" id="about">
-  <div class="wrap editorial" style="grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr)">
-    <div class="about__photo reveal">
-      <div class="photo-frame">
-        <img src="/assets/img/shared/ashley-profile.webp" alt="내성만방 코치 애슐리 림의 프로필 사진" width="1000" height="1334" loading="lazy">
-      </div>
-      <span class="sticker" aria-hidden="true">Life Artist™</span>
-    </div>
-    <div>
-      <span class="eyebrow reveal">About Ashley</span>
-      <h2 class="reveal d1">Hello! <em>애슐리에요</em> 🙂</h2>
-      <div class="reveal d2">
-        <p>뉴로사이언스, 무의식, 감정 패턴에 대한 탐구와 경험을 바탕으로, 한국 여성들이 ‘자기 증명’ 대신 <strong>‘높은 자기 가치감’에 기반한 풍요의 삶</strong>을 만들도록 돕고 있어요.</p>
-        <p>왜냐하면 진짜 내가 원하는 삶은 나를 몰아붙여 얻어내는 것이 아니라, 내 가치가 이미 충분하다는 감각 위에서 만들어갈 때 더 지속가능하고 깊은 만족으로 이어진다는 것을 깨달았기 때문이에요.</p>
-        <p>호주에서 친구들이 저를 뭐라고 불렀는지 아세요?</p>
-      </div>
-      <p class="doer reveal"><b>DOER</b> — 어떤 일이든 결국 결과로 만드는 사람.</p>
-      <p class="reveal">그러니 얼마나 열심히 살았겠어요. 갓생의 삶이었죠. 목표를 세우면 해냈고, 큰 성과도 많이 만들었어요. 그런데 해낼수록 더 편안해지는 게 아니라, 여전히 불안했고 오히려 더 지쳐갔어요.</p>
-      <span class="label reveal" style="margin-top:34px">제가 지나온 변화의 과정</span>
-      <ol class="timeline reveal">
-        <li><span class="n">01</span><div><h4>겉으로는 잘해내는 사람, 속으로는 번아웃</h4><p>잠시라도 멈추면 뒤처질 것 같고, 쉬면 내 가치가 하락하는 것 같았어요. 번아웃도 여러 번 겪었죠. 남들이 보기엔 잘해내는 사람이었지만, 행복하지 않았어요.</p></div></li>
-        <li><span class="n">02</span><div><h4>답을 찾아 헤맨 첫 10년</h4><p>2011년에 시작한 자기계발 여정의 첫 10년은 솔직히, 나 자신과 내 삶을 빨리 바꾸고 싶어서 더 좋은 생각, 더 강한 의지, 더 효율적인 습관을 끊임없이 찾아 헤매던 시간이었어요. — 하지만 답은 ‘더 생산적으로 사는 법’이 아니었어요.</p></div></li>
-        <li><span class="n">03</span><div><h4>알면서도 반복되는 무의식 패턴</h4><p>머리로는 이미 많은 것을 알고 있었지만, 내 감정과 신경계는 여전히 불안했고, 무의식 속 오래된 패턴은 저를 다시 과잉 노력과 자기 증명으로 데려갔어요.</p></div></li>
-      </ol>
-      <div class="reveal">
-        <p>그래서 저는 제 안의 성취 지향적 성향과 그 불균형을 오랫동안 관찰하고 실험할 수밖에 없었어요 — 제가 살아야 했으니까요. 왜 어떤 변화는 결심한 지 며칠 만에 원래대로 돌아가고, 어떤 변화는 삶의 방식 자체를 바꿔놓는지.</p>
-        <p>그 과정에서 발견한 건, <strong>지속되는 변화는 나를 더 몰아붙이는 데서 오지 않는다</strong>는 것이었어요.</p>
-        <p>내 신경계가 안전을 반복적으로 경험하고, 감정 패턴과 무의식의 믿음이 달라질 때, 비로소 내가 이미 알고 있는 것을 살아낼 수 있게 된다는 것.</p>
-      </div>
-      <p class="born reveal">그렇게 제 삶과 많은 여성들의 변화 속에서 탄생한 것이 <em>High Self-Worth Method™</em>입니다.</p>
-      <div class="sig reveal">
-        <p>성공이 ‘자기 증명의 수단’이었던 삶에서, ‘나다움의 아름다운 표현’이 되는 삶으로.</p>
-        <p>과한 애씀 대신 단단한 여유에서 오는 힘으로,</p>
-        <p class="artist">삶·사랑·성공·풍요를 작품처럼 창조하는 여성 — 라이프 아티스트™</p>
-      </div>
-      <div class="reveal">
-        <p><strong>내성만방은 그 여정의 시작이에요.</strong></p>
-        <p>누구에게나 가능해요. 하지만 모두가 그 길을 선택하지는 않아요. 원리는 단순해 보이지만, 늘 쉬운 여정도 아니에요.</p>
-        <p>하지만 무엇보다 가치 있는 여정이에요.</p>
-      </div>
-      <h3 class="ready reveal">Are you <em>ready?</em></h3>
-      <div class="reveal"><a class="btn" href="#price">내성만방 신청하기 <span class="arrow" aria-hidden="true">→</span></a></div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Curriculum ============ -->
-<section class="bg-cream hair-top" id="curriculum">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow eyebrow--red reveal">변화를 이끄는 커리큘럼</span>
-      <h2 class="reveal d1">High Self-Worth Method™<br><em>12주, 4단계에 걸친 변화의 여정</em></h2>
-      <div class="reveal d2 measure">
-        <p>내성만방은 오래된 패턴과 스스로 설정한 한계를 넘어, 내가 원하는 삶을 선택하고 살아낼 수 있도록 돕는 12주간의 심층 경험 프로그램입니다.</p>
-        <p>단순히 듣기 좋은 정보를 배우는 것이 아니라, 신경과학·심리학·영성적 지혜를 바탕으로 배움을 실제 삶의 변화로 연결합니다.</p>
-      </div>
-    </div>
-    <div class="frame reveal">
-      <div class="frame__bar" aria-hidden="true"><i></i><i></i><i></i><span>내성만방 · High Self-Worth Method™</span></div>
-      <button class="yt yt--wide" type="button" data-yt="qAx6n3vHT_8" aria-label="내성만방 소개 영상 재생">
-        <img src="/assets/img/nsmb/yt-qAx6n3vHT_8.webp" alt="" width="1280" height="720" loading="lazy">
-        <span class="play" aria-hidden="true"><svg><use href="#i-play"/></svg></span>
-      </button>
-    </div>
-
-    <div class="steps">
-      <article class="step reveal">
-        <div class="step__hd"><span class="step__k">Step 1 · Week 1–2</span><span class="step__ic" aria-hidden="true"><svg><use href="#i-anchor"/></svg></span></div>
-        <h3>Foundation — <em>안정화</em></h3>
-        <p class="q">“나는 왜 알면서도 다시 원래대로 돌아갈까?”</p>
-        <p>의지 부족이 아니라, 내 몸과 마음이 익숙한 패턴으로 돌아가는 이유를 이해합니다.<br>그리고 변화의 과정을 버틸 수 있는 안전한 기반을 만들어요.</p>
-        <p class="so">그래서 — 반복되는 동기부여가 아니라, 지속되는 변화의 토대가 생겨요.</p>
-      </article>
-      <article class="step reveal d1">
-        <div class="step__hd"><span class="step__k">Step 2 · Week 3–4</span><span class="step__ic" aria-hidden="true"><svg><use href="#i-compass"/></svg></span></div>
-        <h3>Personal Power — <em>방향 설정</em></h3>
-        <p>사회나 타인의 기준이 아니라, <strong>내가 진짜 원하는 삶</strong>과 선택의 기준을 다시 세웁니다.<br>결핍과 조급함이 아닌, 무한한 가능성의 에너지에서 나만의 큰 그림을 그리기 시작해요.</p>
-        <p class="so">그래서 — 무엇에 집중해야 할지, 지금 잘 가고 있는지 확신이 생겨요.</p>
-      </article>
-      <article class="step reveal">
-        <div class="step__hd"><span class="step__k">Step 3 · Week 5–9</span><span class="step__ic" aria-hidden="true"><svg><use href="#i-heart"/></svg></span></div>
-        <h3>Emotional Mastery — <em>패턴 통합</em></h3>
-        <p>나를 멈추게 해온 믿음과 감정, 오래된 패턴을 더 이상 분석하는 데서 멈추지 않습니다.<br>회피해온 감정을 안전하게 만나고 통합할 때, 머리로만 알던 변화가 몸에서 시작돼요.</p>
-        <p class="so">그래서 — 몇 년 미뤄온 그 결정 앞에서, 드디어 몸이 움직이기 시작해요.</p>
-      </article>
-      <article class="step reveal d1">
-        <div class="step__hd"><span class="step__k">Step 4 · Week 10–12</span><span class="step__ic" aria-hidden="true"><svg><use href="#i-sprout"/></svg></span></div>
-        <h3>Embodiment — <em>체화</em></h3>
-        <p>인사이트가 ‘좋은 생각’만으로 남지 않고, 새로운 선택과 결정으로 이어집니다.<br>12주 여정을 넘어, 변화를 내 삶에 정착시키는 힘을 갖춰요.</p>
-        <p class="so">그래서 — 프로그램이 끝난 뒤에도, 스스로 변화를 지속할 수 있어요.</p>
-      </article>
-    </div>
-    <p class="closing reveal">안전감 없이 깊은 감정을 다루면 버거워지고, 방향 없이 치유만 하면 삶은 달라지지 않아요. 내성만방은 이해에서 끝나지 않고, <em>느끼고, 통합하고, 선택하는 삶</em>으로 이어지도록 설계되었습니다.</p>
-    <div class="cta-row reveal"><a class="btn" href="#price">내성만방 신청하기 <span class="arrow" aria-hidden="true">→</span></a></div>
-  </div>
-</section>
-
-<!-- ============ Video testimonials ============ -->
-<section class="bg-white hair-top" id="reviews">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow reveal">영상 후기</span>
-      <h2 class="reveal d1">그 후, <em>모든 것이 달라졌어요</em></h2>
-      <p class="head-lead reveal d2">내성만방 졸업생들의 진솔한 이야기를 들어보세요.</p>
-    </div>
-    <div class="phones">
-      <article class="vcard reveal">
-        <div class="phone">
-          <button class="yt yt--tall" type="button" data-yt="XIKew0EspSE" aria-label="김소희 님 후기 영상 재생">
-            <img src="/assets/img/nsmb/yt-XIKew0EspSE.webp" alt="" width="540" height="960" loading="lazy">
-            <span class="play" aria-hidden="true"><svg><use href="#i-play"/></svg></span>
-          </button>
-        </div>
-        <h3>“아무리 긍정적으로 살려고 해도 왜 안 바뀌는지 알았어요”</h3>
-        <span class="label">김소희 · 직장인</span>
-        <p>늘 남과 비교하며 불안했고, 사랑받지 못할까 봐 관계 속에서 지쳤어요. 지금은 관계에 집착하지 않아도, 언제든 나와 맞는 사람들을 만날 수 있다는 안정감이 있어요. 무엇보다 ‘나는 내 삶을 창조하는 사람’이라는 걸 진짜 믿게 됐어요.</p>
-        <a class="btn-soft" href="https://youtu.be/dux3Jcjor-I" target="_blank" rel="noopener">인터뷰 전체 보기 <span class="arrow" aria-hidden="true">↗</span></a>
-      </article>
-      <article class="vcard reveal d1">
-        <div class="phone">
-          <button class="yt yt--tall" type="button" data-yt="akQttKM-gtg" aria-label="조혜주 님 후기 영상 재생">
-            <img src="/assets/img/nsmb/yt-akQttKM-gtg.webp" alt="" width="540" height="960" loading="lazy">
-            <span class="play" aria-hidden="true"><svg><use href="#i-play"/></svg></span>
-          </button>
-        </div>
-        <h3>“사주도 타로도 다 해봤어요. 달라지는 건 아무것도 없었어요.”</h3>
-        <span class="label">조혜주 · 요가 지도자</span>
-        <p>5년 사귄 남자친구와 헤어진 뒤, 사주와 타로에 기대며 답을 찾던 때가 있었어요. 내 안의 패턴을 마주하고 바꾸며, 이제는 내 삶의 답을 내가 선택해요. 그 과정에서 소울메이트와 결혼했고, 상담사 일을 내려놓은 뒤 요가 지도자의 길을 걷고 있어요.</p>
-        <a class="btn-soft" href="https://youtu.be/4mst74m6fQQ" target="_blank" rel="noopener">인터뷰 전체 보기 <span class="arrow" aria-hidden="true">↗</span></a>
-      </article>
-      <article class="vcard reveal d2">
-        <div class="phone">
-          <button class="yt yt--tall" type="button" data-yt="eBSHbFeEMBE" aria-label="김이경 님 후기 영상 재생">
-            <img src="/assets/img/nsmb/yt-eBSHbFeEMBE.webp" alt="" width="540" height="960" loading="lazy">
-            <span class="play" aria-hidden="true"><svg><use href="#i-play"/></svg></span>
-          </button>
-        </div>
-        <h3>“아무것도 변하지 않고, 모든 것이 다 변했어요”</h3>
-        <span class="label">김이경 · 초등학교 교사</span>
-        <p>책임감으로 겨우 사는 인생이라고 느꼈어요. 깊은 슬픔과 외로움에 쌓여 있었죠. 지금은 아픔과 힘듦이 더 이상 없어요. 결혼 13년 차에 남편과 가장 깊고 좋은 관계를 살고 있고, 아이들도 훨씬 더 밝고 편안해졌어요.</p>
-        <a class="btn-soft" href="https://youtu.be/BGz9c_2MJ38" target="_blank" rel="noopener">인터뷰 전체 보기 <span class="arrow" aria-hidden="true">↗</span></a>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Testimonials 2 ============ -->
-<section class="bg-wheat hair-top">
-  <div class="wrap">
-    <div class="tcards" style="margin-top:0">
-      <article class="tcard tcard--tilt reveal">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">잔고 $1,000에서 → 간호학 석사 과정으로 🎓</h3>
-        <p class="tcard__body">처음엔 학비를 어떻게 낼지 너무너무 걱정됐어요. 그런데… 일이 아주 쉽게 구해졌고, 학교 측에서 석사 과정으로 입학시켜주겠다고 연락이 왔어요. 학비도 약 5천만 원 아낄 수 있게 되었고요. 내성만방 수업료 이상 충분히 뽑아낼 것 같아요 ㅋㅋㅋ 감사해요 🩷🩷</p>
-        <span class="mono-k tcard__by">김00 · 호주 유학생, 30대</span>
-      </article>
-      <article class="tcard tcard--tilt reveal d1">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">수업 후 세운 비전 → 현실화 🎬</h3>
-        <p class="tcard__body">장편독립영화캐스팅, 연극주인공캐스팅, 단편영화 촬영완료 — 이렇게 변화가 찾아왔어요. 정말 신기하게 제가 애슐리님과 수업(내성만방)이 끝나고 설정해 뒀던 비전들이에요...</p>
-        <span class="mono-k tcard__by">이00 · 배우, 30대</span>
-      </article>
-      <article class="tcard tcard--tilt reveal d2">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">설명할 수 없던 몸의 긴장 → 어느 날 멈춤 🌿</h3>
-        <p class="tcard__body">원인을 알 수 없는 몸의 이상 반응이 어느 날부터 멈췄어요! 약도 안 먹고 있는데… 너무 신기해요!</p>
-        <span class="mono-k tcard__by">이00 · 직장인, 30대</span>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Fit ============ -->
-<section class="bg-white hair-top">
-  <div class="wrap">
-    <div class="section-head center">
-      <h2 class="reveal">내성만방은 <em>모든 분을 위한</em> 프로그램이 아니에요.</h2>
-    </div>
-    <div class="fcards">
-      <div class="fcard reveal">
-        <span class="fcard__ic" aria-hidden="true"><svg><use href="#i-check"/></svg></span>
-        <h3>이런 분께 <em>추천해요</em></h3>
-        <ul class="checks">
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>이미 자기계발을 상당히 해봤지만, 결정적으로 “머리로는 아는데 삶이 안 바뀐다”는 느낌이 있다</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>오래 고민해온 문제 앞에서, 나에게 맞는 답과 방향을 분명히 알고 싶다</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>사회적 기대보다 내면의 목소리를 따르는 삶을 진심으로 원한다</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>어려운 순간이 와도 “trust the process” — 이 여정을 믿고 탐험해볼 준비가 됐다</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>불편한 감정과 결정을 마주하는 일이 두렵더라도, 해볼 준비가 됐다</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>내성만방을 내 미래를 위한 의미 있는 투자라고 여긴다</span></li>
-        </ul>
-      </div>
-      <div class="fcard fcard--no reveal d1">
-        <span class="fcard__ic" aria-hidden="true"><svg><use href="#i-x"/></svg></span>
-        <h3>이런 분이라면 아직은 아니에요</h3>
-        <ul class="checks checks--x">
-          <li><svg aria-hidden="true"><use href="#i-x"/></svg><span>“그거 이미 아는 거야”라는 생각이 새로운 가능성에 열려있는 마음보다 앞서는 분</span></li>
-          <li><svg aria-hidden="true"><use href="#i-x"/></svg><span>‘쉽고 빠르게 부자가 되는 법’을 찾고 있는 분</span></li>
-          <li><svg aria-hidden="true"><use href="#i-x"/></svg><span>내 안에서 답을 찾아가기보다, 누군가가 빨리 답을 주길 원하는 분</span></li>
-          <li><svg aria-hidden="true"><use href="#i-x"/></svg><span>내 삶에 스스로 책임질 준비가 아직 되지 않은 분</span></li>
-        </ul>
-      </div>
-    </div>
-    <div class="cta-row reveal"><a class="btn" href="#price">내성만방 신청하기 <span class="arrow" aria-hidden="true">→</span></a></div>
-  </div>
-</section>
-
-<!-- ============ Program components ============ -->
-<section class="bg-cream hair-top" id="program">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow reveal">프로그램 구성</span>
-      <h2 class="reveal d1">내성만방, <em>이렇게 함께합니다</em></h2>
-      <p class="head-lead reveal d2">각 구성은 High Self-Worth Method™의 하나의 흐름 안에서, 통찰을 삶의 변화로 연결하도록 설계되어 있습니다.</p>
-    </div>
-    <div class="xgrid">
-      <article class="xcard reveal">
-        <span class="xcard__ic" aria-hidden="true"><svg><use href="#i-film"/></svg></span>
-        <h3>12개 심층 모듈</h3>
-        <p>High Self-Worth Method™의 4단계를 따라 오래된 패턴을 이해하고 내려놓으며, 새로운 선택과 행동의 기반을 만들어갑니다. 모듈은 매주 하나씩 순차적으로 열리며, 녹화본으로 내 속도에 맞춰 반복하고 적용할 수 있어요.</p>
-      </article>
-      <article class="xcard reveal d1">
-        <span class="xcard__ic" aria-hidden="true"><svg><use href="#i-mic"/></svg></span>
-        <h3>격주 라이브 그룹 코칭</h3>
-        <p>격주 토요일 오전 10시, 배운 내용을 삶에 적용하는 라이브 코칭이 진행됩니다. 질문·감정·패턴·선택의 순간을 가져오면 지금 내 상황에 맞게 함께 풀어드립니다. 오프닝 라이브 포함, 총 7번 라이브로 만나요.</p>
-      </article>
-      <article class="xcard reveal d2">
-        <span class="xcard__ic" aria-hidden="true"><svg><use href="#i-pen"/></svg></span>
-        <h3>주간 통합 과제</h3>
-        <p>배운 내용을 일상의 선택과 행동으로 연결해, 변화가 실제 삶에 자리 잡도록 돕습니다.</p>
-      </article>
-      <article class="xcard reveal">
-        <span class="xcard__ic" aria-hidden="true"><svg><use href="#i-users"/></svg></span>
-        <h3>비공개 페이스북 커뮤니티</h3>
-        <p>안전한 공간에서, 12주 동안 막히는 지점부터 소중한 깨달음, 함께 축하하고 싶은 변화까지 나누며 함께 나아갑니다. 더 이상 혼자 버틸 필요 없어요! 🙂</p>
-      </article>
-      <article class="xcard reveal d1">
-        <span class="xcard__ic" aria-hidden="true"><svg><use href="#i-folder"/></svg></span>
-        <h3>전 세션 녹화본 + 자료 1년 이용</h3>
-        <p>12주가 끝난 후에도 필요한 순간마다 돌아와, 내 페이스에 맞춰 복습하고 깊이 있게 체화할 수 있어요.</p>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Investment ============ -->
-<section class="bg-white hair-top invest">
-  <div class="wrap editorial" style="align-items:center">
-    <div>
-      <span class="eyebrow reveal">투자에 대해</span>
-      <h2 class="reveal d1">이건 '강의료'가 아니에요. <em>평생 가는 자산이에요.</em></h2>
-      <div class="reveal d2">
-        <p class="head-lead">내성만방이 12주 만에 당신의 모든 것을 바꿔준다고 말하지 않을게요.</p>
-        <p>하지만 이 여정을 통해 오래된 패턴을 단계적으로 내려놓으며, 감정에 휩쓸리던 순간에 다르게 반응하고, 나를 믿는 선택을 작게라도 해내간다면 — 그 경험은 내 삶 속에 자리 잡게 돼요.</p>
-        <p>그 선택이 삶 속에서 반복될수록, 그것은 단순한 인사이트가 아니라 나를 이끄는 새로운 기준이자 <strong>자기 가치감과 정체성</strong>이 됩니다.</p>
-        <p>지난 몇 년 동안 같은 고민을 반복하며 강의, 상담, 그리고 감정에 쓴 시간과 비용을 떠올려보세요.</p>
-        <p>만약 앞으로도 같은 패턴 속에서 나를 의심하고, 미루고, 작은 선택 앞에서 흔들린다면 — 그 대가는 얼마일까요?</p>
-      </div>
-      <p class="bigline reveal">내성만방은 <em>그 굴레를 끊는 투자예요.</em></p>
-    </div>
-    <div class="msgs">
-      <div class="msg reveal">
-        <p>올해에 있어서, 제 인생에 있어서 제일 큰 ROI가 이 코칭을 들은 것이 될것임을 확신해요!</p>
-        <span class="mono-k">유00 · 프리랜서, 30대</span>
-      </div>
-      <div class="msg reveal d1">
-        <p>시작 전엔 비싼듯 느껴졌지만, 끝나고 나니 “와 이래서 이 정도 비용이 드는구나” 싶음! 아깝지 않음</p>
-        <span class="mono-k">이00 · 30대</span>
-      </div>
-      <div class="msg reveal d2">
-        <p>처음에 내성만방을 신청할 때, 의심이 되게 많았어요... '고민한 시간이 아깝다'라는 생각이 들 정도로 얻은 게 정말 컸어요.</p>
-        <span class="mono-k">김00 · 30대</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Enrollment ============ -->
-<section class="bg-cream hair-top" id="price">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow eyebrow--red reveal">등록 안내</span>
-      <h2 class="reveal d1">나에게 맞는 방식으로 <em>시작하세요</em></h2>
-      <p class="head-lead reveal d2">일시불 또는 3개월 분할 결제 중 선택할 수 있어요.</p>
-    </div>
-    <div class="pcards">
-      <article class="pcard reveal">
-        <p class="pcard__k">월 분할 결제</p>
-        <p class="pcard__sub">3회 분할 납부</p>
-        <p class="pcard__price">월 93만원</p>
-        <ul class="pcard__list">
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg>등록 마감: 9월 4일(금) 자정</li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg>14일 전액 환불 보장</li>
-        </ul>
-        <p class="pcard__closed">이번 기수 등록은 마감되었습니다. 하지만 진심으로 이번에 함께할 준비가 되셨다면, <a href="mailto:hello@ashleylim.com">hello@ashleylim.com</a>으로 이메일 주세요. 가능한 방법이 있는지 확인해보겠습니다.</p>
-        <a class="btn btn--block" href="https://ashleylim.com/?product=2882&amp;currency=KRW&amp;plan=instalment">내성만방 신청하기 <span class="arrow" aria-hidden="true">→</span></a>
-        <p class="pcard__secure"><svg aria-hidden="true"><use href="#i-lock"/></svg>결제 정보는 안전하게 암호화 처리됩니다</p>
-        <div class="pcard__intl"><span>해외 거주자</span><a href="https://ashleylim.com/?product=4536&amp;currency=USD">PayPal로 결제하기 (USD) →</a></div>
-      </article>
-      <article class="pcard pcard--best reveal d1">
-        <span class="pcard__badge">Best Value</span>
-        <p class="pcard__k">일시불 결제</p>
-        <p class="pcard__sub">1회</p>
-        <p class="pcard__price">269만원</p>
-        <ul class="pcard__list">
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg>등록 마감: 9월 4일(금) 자정</li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg>14일 전액 환불 보장</li>
-        </ul>
-        <p class="pcard__closed">이번 기수 등록은 마감되었습니다. 하지만 진심으로 이번에 함께할 준비가 되셨다면, <a href="mailto:hello@ashleylim.com">hello@ashleylim.com</a>으로 이메일 주세요. 가능한 방법이 있는지 확인해보겠습니다.</p>
-        <a class="btn btn--block" href="https://ashleylim.com/?product=2882&amp;currency=KRW">내성만방 신청하기 <span class="arrow" aria-hidden="true">→</span></a>
-        <p class="pcard__secure"><svg aria-hidden="true"><use href="#i-lock"/></svg>결제 정보는 안전하게 암호화 처리됩니다</p>
-        <div class="pcard__intl"><span>해외 거주자</span><a href="https://ashleylim.com/?product=4536&amp;currency=USD">PayPal로 결제하기 (USD) →</a></div>
-      </article>
-    </div>
-    <div class="enroll-notes">
-      <div class="note-card reveal">
-        <h4><svg aria-hidden="true"><use href="#i-mail"/></svg>결제 완료 후</h4>
-        <p>결제 확인 및 프로그램 안내 이메일을 꼭 확인해 주세요.</p>
-      </div>
-      <div class="note-card reveal d1">
-        <h4><svg aria-hidden="true"><use href="#i-alert"/></svg>환불 정책 안내</h4>
-        <ul>
-          <li>프로그램 계약서 완료 전, 서비스 이용 내역이 없는 경우 전액 환불이 가능합니다.</li>
-          <li>프로그램 개시 후 3주차 모듈이 개시되기 전까지는 부분 환불이 가능하며, 이후에는 환불이 불가합니다.</li>
-          <li>자세한 환불 정책은 <a href="#faq">FAQ</a>를 확인해 주세요.</li>
-          <li>프로그램 결제 시, 본 환불 정책을 확인하고 동의한 것으로 간주됩니다.</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- Waitlist: set data-endpoint on the form to a form handler (e.g. Fluent Forms / ESP) -->
-    <div class="waitlist reveal" id="waitlist">
-      <div>
-        <span class="eyebrow eyebrow--red">NSMB Waitlist</span>
-        <h3>지금은 내성만방 <em>다음 기수</em>를 준비하고 있어요.</h3>
-        <p>대기리스트에 등록하시면, 다음 기수 오픈 소식과 대기자 우선 안내를 가장 먼저 받아보실 수 있어요 💌</p>
-      </div>
-      <form id="waitlist-form" data-endpoint="" novalidate>
-        <div class="field">
-          <label for="wl-name">이름 <span class="req" aria-hidden="true">*</span></label>
-          <input id="wl-name" name="name" type="text" autocomplete="name" required aria-describedby="wl-name-err">
-          <p class="err" id="wl-name-err" aria-live="polite"></p>
-        </div>
-        <div class="field">
-          <label for="wl-email">이메일 <span class="req" aria-hidden="true">*</span></label>
-          <input id="wl-email" name="email" type="email" autocomplete="email" inputmode="email" required aria-describedby="wl-email-err">
-          <p class="err" id="wl-email-err" aria-live="polite"></p>
-        </div>
-        <label class="consent"><input type="checkbox" name="consent" id="wl-consent" required aria-describedby="wl-consent-err"><span>[필수] 신청하신 서비스 제공과 소식·혜택 이메일 수신에 동의합니다. 언제든지 수신거부 가능하며, 자세한 내용은 <a href="https://ashleylim.com/privacy-policy/" target="_blank" rel="noopener">개인정보처리방침</a>을 확인해 주세요.</span></label>
-        <p class="err" id="wl-consent-err" aria-live="polite"></p>
-        <button class="btn btn--block" type="submit">지금 등록하기 <span class="arrow" aria-hidden="true">→</span></button>
-        <p class="form-msg" id="wl-msg" role="status"></p>
-      </form>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Guarantee ============ -->
-<section class="bg-wheat hair-top guarantee">
-  <div class="narrow">
-    <div class="seal reveal" aria-hidden="true">
-      <svg viewBox="0 0 120 120"><defs><path id="circ" d="M60 60m-48 0a48 48 0 1 1 96 0a48 48 0 1 1-96 0"/></defs><circle cx="60" cy="60" r="58" fill="#fff" stroke="#000" stroke-width="1"/><text font-family="Cousine,monospace" font-size="9.5" letter-spacing="3.2" fill="currentColor"><textPath href="#circ">14-DAY FULL REFUND · 전액 환불 보장 · </textPath></text></svg>
-      <b>14<small>DAYS</small></b>
-    </div>
-    <span class="eyebrow eyebrow--red reveal">부담 없이 시작하세요</span>
-    <h2 class="reveal d1">14일 전액 <em>환불 보장</em></h2>
-    <div class="measure reveal d2">
-      <p class="head-lead">내성만방의 참여가 당신에게 현명한 선택이자 큰 배움의 기회이길 바랍니다.</p>
-      <p>프로그램에 성실히 참여해본 후 결정하실 수 있도록 14일 전액 환불 보장을 제공합니다. 프로그램 시작 후 14일 이내에 내성만방이 나에게 맞지 않는다고 느끼신다면, 전액 환불을 요청하실 수 있습니다.</p>
-      <p>이러한 취지에 따라, 이 보장은 첫 14일 동안 오픈되는 2개의 모듈을 수강하고 해당 과제를 성실히 완료하며, 라이브 세션에 실제로 참여하신 경우에 한해 적용됩니다.</p>
-      <p>환불 요청은 9월 20일 일요일 오후 11시 59분(KST)까지 이메일로 완료한 과제 증빙 자료와 함께 제출해주세요.</p>
-      <p class="fine">*14일 이후 또는 보장 조건에 해당하지 않는 경우에는 기본 환불 정책에 따라 처리됩니다.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Story + short testimonials ============ -->
-<section class="bg-white hair-top">
-  <div class="wrap">
-    <div class="stories" style="margin-top:0">
-      <article class="story reveal">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3>✦ 미래의 나를 구해줘서 <em>고마워</em></h3>
-        <div class="body">
-          <p>오랜 시간 비슷한 패턴을 반복하며 심리상담도 받아보고, 많은 책을 읽으며 저를 분석하는 데 시간과 에너지를 많이 썼어요. 분명 마이너스에서 0까지는 가까스로 올라왔지만, 그 이상 앞으로 나아가지는 못했어요. 오히려 ‘여기서 내가 뭘 어떻게, 얼마나 더…?’라는 자조적인 태도로 조금씩 기울고 있을 쯤, 내성만방을 만났습니다.</p>
-          <p>가장 놀랍고 큰 변화는, 몇 년 동안 고민만 하던 퇴사를 결심한 것이에요. 퇴사는 너무나 하고 싶었지만, 제 발로 회사를 나가는 것이 무서워서 “차라리 회사에서 나를 내쫓았으면 좋겠다”라고 생각할 정도였어요.</p>
-          <p>이제는 저를 있는 그대로 바라보며 조금씩 자유로워지고 있어요. 억눌러왔던 진짜 욕구를 발견했고, 나를 감추는 데 쓰던 에너지 대신 저를 솔직하게 표현하는 데 집중하기 시작했습니다. 그러자 타인을 바라보는 마음도 한결 편안해졌어요.</p>
-          <p>몇 개월의 코칭으로 사람이 바뀔 수 있을까?라는 의심은, 제가 변화하고 있음을 느끼는 순간 가볍게 날아갔습니다. 깨우침을 주셔서, 그리고 용기를 주셔서 감사합니다!</p>
-        </div>
-        <span class="mono-k story__by">이00 · 직장인, 30대</span>
-        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
-      </article>
-    </div>
-    <div class="tcards">
-      <article class="tcard reveal">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">자기계발 전전 → 뿌리까지 치유 🌱</h3>
-        <p class="tcard__body">그동안 여러 자기계발, 배움, 코칭을 통해 저의 변화를 위해 힘써왔지만, 그럼에도 채워지지 않는 내면의 갈증이 있었습니다. 무언가가 항상 저를 가로막았어요… 내성만방에서 저의 모든 모습과 뿌리 깊은 아픔까지 마주하며, 비로소 스스로 치유할 수 있었습니다. 나는 잘못된 것이 없는 완전한 존재임을 깊이 깨닫게 되었어요.</p>
-        <span class="mono-k tcard__by">이00 · 배우/프로듀서, 30대</span>
-      </article>
-      <article class="tcard reveal d1">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">동기부여의 한계 → 본질적인 변화 🔍</h3>
-        <p class="tcard__body">단순히 동기부여와 마인드셋의 문제가 아닌 진짜 본질적인 변화를 불러올 수 있게 하는 법을 배웠어요.</p>
-        <span class="mono-k tcard__by">유00 · 프리랜서, 30대</span>
-      </article>
-      <article class="tcard reveal d2">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">알던 문제 너머 → 삶의 궤적이 달라짐 📈</h3>
-        <p class="tcard__body">능력있는 코치와 함께 탐구하면, 내가 알던 문제 그 이상이 풀립니다. 나의 삶에 생각치도 못한 부분이 보이게 되고 결과적으로 삶의 궤적이 달라지게 됩니다.</p>
-        <span class="mono-k tcard__by">최00 · 코치, 30대</span>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ============ FAQ ============ -->
-<section class="bg-cream hair-top" id="faq">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow reveal">FAQ</span>
-      <h2 class="reveal d1">자주 묻는 <em>질문</em></h2>
-    </div>
-    <div class="faq reveal">
-      <details>
-        <summary>심리상담이나 다른 코칭 프로그램과 뭐가 다른가요?<span class="pm" aria-hidden="true"></span></summary>
-        <div class="ans">
-          <p>심리상담은 과거의 경험을 이해하고 언어화하는 데 도움을 줍니다.</p>
-          <p>일반적인 자기계발 코칭은 목표를 설정하고, 전략과 행동을 만들어가는 데 집중합니다.</p>
-          <p>내성만방은 그 사이의 공간을 다룹니다. 왜 알면서도 행동으로 옮기기 어려운지, 반복되는 패턴과 감정적 반응을 알아차리고 새로운 선택으로 연결하는 과정입니다.</p>
-          <p>신경과학 기반의 신경계 안정화 작업, 감정 패턴의 전환, 잠재의식 재프로그래밍을 통해 이해에만 머물지 않고 실제 삶에서 다르게 느끼고 행동할 수 있도록 돕습니다. 또한 구체적이고 체계적인 실천 과정으로 안내합니다.</p>
-          <p>심리상담을 받고 계신 분도 함께 참여하실 수 있습니다.</p>
-        </div>
-      </details>
-      <details>
-        <summary>자기계발을 이미 많이 해봤어요. 이번에도 별 차이가 없으면 어쩌죠?<span class="pm" aria-hidden="true"></span></summary>
-        <div class="ans">
-          <p>그 마음을 깊이 이해해요. 이미 책, 상담, 프로그램에 시간과 돈을 많이 쓴 분이라면 더 그럴 수 있습니다.</p>
-          <p>내성만방이 모든 사람에게 같은 결과를 약속할 수는 없어요. 다만 이 과정은 정보를 더 쌓는 대신, 반복되는 감정 반응과 선택의 패턴을 12주 동안 구조적으로 탐색하고 새로운 패턴을 연습하도록 설계되어 있습니다.</p>
-          <p>수강생들이 가장 자주 말하는 변화도 “갑자기 완벽해졌다”가 아니라, “왜 내가 멈추는지 알게 됐고, 전에는 하지 못했던 선택을 시작하게 됐다”는 것이에요.</p>
-          <p>실제로 한 졸업생은 180권이 넘는 책을 읽고 상담도 받아본 뒤, “이렇게까지 했는데도 바뀌지 않으면 이제 그냥 받아들이고 살자”는 마음으로 신청했다고 해요. 그리고 12주 후, 7년 이상 망설였던 퇴사를 결심했습니다.</p>
-          <p>이미 많은 것을 해봤는데도 반복되는 패턴이 남아 있다면, 더 많은 정보보다 나의 잠재의식과 신경계 반응을 다루는 새로운 접근이 도움이 될 수 있어요.</p>
-        </div>
-      </details>
-      <details>
-        <summary>혼자서도 할 수 있지 않을까요?<span class="pm" aria-hidden="true"></span></summary>
-        <div class="ans">
-          <p>물론 혼자서도 할 수 있어요. 실제로 이 페이지를 읽고 있는 당신도 이미 오랫동안 혼자 많은 것을 해내온 분일 거예요.</p>
-          <p>다만 혼자 작업할 때는 내가 반복하는 패턴을 알고 있어도, 정작 중요한 순간에는 놓치기 쉬워요. 그래서 늘 이해는 깊어지지만, 삶은 같은 자리에서 맴돌게 돼요.</p>
-          <p>내성만방은 더 많은 정보를 제공하는 과정이 아닙니다. 순서 있는 구조, 직접 그 과정을 통과해온 코치의 관점, 라이브 코칭, 그리고 매주 실제 삶에 적용하는 과제를 통해 변화가 일상으로 이어질 수 있는 실행의 모멘텀을 만듭니다.</p>
-          <p>혼자 해내는 데 한계를 느끼거나, 이제는 아는 것을 실제 변화로 연결하고 싶은 분에게 맞는 과정입니다.</p>
-        </div>
-      </details>
-      <details>
-        <summary>라이브 세션에 실시간 참여가 어려워도 괜찮나요?<span class="pm" aria-hidden="true"></span></summary>
-        <div class="ans">
-          <p>괜찮아요. 핵심 커리큘럼은 모두 녹화본으로 제공되기 때문에, 내 페이스에 맞춰 따라갈 수 있어요.</p>
-          <p>라이브 그룹 코칭은 격주로 총 6회 진행되며, 실시간 참여가 어려운 경우에도 녹화본으로 다시 볼 수 있어요. 모든 녹화본과 자료는 1년간 이용할 수 있습니다.</p>
-        </div>
-      </details>
-      <details>
-        <summary>프로그램 일정과 진행 방식은 어떻게 되나요?<span class="pm" aria-hidden="true"></span></summary>
-        <div class="ans">
-          <p>총 12개의 심층 모듈을 내 일정과 페이스에 맞춰 따라갈 수 있어요. 각 모듈은 약 60분 정도로 구성되어 있습니다.</p>
-          <p>격주로 진행되는 라이브 그룹 코칭 세션에서는 모듈을 진행하며 생긴 질문을 나누고, 필요한 부분에 대해 코칭을 받을 수 있어요.</p>
-          <p>라이브 세션 전체 일정은 결제 후 발송되는 온보딩 이메일을 통해 안내해 드립니다.</p>
-          <p>각 모듈에는 실천 과제가 포함되어 있으며, 과제를 위한 시간으로 매주 약 1시간을 확보하시는 것을 권장해요.</p>
-        </div>
-      </details>
-      <details>
-        <summary>내성만방은 의료적 치료를 대체하나요?<span class="pm" aria-hidden="true"></span></summary>
-        <div class="ans">
-          <p>아니에요.</p>
-          <p>내성만방은 의료적 진단이나 치료를 대체하지 않는 교육 과정입니다. 현재 의료적 또는 정신건강 관련 치료가 필요한 경우, 담당 전문가와 먼저 상담해 주세요.</p>
-        </div>
-      </details>
-      <details>
-        <summary>환불 정책은 어떻게 되나요?<span class="pm" aria-hidden="true"></span></summary>
-        <div class="ans">
-          <p>프로그램에 성실히 참여해본 후 결정하실 수 있도록 14일 전액 환불 보장을 제공합니다. 프로그램 시작 후 14일 이내에 내성만방이 나에게 맞지 않는다고 느끼신다면 전액 환불을 요청하실 수 있습니다.</p>
-          <p>이러한 취지에 따라, 이 보장은 첫 14일 동안 오픈되는 2개의 모듈을 수강하고 해당 과제를 성실히 완료하며, 라이브 세션에 실제로 참여하신 경우에 한해 적용됩니다.</p>
-          <p>환불 요청은 9월 20일 일요일 오후 11시 59분(KST)까지 이메일로 완료한 과제 증빙 자료와 함께 제출해주세요.</p>
-          <p>14일 이후 또는 보장 조건에 해당하지 않는 경우에는 기본 환불 정책에 따라 처리됩니다.</p>
-          <p>내성만방 구매 시, 결제 시점에 내성만방의 환불 정책을 확인하고 동의하신 것으로 간주됩니다.</p>
-          <p><a href="https://ashleylim.com/refund-policy/" target="_blank" rel="noopener">기본 환불 정책 보기 ↗</a></p>
-        </div>
-      </details>
-    </div>
-    <p class="center reveal" style="margin-top:36px">더 궁금한 점이 있다면 <a href="mailto:hello@ashleylim.com" style="color:var(--red-deep)">hello@ashleylim.com</a> 으로 문의해주세요.</p>
-
-    <div class="tcards" style="grid-template-columns:1fr;max-width:720px;margin:72px auto 0">
-      <article class="tcard reveal">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">적용은 막막 → 인생의 마스터 키🔑</h3>
-        <p class="tcard__body">자기계발과 마음공부에 관심이 많아 책과 유튜브를 찾아봤지만, 그때그때 위안이나 깨달음을 얻을 뿐 삶에 어떻게 적용해야 할지는 늘 막막했어요. … 내성만방을 통해 어렴풋이 알던 것들을 체계적으로 이해하고, 지속적인 변화를 만드는 방법을 배웠습니다. 정말 “인생의 마스터 키를 쥔 기분”이에요.</p>
-        <span class="mono-k tcard__by">유00 · 프리랜서, 30대</span>
-      </article>
-    </div>
-    <div class="cta-row reveal"><a class="btn" href="#price">내성만방 신청하기 <span class="arrow" aria-hidden="true">→</span></a></div>
-  </div>
-</section>
-
-<!-- ============ Long reviews ============ -->
-<section class="bg-wheat hair-top" id="stories">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow reveal">수강생 후기</span>
-      <h2 class="reveal d1">"그냥 강의가 아니에요, <em>제겐 바이블이에요.</em>"</h2>
-      <span class="mono-k reveal d2">권00 · 음악 교사, 30대</span>
-    </div>
-    <div class="stories">
-      <article class="story reveal">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3>✦ 첫 기수 결혼 → 재수강, <em>커리어 성장</em> 🔁</h3>
-        <div class="body">
-          <p>내가 원하는 사람이 분명 있을것이라는 마음으로 목록을 작성하였고, 이후 적었던 분과 똑같은 사람이 제 삶에 나타났습니다. … 안정적인 연애 중이며, 남자친구 부모님을 1월에 뵙기로 하였습니다 🙂</p>
-          <p class="arrow-down" aria-hidden="true">↓</p>
-          <p>이번 내성만방은 내게 두 번째 내성만방이었다. 지난 첫번째 내성만방을 통해 내가 원하는 삶인 소울메이트를 만나게 되었고, 실제로 결혼식을 앞두고 있다. … '소울메이트&amp;사랑에 대한 챕터를 다시 잘 썼으니, 이제는 커리어에 대한 내 내면을 잘 봐야한다'는 것을 알고 있었다.</p>
-        </div>
-        <span class="mono-k story__by">조혜주 · 요가 지도자, 30대</span>
-        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
-      </article>
-      <article class="story reveal">
-        <h3>✦ 아이에게 반복되던 화와 죄책감 → <em>나와 아이를 함께 돌보게 된 변화</em></h3>
-        <div class="body">
-          <p>모든게 아이의 문제라고만 생각했다... 내성만방의 단계들을 거쳐서 내 안에 많은 슬픔과 아픔을 알 수 있었고 그것을 인정해주고 토닥거려주니 내면의 변화가 생겼다.</p>
-          <p>몸에서부터의 변화가 시작이었다. 다음으로는 아이를 대하는 내가 달라졌다. 나의 안정감에 아이도 안정감을 찾는게 눈에 보였다. 지금은 아이와 서로 아낌없이 사랑을 표현하며 매일을 보내고 있다.</p>
-          <p>육아문제가 아니더라도 불안, 두려움, 반복되는 트리거(분노, 좌절, 슬픔 등)로 힘들어하고 있다면 꼭 내성만방 수업을 듣기를 추천합니다. 내성만방 수업을 통해 내가 얼마나 소중하고 가치있는 사람인지 알게되고, 내가 원하는 것을 이룰 수 있는 파워를 가지게 되는 경험을 해보셨으면 좋겠습니다.</p>
-        </div>
-        <span class="mono-k story__by">서00 · 주부, 40대</span>
-        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
-      </article>
-      <article class="story reveal">
-        <h3>✦ 내가 원하는 <em>성공의 삶을 만드는 방법</em></h3>
-        <div class="body">
-          <p>내성만방을 시작하기 전에도 변화와 성공을 위해 할 수 있는 시도는 거의 다 해본 느낌이었다. 끌어당김을 위한 100번 쓰기, 시각화, 긍정확언, 미래일기 쓰기 등등. 그런데 하면 할수록 ‘내가 너무 폭력적인데?’라는 생각이 들었다. '드디어 알았다'는 방법들을 시도할 때마다, 감정은 다른 신호를 보내고 있었다.</p>
-          <p>내성만방을 통해 진정한 변화는 환경이나 행동을 바꾸는 데서 시작되는 것이 아니라, 내가 누구인지를 알고 나의 가치와 믿음을 돌아보는 것에서 시작된다는 것을 알게 되었다. 늘 결핍과 ‘없는 것’에 주의를 두던 내가 아닌, 이미 충분하고 온전한 나를 기억하기로 했다.</p>
-          <p>감정을 정화하고, 감추고 살았던 부분을 마주하고, 내면아이를 만나는 과정은 내 삶의 오래된 패턴을 이해하게 해주었다. 무의식 속에 있던 믿음을 발견했고, 그 아이를 연민과 사랑으로 돌보며 축복받은 존재로 다시 환영해줄 수 있었다.</p>
-          <p>이후 친구들과의 만남이나 직장 회의에서도 자연스럽게 뒤로 물러서던 내가, 말하는 속도와 내용까지 조율하며 대화의 중심에 있는 모습을 발견하게 되었다. 마음은 한결 평온해졌고, 관계 안에서는 더 자유롭고 단단한 힘이 생겼다.</p>
-          <p>나는 상담사이다. 내성만방은 자신뿐 아니라 타인에게도 기여할 수 있게 한다. 나를 온전히 찾는 작업, 잠재의식의 중요성, 감정 정화, 변화의 단계는 상담 장면에서도 충분히 힘을 발휘하고 있다.</p>
-        </div>
-        <span class="mono-k story__by">천00 · 상담사, 50대</span>
-        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
-      </article>
-      <article class="story reveal">
-        <h3>✦ 심한 스트레스와 방황 속에서 → <em>나를 이해하고 해결의 방향을 찾았어요</em></h3>
-        <div class="body">
-          <p>저는 내성만방 시작 전에 정신적인 스트레스가 감당이 안될정도로 심한 상태였고 심리상담이 필요하다고 생각이 들어서 심리상담을 몇번 받아본 뒤 지속하기에는 부족하고 어떻게 해야할까 하는 생각이 들던 중이었습니다.</p>
-          <p>내성만방 12주라는 시간동안 내 감정에 대한 이해를 할 수 있게 되었고, 그 과정에서 수업이 있다는게 안도감을 주어서 그런지 힘든 일과중이나 일들이 생겨도 수업을 하며 많은 위로를 받기도 하고 해결방법을 찾을 수 있었어요. 저에게 가장 큰 변화는 해결방법을 이해했다 앞으로 이걸 찾기위해 더이상 두려워하거나 방황하지 않을 수 있다는 확신이 생긴거예요</p>
-          <p>내성만방을 망설이고 있다면, 꼭 하시라고 하고 싶어요. 애슐리님 같은 선생님이 있을까요 생각해봤을때 글쎄요… 이 수업을 받게된건 저에게 행운이 따라주었기 때문이라고 생각합니다.</p>
-          <p>마지막으로… 애슐리님에게 말씀드렸다시피 기회가 상황이 따라주어야 하겠지만 허락된다면 애슐리님의 수업 지도는 평생 받고 싶어요 얼마나 많은 노력을 하셨을지, 그리도 계속 하실지 조금은 알 것 같아요. 모범이 되어주시고 지도해주심에 감사했습니다!</p>
-        </div>
-        <span class="mono-k story__by">김00 · 직장인, 30대</span>
-        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
-      </article>
-      <article class="story reveal">
-        <h3>✦ 확실한 변화를 원한다면 의식적 차원, 무의식적 차원을 함께 다뤄주는 내성만방, <em>정말 강추에요!</em></h3>
-        <div class="body">
-          <p>저는 마음공부 초심자는 아니었는데도 내성만방을 통해 완전히 새로운 루틴이 잡힌 것 같아서 너무 만족스럽습니다. 내 일상에 확실한 변화를 원한다면 의식적 차원, 무의식적 차원을 함께 다뤄주는 내성만방 프로그램, 정말 강추에요!</p>
-          <ul class="pros">
-            <li><b>장점 1</b>짱짱한 커리큘럼</li>
-            <li><b>장점 2</b>살아있는 지식 → 삶에 바로 적용 가능!</li>
-            <li><b>장점 3</b>일주일동안 성장하도록 등떠밀어주는 구체적인 과제들</li>
-            <li><b>장점 4</b>따뜻하고 통찰력있는 애슐리 코치의 리딩</li>
-          </ul>
-        </div>
-        <span class="mono-k story__by">최00 · 코치, 30대</span>
-        <button class="more" type="button" aria-expanded="false">전체 읽기 +</button>
-      </article>
-    </div>
-
-    <div class="tcards">
-      <article class="tcard tcard--tilt reveal">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">방향 없던 마음 → 나를 보는 관점의 방향키🧭</h3>
-        <p class="tcard__body">내가 원하는 것들을 충분히 이룰 수 있다는 확신을 얻었어요. 막연히 알고 있던 개념들을 삶에 적용하며, 이전보다 더 편안히 호흡하는 저를 만나고 있습니다.</p>
-        <span class="mono-k tcard__by">안00 · 직장인, 20대</span>
-      </article>
-      <article class="tcard tcard--tilt reveal d1">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">흐트러진 마음 → 은은한 자신감 💪</h3>
-        <p class="tcard__body">진정 강인한 여성이란 무엇인지를 보고 느낄 수 있는 시간이었고, 그래서 제 안의 강인한 나와도 만날 수 있어 소중했습니다.</p>
-        <span class="mono-k tcard__by">김00 · 직장인, 30대</span>
-      </article>
-      <article class="tcard tcard--tilt reveal d2">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">불안하고 위태롭던 나 → 태풍에도 단단하게 🌳</h3>
-        <p class="tcard__body">불안하고 위태하던 내모습이 지금은 단단하고, 비가 오고 태풍이 와도 잘 견뎌낼 수 있는 자신감·확신·충만함이 생겼습니다</p>
-        <span class="mono-k tcard__by">문00 · 자영업, 30대</span>
-      </article>
-      <article class="tcard tcard--tilt reveal">
-        <span class="stars" aria-label="별점 5점">★★★★★</span>
-        <h3 class="tcard__title">다른 강의엔 실망 → 예상 못한 곳까지 도움 🎁</h3>
-        <p class="tcard__body">다른 마인드 강의에 만족 못하신분들은 내성만방에 참여하시면 본인이 생각한 부분에 대한 도움도 받지만 생각지 못한 부분에서도 많은 도움을 받을 수 있습니다. 수업이 기다려지실거에요!</p>
-        <span class="mono-k tcard__by">김00 · 조무사, 50대</span>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Final statement ============ -->
-<section class="bg-white hair-top final">
-  <div class="narrow center">
-    <h2 class="reveal">완벽주의, 경쟁, 생존이 아닌<br><em>위대한 삶을 창조하는 여성으로</em></h2>
-    <p class="sub reveal d1">삶, 사랑, 성공, 풍요가 자기 증명의 수단이 아니라, 나다움의 자연스러운 표현이 되도록.</p>
-    <div class="measure reveal d2">
-      <p>정보는 차고 넘치지만, 그것을 삶으로 살아내는 법은 체계적으로 배워야 해요. High Self-Worth Method™가 그 깊은 층위의 변화를 함께합니다.</p>
-      <p><strong>이제부터가 시작이에요 — 라이프 아티스트의 여정으로 들어오세요.</strong></p>
-    </div>
-    <div class="cta-row reveal" style="margin-top:40px"><a class="btn" href="#price">내성만방 신청하기 <span class="arrow" aria-hidden="true">→</span></a></div>
-  </div>
-</section>
-
-<!-- ============ Gallery ============ -->
-<section class="bg-cream hair-top" id="gallery">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow reveal">수강생들의 메시지</span>
-      <h2 class="reveal d1">흔들림 없는 용기와 자신감으로 사랑, 관계, 커리어에서 <em>진정으로 원하는 것을 이루세요</em></h2>
-    </div>
-    <div class="masonry">
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-01.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-01.webp" alt="수강생 후기 메시지 캡처" width="817" height="155" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-02.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-02.webp" alt="수강생 후기 메시지 캡처" width="1170" height="771" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-03.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-03.webp" alt="수강생 후기 메시지 캡처" width="1170" height="652" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-04.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-04.webp" alt="수강생 후기 메시지 캡처" width="826" height="211" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-05.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-05.webp" alt="수강생 후기 메시지 캡처" width="1170" height="286" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-06.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-06.webp" alt="수강생 후기 메시지 캡처" width="925" height="527" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-07.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-07.webp" alt="수강생 후기 메시지 캡처" width="1170" height="213" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-08.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-08.webp" alt="수강생 후기 메시지 캡처" width="858" height="82" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-09.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-09.webp" alt="수강생 후기 메시지 캡처" width="872" height="375" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-10.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-10.webp" alt="수강생 후기 메시지 캡처" width="1170" height="531" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-11.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-11.webp" alt="수강생 후기 메시지 캡처" width="869" height="160" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-12.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-12.webp" alt="수강생 후기 메시지 캡처" width="1170" height="372" loading="lazy"></a></figure>
-      <figure class="shot reveal"><a href="/assets/img/nsmb/message-13.webp" target="_blank" rel="noopener"><img src="/assets/img/nsmb/message-13.webp" alt="수강생 후기 메시지 캡처" width="924" height="512" loading="lazy"></a></figure>
-    </div>
-
-    <div class="leap">
-      <div class="section-head center">
-        <h3 class="reveal">세 여성이 만들어낸 놀라운 도약 — <em>당신에게도 가능하다는 증거예요</em></h3>
-      </div>
-      <div class="phones">
-        <div class="vcard reveal"><div class="phone"><img src="/assets/img/nsmb/review-cho.webp" alt="조혜주 님의 내성만방 변화 후기" width="608" height="1080" loading="lazy"></div></div>
-        <div class="vcard reveal d1"><div class="phone"><img src="/assets/img/nsmb/review-lee.webp" alt="이00 님의 내성만방 변화 후기" width="608" height="1080" loading="lazy"></div></div>
-        <div class="vcard reveal d2"><div class="phone"><img src="/assets/img/nsmb/review-ahn.webp" alt="안00 님의 내성만방 변화 후기" width="608" height="1080" loading="lazy"></div></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ Decide: Path A / B ============ -->
-<section class="bg-white hair-top" id="decide">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow eyebrow--red reveal">지금 선택의 순간</span>
-      <h2 class="reveal d1">결심의 순간, 신경계는<br><em>익숙한 것으로 당신을 되돌리려 해요.</em></h2>
-      <div class="measure reveal d2">
-        <p>변화를 결심하는 순간, 익숙한 패턴이 다시 끌어당겨요.</p>
-        <p>지금 이 망설임도 그 일부일 수 있어요. 그리고 그걸 알아차리는 것부터가, <strong>이미 작업의 시작</strong>이에요.</p>
-      </div>
-    </div>
-    <div class="baframe">
-      <div class="path path--a reveal">
-        <span class="label">Path A</span>
-        <h3>오늘도 '다음에'</h3>
-        <ul>
-          <li><svg aria-hidden="true"><use href="#i-x"/></svg><span>내년에도 같은 자리에 있을 가능성</span></li>
-          <li><svg aria-hidden="true"><use href="#i-x"/></svg><span>또 다른 책, 또 다른 유튜브, 또 다른 '갓생' 다짐</span></li>
-          <li><svg aria-hidden="true"><use href="#i-x"/></svg><span>"이렇게까지 했는데 왜 나는…" 이라는 자조가 조금 더 짙어짐</span></li>
-          <li><svg aria-hidden="true"><use href="#i-x"/></svg><span>그 결정, 3년 후에도 아직 못 내리고 있음</span></li>
-        </ul>
-      </div>
-      <div class="arrow-x reveal d1" aria-hidden="true"><svg viewBox="0 0 52 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h46M38 3l10 9-10 9"/></svg></div>
-      <div class="path path--b reveal d2">
-        <span class="label">Path B</span>
-        <h3>지금 <em>내성만방을 시작하기</em></h3>
-        <ul>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>잠재의식과 신경계 차원에서 진짜 변화를 경험하고</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>내가 원하는 선택을 해 나가는 가이드라인이 생기고</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>2027년에 "그때 결정해서 다행이야"라고 말하게 되고</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>미래의 내가 지금의 나에게 고마워하게 되는 삶</span></li>
-        </ul>
-      </div>
-    </div>
-    <div class="cta-row reveal"><a class="btn" href="#price">지금 신청하기 <span class="arrow" aria-hidden="true">→</span></a></div>
-    <p class="fine-row reveal">7일 환불 보장 · 분할 결제 가능 · 녹화본 1년 이용</p>
-  </div>
-</section>
-
 </main>
 
-<!-- ============ Footer ============ -->
-<footer class="footer">
-  <p class="footer__ps">이제부터가 시작이에요.</p>
-  <div class="footer__in">
-    <div class="footer__brand">
-      <img src="/assets/img/shared/logo.webp" alt="Ashley Lim" width="348" height="80" loading="lazy">
-      <p><strong>주식회사 애슐리림</strong><br>
-      대표 : ASHLEY GAYOUNG LIM | 주소 : 서울 용산구 이촌로 72, 4층 124호 (이촌동)<br>
-      사업자등록번호 : 708-81-01999 | 통신판매업신고 : 2024-서울용산-0378 · <a href="https://www.ftc.go.kr/bizCommPop.do?wrkr_no=7088101999" target="_blank" rel="noopener">사업자정보 확인</a><br>
-      TEL : 010-2071-5727 | 이메일 : <a href="mailto:hello@ashleylim.com">hello@ashleylim.com</a></p>
+<footer class="site-footer">
+  <div class="site-footer__in">
+    <div class="site-footer__top">
+      <p class="site-footer__biz">주식회사 애슐리림<br>대표 : ASHLEY GAYOUNG LIM | 주소 : 서울 용산구 이촌로 72, 4층 124호 (이촌동)<br>사업자등록번호 : 708-81-01999 | 통신판매업신고 : 2024-서울용산-0378 <a href="https://www.ftc.go.kr/bizCommPop.do?wrkr_no=7088101999" target="_blank" rel="noopener">사업자정보 확인</a><br>TEL : 010-2071-5727 | 이메일 : hello@ashleylim.com</p>
+      <div class="site-footer__social">
+        <a href="https://www.instagram.com/heyashleylim" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 8.2a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4zM17.3 5.5a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zM12 3.8c2.7 0 3 0 4 .1 2.7.1 4 1.4 4.1 4.1.1 1 .1 1.4.1 4s0 3-.1 4c-.1 2.7-1.4 4-4.1 4.1-1 .1-1.4.1-4 .1s-3 0-4-.1C5.3 20 4 18.7 3.9 16c-.1-1-.1-1.4-.1-4s0-3 .1-4C4 5.3 5.3 4 8 3.9c1-.1 1.3-.1 4-.1zM12 2C9.3 2 8.9 2 7.9 2.1 4.3 2.2 2.3 4.2 2.1 7.9 2 8.9 2 9.3 2 12s0 3.1.1 4.1c.2 3.6 2.2 5.6 5.8 5.8 1 .1 1.4.1 4.1.1s3.1 0 4.1-.1c3.6-.2 5.6-2.2 5.8-5.8.1-1 .1-1.4.1-4.1s0-3.1-.1-4.1c-.2-3.6-2.2-5.6-5.8-5.8C15.1 2 14.7 2 12 2z"/></svg></a>
+        <a href="https://www.threads.com/@heyashleylim" target="_blank" rel="noopener" aria-label="Threads"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.9 11.1l-.3-.1c-.2-2.8-1.7-4.4-4.3-4.4h-.1c-1.5 0-2.8.7-3.6 1.9l1.4 1c.6-.9 1.6-1.1 2.2-1.1 1 0 1.8.3 2.3.9.3.4.6 1 .7 1.7-.9-.1-1.8-.2-2.8-.1-2.8.2-4.6 1.8-4.5 4.1.1 1.1.6 2.1 1.6 2.7.8.5 1.9.8 3 .7 1.5-.1 2.6-.6 3.4-1.6.6-.8 1-1.8 1.1-3 .7.4 1.2 1 1.5 1.6.5 1.2.5 3-1 4.5-1.3 1.3-2.9 1.9-5.3 1.9-2.6 0-4.6-.9-5.9-2.5C5.2 17.6 4.6 15.5 4.6 12.9c0-2.6.6-4.7 1.8-6.2C7.7 5.1 9.7 4.3 12.3 4.3c2.7 0 4.7.8 6 2.4.7.8 1.2 1.8 1.5 2.9l1.6-.4c-.4-1.4-1-2.7-1.9-3.7C17.9 3.5 15.4 2.5 12.3 2.5c-3.2 0-5.6 1-7.2 3C3.6 7.3 2.8 9.8 2.8 12.9v.1c0 3.1.8 5.6 2.3 7.4 1.6 2 4 3 7.2 3.1 2.9 0 4.9-.8 6.6-2.4 2.2-2.2 2.1-4.9 1.4-6.6-.5-1.2-1.6-2.2-3-2.9zm-4.7 4.4c-1.2.1-2.4-.5-2.5-1.5 0-.8.6-1.6 2.4-1.7h.6c.7 0 1.4.1 2 .2-.2 2.4-1.3 2.9-2.5 3z"/></svg></a>
+        <a href="https://www.youtube.com/@heyashleylim" target="_blank" rel="noopener" aria-label="YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2C.5 9.1.5 12 .5 12s0 2.9.5 4.8a3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-4.8.5-4.8s0-2.9-.5-4.8zM9.7 15.5v-7l6 3.5-6 3.5z"/></svg></a>
+      </div>
     </div>
-    <div>
-      <h6>Follow</h6>
-      <ul>
-        <li><a href="https://www.instagram.com/heyashleylim" target="_blank" rel="noopener">Instagram</a></li>
-        <li><a href="https://www.threads.com/@heyashleylim" target="_blank" rel="noopener">Threads</a></li>
-        <li><a href="https://www.youtube.com/@heyashleylim" target="_blank" rel="noopener">Youtube</a></li>
-      </ul>
-    </div>
-    <div>
-      <h6>Policies</h6>
-      <ul>
-        <li><a href="https://ashleylim.com/terms-and-conditions/" target="_blank" rel="noopener">이용약관</a></li>
-        <li><a href="https://ashleylim.com/refund-policy/" target="_blank" rel="noopener">환불정책</a></li>
-        <li><a href="https://ashleylim.com/privacy-policy" target="_blank" rel="noopener">개인정보처리방침</a></li>
-      </ul>
+    <div class="site-footer__bottom">
+      <nav class="site-footer__links" aria-label="정책">
+        <a href="https://ashleylim.com/terms-and-conditions/" target="_blank" rel="noopener">이용약관</a>
+        <a href="https://ashleylim.com/refund-policy/" target="_blank" rel="noopener">환불정책</a>
+        <a href="https://ashleylim.com/privacy-policy" target="_blank" rel="noopener">개인정보처리방침</a>
+      </nav>
+      <p>Copyright © 2026 ASHLEY LIM. All rights reserved.</p>
     </div>
   </div>
-  <div class="footer__band">Copyright © 2026 ASHLEY LIM. All rights reserved.</div>
 </footer>
-
-<!-- ============ Sticky buy bar ============ -->
-<div class="buybar" id="buybar" aria-hidden="true">
-  <div class="buybar__in">
-    <div>
-      <div class="buybar__name">내성만방</div>
-      <div class="buybar__meta"><span class="cd-open">월 93만원부터 · 14일 전액 환불 보장</span><span class="cd-closed">다음 기수 대기리스트 등록 중</span></div>
-    </div>
-    <a class="btn" href="#price" tabindex="-1"><span class="cd-open">신청하기</span><span class="cd-closed">대기리스트 등록</span> <span class="arrow" aria-hidden="true">→</span></a>
-  </div>
-</div>
-
-</div><!-- /#page -->
-
-<script src="/assets/js/main.js" defer></script>
 </body>
 </html>
