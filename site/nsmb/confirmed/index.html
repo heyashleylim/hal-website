@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>구독이 확인되었어요 - 내성만방 · Ashley Lim</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preload" href="/assets/fonts/gmarket-sans-500.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/pretendard-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/css/brand.css">
+<style>
+/* Landing page for ActiveCampaign's "after confirming" redirect (form 4, NSMB waitlist). */
+.confirmed{min-height:calc(100vh - 60px);display:flex;align-items:center;justify-content:center;padding:60px var(--gutter)}
+.confirmed__card{max-width:var(--w-narrow);width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:48px 40px;text-align:center;box-shadow:0 30px 64px -34px rgba(34,34,34,.25)}
+.confirmed__k{font-size:14px;font-weight:700;color:var(--rose);margin-bottom:16px}
+.confirmed__card h1{font-size:32px;line-height:1.4;margin-bottom:20px}
+.confirmed__card h1 .accent{color:var(--accent)}
+.confirmed__card p{color:var(--ink-2);line-height:1.6}
+.confirmed__card p + p{margin-top:12px}
+.confirmed__actions{display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:32px}
+.confirmed__link{color:var(--ink-2);font-size:15px;padding:8px 0}
+@media (max-width:767px){.confirmed__card{padding:36px 22px}.confirmed__card h1{font-size:24px}}
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header__in">
+    <a class="site-header__logo" href="/" aria-label="Ashley Lim"><img src="/assets/img/shared/logo.webp" alt="Ashley Lim" width="348" height="80"></a>
+  </div>
+</header>
+
+<main class="confirmed" id="main">
+  <div class="confirmed__card">
+    <p class="confirmed__k">내성만방 대기리스트</p>
+    <h1>구독이 <span class="accent">확인되었어요</span> 💌</h1>
+    <p>내성만방 대기리스트에 등록해 주셔서 감사해요.</p>
+    <p>다음 기수가 열리면 오픈 소식과 대기자 우선 안내를 가장 먼저 보내드릴게요.</p>
+    <div class="confirmed__actions">
+      <a class="btn" href="/nsmb">내성만방 다시 보기 →</a>
+      <a class="confirmed__link" href="https://www.instagram.com/heyashleylim" target="_blank" rel="noopener">그동안 인스타그램에서 애슐리 만나기 ↗</a>
+    </div>
+  </div>
+</main>
+</body>
+</html>
