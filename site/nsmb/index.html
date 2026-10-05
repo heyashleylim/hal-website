@@ -330,29 +330,30 @@
 
 <!-- ============ Enrollment (waitlist) ============ -->
 <section class="sec sec--cream" id="price">
-  <div class="sec__in w-narrow" style="align-items:stretch">
+  <div class="sec__in w-wide" style="align-items:stretch">
     <p class="eyebrow self-center" style="margin-top:-30px">등록 안내</p>
     <h2 class="t-center">나에게 맞는 방식으로 시작하세요</h2>
-    <div class="enroll-card" id="waitlist">
-      <div class="enroll-card__intro">
-        <p>지금은 내성만방 다음 기수를 준비하고 있어요.</p>
+    <div class="waitlist" id="waitlist">
+      <div class="waitlist__intro">
+        <p class="waitlist__k">내성만방 대기리스트</p>
+        <h3>지금은 내성만방 <span class="accent">다음 기수</span>를 준비하고 있어요.</h3>
         <p>대기리스트에 등록하시면, 다음 기수 오픈 소식과 대기자 우선 안내를 가장 먼저 받아보실 수 있어요 💌</p>
       </div>
       <!-- Set data-endpoint to the form handler (e.g. the Fluent Forms / ESP endpoint) to make it submit. -->
       <form class="waitlist-form" id="waitlist-form" data-endpoint="" novalidate>
         <div class="field">
           <label for="wl-name">이름 <span class="req" aria-hidden="true">*</span></label>
-          <input id="wl-name" name="name" type="text" autocomplete="name" required aria-describedby="wl-name-err">
+          <input id="wl-name" name="name" type="text" autocomplete="name" placeholder="홍길동" required aria-describedby="wl-name-err">
           <p class="err" id="wl-name-err" aria-live="polite"></p>
         </div>
         <div class="field">
           <label for="wl-email">이메일 <span class="req" aria-hidden="true">*</span></label>
-          <input id="wl-email" name="email" type="email" autocomplete="email" inputmode="email" required aria-describedby="wl-email-err">
+          <input id="wl-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="email@example.com" required aria-describedby="wl-email-err">
           <p class="err" id="wl-email-err" aria-live="polite"></p>
         </div>
         <label class="consent"><input type="checkbox" name="consent" id="wl-consent" required aria-describedby="wl-consent-err"><span>[필수] 신청하신 서비스 제공과 소식·혜택 이메일 수신에 동의합니다. 언제든지 수신거부 가능하며, 자세한 내용은 <a href="https://ashleylim.com/privacy-policy/" target="_blank" rel="noopener">개인정보처리방침</a>을 확인해 주세요.</span></label>
         <p class="err" id="wl-consent-err" aria-live="polite"></p>
-        <button class="btn btn--block" type="submit">지금 등록하기</button>
+        <button class="btn btn--block" type="submit">지금 등록하기 →</button>
         <p class="form-msg" id="wl-msg" role="status"></p>
       </form>
     </div>
@@ -473,7 +474,7 @@
         </div>
       </details>
     </div>
-    <p style="line-height:1.5">더 궁금한 점이 있다면 hello@ashleylim.com 으로 문의해주세요.</p>
+    <p class="faq-note">더 궁금한 점이 있다면 hello@ashleylim.com 으로 문의해주세요.</p>
     <article class="t-card">
       <p class="stars" aria-label="별점 5점">★★★★★</p>
       <p class="proof-tag">적용은 막막 → 인생의 마스터 키🔑</p>

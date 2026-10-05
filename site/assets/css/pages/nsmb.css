@@ -73,7 +73,7 @@
 .ticks{list-style:none;margin:0;padding:10px 0 0;display:flex;flex-direction:column;gap:5px}
 .ticks li{display:flex;gap:5px;align-items:flex-start;line-height:1.4}
 .tick{flex:0 0 auto;width:18px;color:var(--rose);font-size:14px;line-height:22.4px;text-align:center}
-.x-tick{color:var(--accent)}
+.x-tick{color:var(--rose);font-weight:700}
 .about__born{padding:30px 0!important;text-align:center}
 .dark-box{background:var(--deep);color:var(--bg);border-radius:var(--r-md);padding:20px 20px 10px;text-align:center;line-height:1.4}
 .dark-box p{margin-bottom:10px}
@@ -128,15 +128,18 @@
 .q-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:20px;display:flex;flex-direction:column;gap:20px}
 .q-card p{line-height:1.5}
 
-/* ---------- Enrollment: waitlist form ---------- */
-.enroll-card{width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px}
-.enroll-card__intro{padding:30px 60px 0;text-align:center}
-.enroll-card__intro p + p{margin-top:16px}
-.waitlist-form{padding:20px 20px 20px}
+/* ---------- Enrollment: waitlist (ENGINE-style split card: text left, form right) ---------- */
+.waitlist{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:48px;box-shadow:0 30px 64px -34px rgba(34,34,34,.25)}
+.waitlist__k{font-size:14px;font-weight:700;color:var(--rose);margin-bottom:16px}
+.waitlist__intro h3{font-size:28px;line-height:1.4;margin-bottom:16px}
+.waitlist__intro .accent{color:var(--accent)}
+.waitlist__intro p:last-child{color:var(--ink-2);line-height:1.6}
+.waitlist-form{padding:0}
 .field{margin-bottom:16px}
 .field label{display:block;font-size:15px;font-weight:600;margin-bottom:6px}
 .field .req{color:var(--accent)}
-.field input{width:100%;min-height:48px;font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 15px;transition:border-color .2s,box-shadow .2s}
+.field input{width:100%;min-height:52px;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 15px;transition:border-color .2s,box-shadow .2s}
+.field input::placeholder{color:#AAAAAA}
 .field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(219,74,43,.15)}
 .field input[aria-invalid="true"]{border-color:var(--accent)}
 .err{font-size:13.5px;color:#B53A20;margin-top:6px}
@@ -159,7 +162,7 @@
 .story p{color:var(--ink-2);line-height:1.5}
 
 /* ---------- FAQ accordion ---------- */
-.faq{width:100%;max-width:800px;align-self:center;padding-top:20px;border-top:1px solid var(--line)}
+.faq{width:100%;max-width:800px;align-self:center;padding-top:20px}
 .faq details{border-bottom:1px solid var(--line)}
 .faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 4px;font-size:18px;font-weight:500;line-height:1.4;transition:color .2s}
 .faq summary::-webkit-details-marker{display:none}
@@ -171,6 +174,7 @@
 .faq .ans{padding:0 4px 24px 4px;line-height:1.5}
 .faq .ans p + p{margin-top:12px}
 .faq .ans a{color:var(--accent)}
+.faq-note{width:100%;max-width:800px;align-self:center;padding:0 4px;line-height:1.5}
 
 /* ---------- Final ---------- */
 .final h6{font-size:18px;line-height:1.5}
@@ -197,8 +201,8 @@
   .ready{font-size:22px}
   .step,.story{padding:25px 20px}
   .part{padding:24px 20px}
-  .enroll-card__intro{padding:24px 14px 0}
-  .waitlist-form{padding:16px 10px 14px}
+  .waitlist{grid-template-columns:1fr;gap:28px;padding:28px 20px}
+  .waitlist__intro h3{font-size:22px}
   .final__p{padding:0}
   .fit{gap:20px}
 }
