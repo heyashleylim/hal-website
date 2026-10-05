@@ -1,0 +1,112 @@
+# HAL website — Ashley Lim
+
+Marketing site for Ashley Lim (애슐리 림) and her programs, starting with 내성만방 (NSMB).
+Korean-first copy, long-form sales pages, deployed on Vercel from GitHub.
+
+- Repo: https://github.com/heyashleylim/hal-website (`main` = production)
+- Hosting: Vercel. Push to `main` → production deploy. Any other branch → preview URL.
+- Stack: static HTML + CSS + vanilla JS. No framework, no build step, no npm.
+  Do not introduce one without asking first.
+
+## Folder structure
+
+```
+hal-website/
+├── CLAUDE.md              ← this file
+├── README.md              ← human quick-start (preview, deploy)
+├── vercel.json            ← outputDirectory: "site", clean URLs, cache headers
+├── .gitignore
+├── .claude/
+│   ├── launch.json        ← local preview server ("site", port 8791)
+│   ├── settings.json      ← shared project settings (committed, when needed)
+│   └── skills/            ← optional: project copies of skills, so they travel with the repo
+├── docs/                  ← NOT deployed
+│   ├── DESIGN.md          ← web design system
+│   ├── FRAME.md           ← video/frame companion (reels, thumbnails), not for web pages
+│   ├── content/nsmb.md    ← source copy per page, verbatim from Ashley's live pages
+│   └── decisions.md       ← short log of design/content decisions and why
+├── _originals/            ← git-ignored: unoptimized source images and unused downloads
+└── site/                  ← the ONLY folder Vercel serves
+    ├── index.html         ← homepage (currently the NSMB sales page)
+    ├── <page>/index.html  ← each new page gets a folder → clean URL /<page>
+    ├── favicon.png, apple-touch-icon.png
+    ├── og/                ← social share images (1200×630 JPEG)
+    └── assets/
+        ├── css/
+        │   ├── tokens.css      ← CSS variables
+        │   ├── base.css        ← reset, typography, layout primitives, reveal
+        │   └── components.css  ← buttons, cards, FAQ, countdown, etc. + responsive
+        ├── js/main.js          ← enrollment state, countdown, reveal, lite-YouTube, forms
+        ├── fonts/              ← Pretendard (woff2), Gmarket Sans (TTF, not yet used)
+        └── img/
+            ├── shared/         ← logo, Ashley portraits
+            └── nsmb/           ← page-specific images (message-NN, review-*, yt-*)
+```
+Rules for the structure:
+- Anything in `site/` is public. Docs, drafts, source files and notes never go there.
+- One page = one folder with an `index.html`. Shared code lives in `site/assets/`, never copied per page.
+- Page-specific CSS stays in a `<style>` block in that page only while it is small. Once two pages need it, move it to `components.css`.
+- Asset paths are root-relative (`/assets/img/...`) so they work from any page folder.
+- Filenames: lowercase, kebab-case, ASCII only (`nsmb-review-cho.webp`, not `내성만방-review-CHO-Small.png`). Korean filenames break URLs and caching.
+
+## Source of truth (in this order)
+
+1. **Ashley's copy** (`docs/content/`, or the live page it came from). Words, prices, dates and testimonials are hers.
+2. **`docs/DESIGN.md`**: colors, type, spacing, components for the web. Tokens in `site/assets/css/tokens.css` must match it.
+3. **Skills**: they advise. When a skill and DESIGN.md disagree, DESIGN.md wins. Flag the conflict instead of silently choosing.
+
+`FRAME.md` is for video frames (1920×1080, 1080×1920, 1080×1080). Use it for reels, covers and thumbnails, not for page layout.
+
+## Skills: when to use which
+
+- **frontend-design**: new pages or sections, and any time the aesthetic direction is open. Use it to make choices that feel intentional, then express them through DESIGN.md tokens.
+- **ui-ux-pro-max**: focused checks and fixes, such as accessibility, contrast, touch targets, forms, responsive layout, motion and the pre-delivery checklist. Query one concern at a time (`--domain ux`, `--stack html-tailwind` for HTML/CSS patterns). Do not let `--design-system` replace DESIGN.md.
+- **ashley-lim-voice / ashley-lim-market**: any new or edited Korean copy, testimonial selection, persona or offer questions.
+- **ashley-lim-design**: quick reference for Ashley's brand tokens. If it differs from DESIGN.md, ask.
+
+## Content rules (non-negotiable)
+
+- Never invent testimonials, numbers, results, prices, deadlines, guarantees or names. Use only what Ashley has published or provided.
+- Keep testimonial text verbatim, including emoji and informal spelling. Anonymized names stay anonymized (`김00`).
+- If source copy contradicts itself (for example "7일 환불 보장" vs "14일 전액 환불 보장"), keep it and flag it. Don't fix it silently.
+- Structural labels (eyebrows, section tags) may be added for design, but list them in the change summary.
+- Legal/business footer details (사업자등록번호, 통신판매업신고, address) must match the live ashleylim.com footer exactly.
+
+## Code conventions
+
+- **Tokens only**: components use CSS variables (`var(--coral)`), never raw hex.
+- **Korean typography**: `word-break: keep-all`; body line-height ≥ 1.6; no positive letter-spacing on Hangul (Latin-only labels may track out); never fake-italicize Korean (`font-synthesis: none` on `em`).
+- **Fonts**: the homepage loads its fonts from Google Fonts, Fontshare (Clash Display) and jsDelivr (Pretendard dynamic subset, lighter than the full ~750 KB local files). Local files in `site/assets/fonts/` are for DESIGN.md pages: use woff2 with `font-display: swap`, convert the Gmarket Sans TTFs to subset woff2 before using them, and preload only the one or two weights used above the fold.
+- **Images**: WebP (JPEG fallback only if needed), explicit `width`/`height`, `loading="lazy"` below the fold, `fetchpriority="high"` on the hero only. Max ~300 KB each, ~2000px on the long edge.
+- **Video**: lite-YouTube pattern (thumbnail + play button, iframe on click, `youtube-nocookie.com`). No autoplaying embeds.
+- **JS**: vanilla, progressive enhancement. The page must read correctly with JS off (reveals default to visible).
+- **Motion**: transform/opacity only, and respect `prefers-reduced-motion`.
+- **Accessibility**: one `h1` per page, sequential headings, visible focus rings, labels on every input, 44px touch targets, text contrast ≥ 4.5:1, skip link.
+- **Responsive**: check 375px, 768px, 1024px and 1440px. There must be no horizontal scroll at 375px.
+- **Third parties**: no new trackers, pixels, chat widgets or CDNs without asking. Fonts may come from Google Fonts or jsDelivr only until self-hosted.
+
+## Page configuration
+
+Sales pages keep cohort-specific values in one place: the `data-state` and `data-deadline` attributes on `#page`.
+
+- `data-state="open" | "closed"`: closed shows the waitlist and the "registration closed" notices.
+- `data-deadline`: ISO date with `+09:00` (KST). After it passes, the page switches to closed on its own.
+- Preview either state with `?enroll=open` / `?enroll=closed`.
+
+**New cohort checklist:** deadline, prices, payment links, refund-request date (guarantee section and FAQ), live-session count/day, waitlist form endpoint, `og:` image, footer year.
+
+## Working on this repo
+
+- **Preview locally:** start the `site` preview from `.claude/launch.json` (static server on `site/`, port 8791). Asset paths are root-relative (`/assets/...`), so always preview through the server, not by opening the file.
+- **Before saying a change is done:** reload, check the console for errors, check desktop and 375px, and test any interaction you touched (forms, FAQ, countdown, video).
+- **Big changes** (new page, redesign, restructure): work on a branch and share the Vercel preview URL before merging to `main`.
+- **Commits:** small, one concern each, imperative subject ("Add FAQ to EFT page"). Commit or push only when asked.
+- **Never commit:** `.DS_Store`, `.claude/settings.local.json`, raw exports, `.psd`/`.fig`, unoptimized originals (keep those outside the repo or in Drive).
+- **Fonts and licenses:** Pretendard is OFL. Check Gmarket Sans terms before serving or redistributing its files publicly.
+
+## Open decisions
+
+- [ ] The current homepage uses the ENGINE palette (red `#bd1b1b`, Instrument Serif). DESIGN.md specifies Ashley's palette (terracotta/coral, Gmarket Sans + Pretendard). Decide which is canonical for the site, then update this file.
+- [ ] Connect the NSMB waitlist form (`data-endpoint`) to the real form handler.
+- [ ] Confirm "7일" vs "14일" refund wording on the NSMB page.
+- [ ] Convert Gmarket Sans TTFs to subset woff2 (and check its license for public hosting).
