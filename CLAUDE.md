@@ -16,6 +16,8 @@ hal-website/
 ├── README.md              ← human quick-start (preview, deploy)
 ├── vercel.json            ← outputDirectory: "site", clean URLs, cache headers
 ├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
+├── middleware.js          ← password-protects /preview/* (Basic Auth: PREVIEW_USER / PREVIEW_PASSWORD)
+├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
 ├── .env.example           ← names of the env vars the function needs (values live in Vercel only)
 ├── .gitignore
 ├── .claude/
@@ -31,7 +33,11 @@ hal-website/
 └── site/                  ← the ONLY folder Vercel serves
     ├── index.html         ← / — rebuild of the ashleylim.com home (link-in-bio: profile + program cards)
     ├── engine/index.html  ← /engine — ENGINE-style NSMB page (ENGINE palette, its own CSS/JS)
-    ├── nsmb/index.html    ← /nsmb — rebuild of ashleylim.com/nsmb in Ashley's design system
+    ├── nsmb/index.html    ← /nsmb — rebuild of ashleylim.com/nsmb in Ashley's design system (hand-built, customised)
+    ├── lifeartist2026/, eft/, chosen/, switch/          ← generated from the live pages (tools/rebuild)
+    ├── terms-and-conditions/, refund-policy/, privacy-policy/  ← generated from the live pages
+    ├── preview/<page>/    ← PRIVATE copies incl. elements hidden on the live site (password + noindex)
+    ├── robots.txt         ← disallows /preview/
     ├── <page>/index.html  ← each new page gets a folder → clean URL /<page>
     ├── favicon.png, apple-touch-icon.png
     ├── og/                ← social share images (1200×630 JPEG)
@@ -44,6 +50,7 @@ hal-website/
         │   └── components.css  ← /engine: components + responsive
         ├── js/main.js          ← /engine: enrollment state, countdown, reveal, lite-YouTube, forms
         ├── js/nsmb.js          ← /nsmb: progress bars, lite-YouTube, waitlist form
+        ├── css/fonts.css       ← @font-face for every page (link before page CSS)
         ├── fonts/              ← subset woff2: gmarket-sans-300/500/700, pretendard-400/500/600/700
         └── img/
             ├── shared/         ← logo, Ashley portraits
@@ -94,6 +101,13 @@ Rules for the structure:
 - **Responsive**: check 375px, 768px, 1024px and 1440px. There must be no horizontal scroll at 375px.
 - **Third parties**: no new trackers, pixels, chat widgets or CDNs without asking. Fonts may come from Google Fonts or jsDelivr only until self-hosted.
 
+## Generated pages and private previews
+
+- `/lifeartist2026`, `/eft`, `/chosen`, `/switch` and the three policy pages are **generated** by `tools/rebuild/` from captures of the live pages. Each has its CSS inline, with one class per style combination. **Don't hand-edit them**: when the live page changes, re-capture and regenerate (see `tools/rebuild/README.md`). If a page here should diverge from the live site, hand-build it like `/nsmb` instead.
+- `/preview/<page>` shows the same page **including elements hidden on the live site**, outlined in rose with a "숨김 · 데스크톱/태블릿/모바일" tag. Images used only by hidden elements live under `/preview/<page>/img/`, so they're protected too.
+- Previews are protected by `middleware.js` (Basic Auth). Set `PREVIEW_USER` and `PREVIEW_PASSWORD` in Vercel (all environments). Without them `/preview/*` returns 503 for everyone. They're also `noindex` (meta + `X-Robots-Tag`) and disallowed in `robots.txt`.
+- Generated public pages carry `<link rel="canonical">` to their ashleylim.com originals, so search engines don't treat this site as duplicate content. Remove it only when this site *becomes* ashleylim.com.
+
 ## Page configuration
 
 Sales pages keep cohort-specific values in one place: the `data-state` and `data-deadline` attributes on `#page`.
@@ -120,3 +134,5 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 - [ ] Confirm "7일" vs "14일" refund wording on the NSMB page.
 - [ ] Check Gmarket Sans license terms for public web hosting (subset woff2 files are now served).
 - [ ] Decide whether to keep `/engine` or delete it.
+- [ ] Set `PREVIEW_USER` / `PREVIEW_PASSWORD` in Vercel before using `/preview/*`.
+- [ ] When this site replaces ashleylim.com: remove the canonical tags and switch absolute ashleylim.com links in generated pages to relative ones.

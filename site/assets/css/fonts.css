@@ -1,0 +1,8 @@
+/* Self-hosted brand fonts (subset woff2: KS X 1001 Hangul + Latin + symbols). Linked before any page CSS. */
+@font-face{font-family:"GmarketSans";src:url("/assets/fonts/gmarket-sans-300.woff2") format("woff2");font-weight:300;font-display:swap}
+@font-face{font-family:"GmarketSans";src:url("/assets/fonts/gmarket-sans-500.woff2") format("woff2");font-weight:400 500;font-display:swap}
+@font-face{font-family:"GmarketSans";src:url("/assets/fonts/gmarket-sans-700.woff2") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-500.woff2") format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-600.woff2") format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-700.woff2") format("woff2");font-weight:700;font-display:swap}

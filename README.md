@@ -37,3 +37,13 @@ For double opt-in, also set `AC_FORM_ACTION`, `AC_FORM_ID`, `AC_FORM_U` and `AC_
 Master Contact List with opt-in confirmation turned on; visitors then see the "확인 이메일" message.
 
 The local `python3 -m http.server` preview can't run the function; test the form on a Vercel preview deployment.
+
+## Private previews (/preview/*)
+
+`/preview/<page>` shows a page with the elements that are hidden on the live site, outlined.
+These are password-protected by `middleware.js`: set `PREVIEW_USER` and `PREVIEW_PASSWORD` in
+Vercel → Settings → Environment Variables, then redeploy. The browser asks for them on first visit.
+
+## Rebuilding a page from ashleylim.com
+
+See `tools/rebuild/README.md`.

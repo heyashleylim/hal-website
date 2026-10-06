@@ -4,13 +4,6 @@
    Fonts are self-hosted subsets (KS X 1001 Hangul + Latin + symbols).
    ========================================================= */
 
-@font-face{font-family:"GmarketSans";src:url("/assets/fonts/gmarket-sans-300.woff2") format("woff2");font-weight:300;font-display:swap}
-@font-face{font-family:"GmarketSans";src:url("/assets/fonts/gmarket-sans-500.woff2") format("woff2");font-weight:400 500;font-display:swap}
-@font-face{font-family:"GmarketSans";src:url("/assets/fonts/gmarket-sans-700.woff2") format("woff2");font-weight:700;font-display:swap}
-@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-400.woff2") format("woff2");font-weight:400;font-display:swap}
-@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-500.woff2") format("woff2");font-weight:500;font-display:swap}
-@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-600.woff2") format("woff2");font-weight:600;font-display:swap}
-@font-face{font-family:"Pretendard";src:url("/assets/fonts/pretendard-700.woff2") format("woff2");font-weight:700;font-display:swap}
 
 :root{
   /* Fonts */
@@ -106,7 +99,7 @@ em{font-style:italic}
 .proof-tag{align-self:flex-start;display:inline-block;background:var(--proof-bg);color:var(--proof-fg);font:700 12px/22.4px var(--font-body);padding:4px 12px;border-radius:var(--r-xl)}
 .t-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:20px;display:flex;flex-direction:column;gap:20px}
 .t-card__body{line-height:1.5}
-.t-card__by{color:var(--muted)}
+.t-card__by{color:var(--muted);margin-top:auto}
 
 /* ---------- Footer ---------- */
 .site-footer{background:var(--deep);color:#fff}
