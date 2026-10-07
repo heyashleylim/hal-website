@@ -68,7 +68,7 @@ function safeNext(value) {
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function loginPage(next, error, status = 401) {
+function loginPage(next, error, status = 200) {
   const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive"><title>비공개 미리보기 · 로그인</title>
@@ -111,7 +111,7 @@ export default async function middleware(request) {
     try { form = await request.formData(); } catch (_) { form = new FormData(); }
     const next = safeNext(form.get('next'));
     if (!credentialsMatch(form.get('username'), form.get('password'), user, pass)) {
-      return loginPage(next, '아이디 또는 비밀번호가 맞지 않아요.');
+      return loginPage(next, '아이디 또는 비밀번호가 맞지 않아요.', 200);
     }
     return new Response(null, {
       status: 303,
@@ -126,5 +126,5 @@ export default async function middleware(request) {
   if (safeEqual(readCookie(request, COOKIE), token)) return undefined; // logged in: serve the file
   if (basicCandidates(request).some(([u, p]) => credentialsMatch(u, p, user, pass))) return undefined;
 
-  return loginPage(safeNext(url.pathname));
+  return loginPage(safeNext(url.pathname)); // 200, not 401: a 401 can be mistaken for Vercel's own protection
 }
