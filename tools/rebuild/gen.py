@@ -56,6 +56,47 @@ for r in D['tree']:
             stack.extend(c for c in x.get('c', []) if isinstance(c, dict))
 def in_role(i, role): return ROLE.get(i) == role
 
+# Deliberate differences from the live page (overrides.json), e.g. equal-height cards at every width.
+OVR = json.load(open(os.path.join(HERE, 'overrides.json'))).get(slug, {})
+def node_text(i):
+    n = nodes[i]
+    return ''.join(c if isinstance(c, str) else node_text(c['i']) for c in n.get('c', []))
+EQUAL_GRIDS, CARD_FILL = set(), set()
+CAROUSEL_TRACK, CAROUSEL_VP, BOTTOM_SPACE = set(), set(), {}
+def top_section(i):
+    # The page section (child of the main content root) that contains node i.
+    root = D['tree'][1]['node']['i']
+    while parent[i] is not None and parent[i] != root and parent[parent[i]] is not None: i = parent[i]
+    x = i
+    while parent[x] is not None and parent[x] != root: x = parent[x]
+    return x
+def apply_overrides():
+  for i, n in nodes.items():  # image carousels: the slide track and its clipping viewport
+      if any(isinstance(c, dict) and 'swiper-slide' in c['a'].get('cls', '') for c in n.get('c', [])):
+          CAROUSEL_TRACK.add(i); CAROUSEL_VP.add(parent[i])
+  for rule in OVR.get('bottom_space', []):
+      hits = [i for i, n in nodes.items() if rule['after'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
+      if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, rule['after']))
+      BOTTOM_SPACE[top_section(hits[0])] = rule['px']
+  for anchor in OVR.get('equal_height_cards', []):
+      hits = [i for i, n in nodes.items() if anchor in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
+      if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, anchor))
+      x = hits[0]
+      def grids_under(i):
+          out = [i] if 'grid' in S('d', i).get('display', '') else []
+          for c in nodes[i].get('c', []):
+              if isinstance(c, dict): out += grids_under(c['i'])
+          return out
+      while x is not None and not grids_under(x): x = parent[x]
+      for g in grids_under(x):
+          EQUAL_GRIDS.add(g)
+          for item in [c for c in nodes[g].get('c', []) if isinstance(c, dict)]:
+              k = item
+              while True:  # the card box inside the grid cell: follow single-child wrappers down
+                  kids = [c for c in k.get('c', []) if isinstance(c, dict)]
+                  if len(kids) != 1 or any(isinstance(c, str) and c.strip() for c in k.get('c', [])): break
+                  k = kids[0]; CARD_FILL.add(k['i'])
+
 def S(bp, i):
     if bp == 'd': return nodes[i]['s']
     return (T if bp == 't' else M).get(str(i), nodes[i]['s'])
@@ -243,7 +284,8 @@ def decls(i, bp, preview):
         fs = px(eff(bp, i, 'font-size') or '16px') or 16
         lh = px(eff(bp, i, 'line-height') or '') or fs * 1.2
         only_text = all(isinstance(c, str) or c['t'] in ('span', 'strong', 'b', 'em', 'i', 'u', 'a', 'br', 'mark', 'small', 'sup', 'sub')
-                        for c in n.get('c', []))
+                        for c in n.get('c', [])) \
+            and any(isinstance(c, dict) or c.strip() for c in n.get('c', []))  # empty boxes (bar fills) aren't text
         single_line = only_text and h is not None and h <= lh * 1.45
         if 'flex' in pdisp and pdir.startswith('row'):
             if pw and abs(w - pw) <= 1 and not inline and s.get('flex-grow', '0') == '0' and not only_text:
@@ -260,7 +302,12 @@ def decls(i, bp, preview):
                 if ph:
                     pad = sum(px(pd.get(k, '0')) or 0 for k in ('padding-top', 'padding-bottom', 'border-top-width', 'border-bottom-width'))
                     if h < ph - pad - 1.5: out['height'] = '%gpx' % h
-        elif 'grid' in pdisp: pass
+        elif 'grid' in pdisp:
+            # Grid items centred / end-aligned in their cell (justify-self/-items isn't captured): use the offsets.
+            gl, gr = s.get('__ml'), s.get('__mr')
+            if gl is not None and gr is not None and w and pw and w < pw - 1:
+                if gl > 1 and abs(gl - gr) <= 1.5: out['justify-self'] = 'center'
+                elif gl > 1 and gr <= 1: out['justify-self'] = 'end'
         elif 'flex' in pdisp and pw and abs(w - pw) <= 1 and not inline and not only_text and \
                 (pd.get('align-items', 'normal') not in ('normal', 'stretch') or s.get('align-self', 'auto') not in ('auto', 'normal', 'stretch')):
             out['width'] = '100%'  # full-width box in a centred / start-aligned column: it won't stretch by itself
@@ -297,7 +344,8 @@ def decls(i, bp, preview):
         if inline and disp != 'inline' and not has_text and h and n.get('c'):
             out['width'] = '%gpx' % w; out['height'] = '%gpx' % h  # icon-only inline boxes (e.g. social icons)
         ml, mr = px(s.get('margin-left', '0')), px(s.get('margin-right', '0'))
-        if ml and mr and ml > 0 and abs(ml - mr) <= 1 and pw and abs((pw - w) / 2 - ml) <= 1.5:  # negative margins are real offsets
+        if ml and mr and ml > 0 and abs(ml - mr) <= 1 and pw and abs((pw - w) / 2 - ml) <= 1.5 \
+                and ('width' in out or 'max-width' in out):  # negative margins are real offsets; auto needs a width
             out['margin-left'] = out['margin-right'] = 'auto'
         mh = s.get('__minh', '0px')
         if mh not in ('0px', 'auto', ''): out['min-height'] = mh
@@ -336,6 +384,8 @@ def decls(i, bp, preview):
         ph_ = S(bp, pi).get('__h'); h_ = s.get('__h')
         sibs = [c for c in nodes[pi].get('c', []) if isinstance(c, dict)]
         if ph_ and h_ and len(sibs) == 1 and abs(ph_ - h_) <= 1: out['height'] = '100%'
+    if i in EQUAL_GRIDS: out['grid-template-rows'] = 'none'; out['grid-auto-rows'] = '1fr'; out['align-items'] = 'stretch'
+    if i in CARD_FILL: out['height'] = '100%'
     if out.get('position') == 'absolute' and w is not None and pw:
         # Computed left/right/top/bottom come back as pixels on both sides; keep only the side the box hugs.
         for a_, b_ in (('left', 'right'), ('top', 'bottom')):
@@ -347,8 +397,13 @@ def decls(i, bp, preview):
     if out.get('position') == 'fixed' and in_role(i, 'header'):
         # Elementor's sticky header switches to position:fixed while scrolled; we use position:sticky instead.
         for k in ('position', 'top', 'left', 'right', 'width'): out.pop(k, None)
-    if bp == 'd' and STICKY and n['i'] == D['tree'][0]['node']['i']:
-        out.update({'position': 'sticky', 'top': '0', 'z-index': '100'})
+    if STICKY and n['i'] == D['tree'][0]['node']['i']:
+        # Sticky on every device (as live: sticky_on desktop/tablet/mobile), with the /nsmb header's 1px rule.
+        # The -1px margin keeps the page from shifting by the rule's pixel.
+        out.update({'position': 'sticky', 'top': '0', 'z-index': '100',
+                    'border-bottom': '1px solid rgb(215, 215, 215)', 'margin-bottom': '-1px'})
+    if i in CAROUSEL_TRACK: out.pop('transform', None)  # lv-carousel.js positions the slides
+    if i in BOTTOM_SPACE: out['padding-bottom'] = '%dpx' % BOTTOM_SPACE[i][{'d': 0, 't': 1, 'm': 2}[bp]]
     return out
 
 def pdecls(i, bp, preview):
@@ -406,7 +461,7 @@ def build(preview):
         keep = ' '.join(c for c in a.get('cls', '').split() if c in ('e-opened', 'e-closed'))
         out = [('class', cls + (' ' + keep if keep else ''))]
         for k in ('id', 'role', 'aria-controls', 'aria-selected', 'aria-labelledby', 'type', 'name', 'placeholder',
-                  'value', 'for', 'title', 'open', 'required', 'checked', 'selected'):
+                  'value', 'for', 'title', 'open', 'required', 'checked', 'selected', 'start', 'reversed'):
             if k in a and not (t == 'iframe' and k == 'title'): out.append((k, a[k]))
         if t == 'a' and a.get('href'):
             out.append(('href', a['href']))
@@ -416,6 +471,37 @@ def build(preview):
         if DEBUG: out.append(('data-c', n['i']))
         s = ''.join(' %s="%s"' % (k, html.escape(str(v), quote=True)) if v != '' else ' %s' % k for k, v in out)
         return s + extra
+
+    INLINE_KEEP = {'strong': 'strong', 'b': 'strong', 'em': 'em', 'i': 'em', 'u': 'u', 'br': 'br', 'a': 'a', 'span': None, 'mark': None}
+    def inline_html(n):
+        out = []
+        for c in n.get('c', []):
+            if isinstance(c, str): out.append(html.escape(c)); continue
+            if not preview and not public_visible(c['i']): continue
+            t = INLINE_KEEP.get(c['t'], None) if c['t'] in INLINE_KEEP else 'BLOCK'
+            if c['t'] == 'br': out.append('<br>')
+            elif t == 'a':
+                href = c['a'].get('href', '')
+                out.append('<a href="%s"%s>%s</a>' % (html.escape(href, quote=True),
+                           ' target="_blank" rel="noopener"' if c['a'].get('target') else '', inline_html(c)))
+            elif t in ('strong', 'em', 'u'): out.append('<%s>%s</%s>' % (t, inline_html(c), t))
+            else: out.append(inline_html(c))
+        return ''.join(out)
+    def answer_html(n):
+        # Paragraphs of the live answer, without the live styling (the /nsmb FAQ style applies).
+        kids = [c for c in n.get('c', []) if isinstance(c, dict) and (preview or public_visible(c['i']))]
+        has_text = any(isinstance(c, str) and c.strip() for c in n.get('c', []))
+        if n['t'] in ('ul', 'ol'):
+            return '<%s>%s</%s>' % (n['t'], ''.join('<li>%s</li>' % inline_html(li) for li in kids), n['t'])
+        if has_text or (kids and all(c['t'] in INLINE_KEEP for c in kids)):
+            return '<p>%s</p>' % inline_html(n).strip()
+        return ''.join(answer_html(c) for c in kids)
+    def faq_item(n, flag):
+        summ = next(c for c in n['c'] if isinstance(c, dict) and c['t'] == 'summary')
+        q = re.sub(r'\s+', ' ', node_text(summ['i'])).strip()
+        body = ''.join(answer_html(c) for c in n['c'] if isinstance(c, dict) and c is not summ)
+        return '<details%s%s><summary>%s<span class="pm" aria-hidden="true"></span></summary><div class="ans">%s</div></details>' % (
+            ' open' if 'open' in n['a'] else '', flag, html.escape(q), body)
 
     first_imgs = [0]
     def render(n, depth=0, flagged_bps=frozenset()):
@@ -445,6 +531,13 @@ def build(preview):
             m = re.search(r'youtube(?:-nocookie)?\.com/embed/([\w-]{11})', src)
             if m: src = 'https://www.youtube-nocookie.com/embed/%s?rel=0' % m.group(1)
             return '<iframe class="%s" src="%s" title="%s" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen%s></iframe>' % (cls, html.escape(src, quote=True), html.escape(n['a'].get('title') or '동영상', quote=True), flag)
+        if t == 'details': return faq_item(n, (' class="lv-hidden"' + flag) if mark else '')
+        if i in CAROUSEL_TRACK: cls += ' lv-track'
+        if i in CAROUSEL_VP: cls += ' lv-viewport'
+        if 'swiper-slide' in n['a'].get('cls', ''): cls += ' lv-slide'
+        if n['a'].get('settings') and 'carousel' in n['a'].get('wt', ''):
+            flag += ' data-lv-carousel="%s"' % html.escape(n['a']['settings'], quote=True)
+        if any(isinstance(c, dict) and c['t'] == 'details' for c in n.get('c', [])): cls += ' faq faq--gen'
         if t == 'br': return '<br>'
         if t == 'source': return ''
         if t in ('input',): return '<input%s>' % attrs_html(n, cls, flag)
@@ -471,6 +564,28 @@ def build(preview):
         parts.append(h)
     body = '\n'.join(parts)
 
+    tab_css = []
+    VIS = ('border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color', 'border-top-width',
+           'border-right-width', 'border-bottom-width', 'border-left-width', 'border-top-style', 'border-right-style',
+           'border-bottom-style', 'border-left-style', 'background-color', 'color', 'box-shadow')
+    for i, n in nodes.items():
+        if n['a'].get('role') != 'tablist' or (not preview and not public_visible(i)): continue
+        tabs = [c for c in n.get('c', []) if isinstance(c, dict) and c['a'].get('role') == 'tab']
+        on = [t for t in tabs if t['a'].get('aria-selected') == 'true']; off = [t for t in tabs if t['a'].get('aria-selected') != 'true']
+        if not on or not off: continue
+        tl = cls_for(i).split()[0]
+        for bp in BPS:
+            dn, df = decls(on[0]['i'], bp, preview), decls(off[0]['i'], bp, preview)
+            keys = [k for k in VIS if dn.get(k) != df.get(k)]
+            if not keys: continue
+            rules = ('.%s>[role=tab][aria-selected="true"]{%s}' % (tl, ';'.join('%s:%s' % (k, dn[k]) for k in keys if k in dn)) +
+                     '.%s>[role=tab][aria-selected="false"]{%s}' % (tl, ';'.join('%s:%s' % (k, df[k]) for k in keys if k in df)))
+            tab_css.append(rules if bp == 'd' else '@media (max-width:%s){%s}' % ('1024px' if bp == 't' else '767px', rules))
+        hov = OVR.get('tab_hover')
+        if hov:
+            tab_css.append('.%s>[role=tab]{transition:border-color .3s,background-color .3s,color .3s;cursor:pointer}' % tl)
+            tab_css.append('@media (hover:hover){.%s>[role=tab][aria-selected="false"]:hover{%s}}' % (tl, ';'.join('%s:%s' % kv for kv in hov.items())))
+
     def css_block(sel, d):
         return '%s{%s}' % (sel, ';'.join('%s:%s' % (k, v) for k, v in d.items())) if d else ''
     lines, tab, mob = [], [], []
@@ -484,6 +599,7 @@ def build(preview):
     css = '\n'.join(x for x in lines if x)
     css += '\n@media (max-width:1024px){' + ''.join(x for x in tab if x) + '}'
     css += '\n@media (max-width:767px){' + ''.join(x for x in mob if x) + '}'
+    if tab_css: css += '\n/* tab states (selected / not selected / hover) */\n' + '\n'.join(tab_css)
     return body, css, hidden_count[0]
 
 def localize_images(html_text, css_text):
@@ -562,11 +678,15 @@ def page(body, css, preview, nhidden):
         if '[role=tab]' in body or 'role="tab"' in body else ''
     return ('<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             '<title>%s</title>\n%s%s\n<link rel="icon" href="/favicon.png">\n<link rel="apple-touch-icon" href="/apple-touch-icon.png">\n'
-            '<link rel="stylesheet" href="/assets/css/fonts.css">\n<link rel="stylesheet" href="/assets/css/footer.css">\n%s\n'
+            '<link rel="stylesheet" href="/assets/css/fonts.css">\n<link rel="stylesheet" href="/assets/css/footer.css">\n%s%s\n'
             '<style>\n/* Generated from ashleylim.com%s (captured at 1440/900/390px). Edit with care: regenerate instead. */\n%s\n%s\n%s\n</style>\n</head>\n<body>\n%s%s\n%s\n</body>\n</html>\n'
             % (html.escape(title), robots, ('<meta name="description" content="%s">' % html.escape(desc, quote=True)) if desc else '',
-               fl, meta['path'].replace('/p/', '/'), base, pcss, css, banner, body, tabs_js))
+               ('<link rel="stylesheet" href="/assets/css/faq.css">\n' if '<details' in body else '') +
+               ('<link rel="stylesheet" href="/assets/css/lv-carousel.css">\n<script src="/assets/js/lv-carousel.js" defer></script>\n'
+                if 'data-lv-carousel' in body else ''), fl,
+               meta['path'].replace('/p/', '/'), base, pcss, css, banner, body, tabs_js))
 
+apply_overrides()
 for preview in MODES:
     body, css, nh = build(preview)
     localize_images(body, css)

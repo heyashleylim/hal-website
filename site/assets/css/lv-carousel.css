@@ -1,0 +1,19 @@
+/* lv-carousel (see /assets/js/lv-carousel.js): arrows and dots as on ashleylim.com's image carousel.
+   Live values: 25px chevrons in #666 at the outer edges, vertically centred on the slides;
+   6px dots 18px apart, black at 20% (active 100%), 5px above the widget's bottom edge. */
+.lv-carousel{position:relative}
+.lv-carousel .lv-track{align-items:center}
+.lv-arrow{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;width:25px;height:25px;padding:0;margin:0;border:0;background:none;color:#666666;cursor:pointer;transform:translateY(-50%)}
+.lv-arrow::after{content:"";position:absolute;top:-10px;bottom:-10px}  /* 45px tap area, extending inwards only */
+.lv-arrow--prev::after{left:0;right:-20px}
+.lv-arrow--next::after{left:-20px;right:0}
+.lv-arrow svg{width:25px;height:25px}
+.lv-arrow--prev{left:0}
+.lv-arrow--next{right:0}
+.lv-arrow--next svg{transform:scaleX(-1)}
+.lv-arrow:focus-visible,.lv-dot:focus-visible{outline:2px solid #DB4A2B;outline-offset:2px;border-radius:4px}
+.lv-dots{position:absolute;left:0;right:0;bottom:5px;height:22px;display:flex;align-items:center;justify-content:center}
+.lv-dot{position:relative;width:18px;height:22px;padding:0;margin:0;border:0;background:none;cursor:pointer}
+.lv-dot::before{content:"";position:absolute;left:6px;top:8px;width:6px;height:6px;border-radius:50%;background:#000000;opacity:.2;transition:opacity .2s}
+.lv-dot.is-active::before{opacity:1}
+@media (prefers-reduced-motion:reduce){.lv-dot::before{transition:none}}

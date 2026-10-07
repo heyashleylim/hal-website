@@ -41,11 +41,13 @@ function attrs(el){const a={};const t=el.tagName;
   if(t==='SOURCE'){a.src=el.src}
   if(['INPUT','TEXTAREA','SELECT','BUTTON','FORM','LABEL','OPTION'].includes(t)){['type','name','placeholder','value','for','action','method','required','checked','selected'].forEach(k=>{if(el.hasAttribute(k))a[k]=el.getAttribute(k)})}
   if(t==='DETAILS'&&el.open)a.open='';
+  if(t==='OL'){['start','reversed','type'].forEach(k=>{if(el.hasAttribute(k))a[k]=el.getAttribute(k)})}
+  if(t==='LI'&&el.hasAttribute('value'))a.value=el.getAttribute('value');
   const role=el.getAttribute&&el.getAttribute('role');
   if(role&&/^(tab|tabpanel|tablist)$/.test(role)){a.role=role;['aria-controls','aria-selected','aria-labelledby'].forEach(k=>{if(el.hasAttribute(k))a[k]=el.getAttribute(k)});if(el.id)a.id=el.id}
   if(el.id&&anchorIds.has(el.id))a.id=el.id;
   if(el.dataset&&el.dataset.settings&&/youtube_url|vimeo_url/.test(el.dataset.settings)){try{const s=JSON.parse(el.dataset.settings);a.video=s.youtube_url||s.vimeo_url}catch(_){}}
-  if(el.dataset&&el.dataset.widget_type)a.wt=el.dataset.widget_type;
+  if(el.dataset&&el.dataset.widget_type){a.wt=el.dataset.widget_type;if(/carousel/.test(a.wt)&&el.dataset.settings)a.settings=el.dataset.settings}
   if(el.classList){const c=[...el.classList].filter(x=>/^e-(opened|closed)$|^elementor-icon-list-icon$|^e-n-accordion-item-title-icon$|^swiper-slide$|^elementor-countdown/.test(x));if(c.length)a.cls=c.join(' ')}
   if(el.dataset&&el.dataset.date)a.date=el.dataset.date;
   return a}
@@ -71,15 +73,28 @@ function prep(){document.querySelectorAll('.elementor-invisible').forEach(e=>e.c
 function restyle(){const out={};document.querySelectorAll('[data-cap]').forEach(el=>{const id=+el.dataset.cap;const p=el.parentElement;out[id]=styles(el,p?getComputedStyle(p):null);const ps=pseudo(el);if(ps)out[id].__p=ps});return out}
 async function post(name,obj){const r=await fetch('http://127.0.0.1:8799/save?name='+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});return r.text()}
 async function scrollAll(){const H=document.body.scrollHeight;for(let y=0;y<H;y+=500){scrollTo(0,y);await new Promise(r=>setTimeout(r,80))}scrollTo(0,0);await new Promise(r=>setTimeout(r,400))}
-async function capture(name){
-  await scrollAll();prep();
+function rootsOf(){
   const roots=[].concat([...document.querySelectorAll('.elementor[data-elementor-type=header]')],[...document.querySelectorAll('.elementor[data-elementor-type=wp-page],.elementor[data-elementor-type=wp-post]')],[...document.querySelectorAll('.elementor[data-elementor-type=footer]')]);
   if(roots.length&&!roots.some(r=>!/header|footer/.test(r.dataset.elementorType))){const m=document.querySelector('main, .site-main, article, .page-content');if(m)roots.splice(1,0,m)}
+  return roots;
+}
+async function capture(name){
+  await scrollAll();prep();
+  const roots=rootsOf();
   nextId=0;const bcs=getComputedStyle(document.body);
   const tree=roots.map(r=>({role:r.dataset.elementorType||'main',node:walk(r,bcs)}));
   const meta={title:document.title,description:(document.querySelector('meta[name=description]')||{}).content||'',og:(document.querySelector('meta[property="og:image"]')||{}).content||'',path:location.pathname,vw:innerWidth,bodyBg:bcs.backgroundColor,bodyFont:bcs.fontFamily,bodyColor:bcs.color,bodySize:bcs.fontSize,bodyLH:bcs.lineHeight,docH:document.body.scrollHeight,n:nextId,headCss:[...document.querySelectorAll('link[rel=stylesheet]')].map(l=>l.href).filter(h=>/fonts\.googleapis/.test(h))};
   return post(name,{meta,tree});
 }
 async function capturePass(name){await scrollAll();prep();return post(name,{vw:innerWidth,styles:restyle()})}
-return {capture,capturePass};
+// Tablet/mobile pass on a page freshly loaded at that width (more reliable than resizing a loaded page:
+// a resized page can keep stale styles). Numbers the elements exactly like capture() did; pass the desktop
+// capture's element count (meta.n) so a structural difference is refused instead of saved.
+async function capturePassFresh(name,expectedN){
+  await scrollAll();prep();nextId=0;const bcs=getComputedStyle(document.body);
+  rootsOf().forEach(r=>walk(r,bcs));
+  if(expectedN&&nextId!==expectedN)return 'NOT SAVED: '+nextId+' elements here, '+expectedN+' in the desktop capture';
+  return post(name,{vw:innerWidth,styles:restyle()});
+}
+return {capture,capturePass,capturePassFresh};
 })();

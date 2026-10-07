@@ -1,0 +1,22 @@
+{
+  "_about": "Deliberate differences from the live pages requested by Ashley, plus live behaviour the capture cannot record (hover styles). Applied every time a page is regenerated. Anchors are exact text on the page; px = [desktop, tablet, mobile].",
+  "eft": {
+    "equal_height_cards": ["수업이 끝나면, 이렇게 달라집니다"]
+  },
+  "switch": {
+    "bottom_space": [{"after": "FAQ", "px": [100, 80, 60]}]
+  },
+  "lifeartist2026": {
+    "tab_hover": {"border-color": "rgb(160, 160, 160)"},
+    "bottom_space": [{"after": "FAQ", "px": [100, 80, 60]}]
+  },
+  "privacy-policy": {
+    "bottom_space": [{"after": "15. 기타", "px": [100, 80, 60]}]
+  },
+  "refund-policy": {
+    "bottom_space": [{"after": "5. 환불 요청 방법 및 기타 사항", "px": [100, 80, 60]}]
+  },
+  "terms-and-conditions": {
+    "bottom_space": [{"after": "16. 고객센터 및 연락처", "px": [100, 80, 60]}]
+  }
+}
