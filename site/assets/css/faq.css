@@ -1,0 +1,30 @@
+/* =========================================================
+   FAQ accordion — the /nsmb style, shared by every page with a FAQ.
+   Markup: <div class="faq"><details><summary>Question<span class="pm" aria-hidden="true"></span></summary>
+           <div class="ans"><p>…</p></div></details>…</div>
+   Self-contained (own tokens and font), so it looks the same on the generated pages.
+   ========================================================= */
+.faq{
+  --faq-ink:#222222;
+  --faq-line:#D7D7D7;        /* = --line */
+  --faq-accent:#DB4A2B;      /* = --accent */
+  --faq-icon:#C37568;        /* = --rose */
+  --faq-ease:cubic-bezier(.16,1,.3,1);
+  font-family:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,sans-serif;
+  color:var(--faq-ink);word-break:keep-all;overflow-wrap:break-word;text-align:left
+}
+.faq.faq--gen{row-gap:0;column-gap:0}  /* generated pages: drop the live accordion's item gaps */
+.faq details{border-bottom:1px solid var(--faq-line);margin:0;padding:0;background:none}
+.faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 0;font-size:18px;font-weight:500;line-height:1.4;transition:color .2s}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:hover{color:var(--faq-accent)}
+.faq summary:focus-visible{outline:3px solid var(--faq-accent);outline-offset:3px;border-radius:6px}
+.faq .pm{flex:0 0 auto;width:24px;height:24px;position:relative}
+.faq .pm::before,.faq .pm::after{content:'';position:absolute;left:4px;right:4px;top:50%;height:2px;margin-top:-1px;background:var(--faq-icon);transition:transform .3s var(--faq-ease)}
+.faq .pm::after{transform:rotate(90deg)}
+.faq details[open] .pm::after{transform:rotate(0)}
+.faq .ans{padding:0 0 24px;line-height:1.5}
+.faq .ans p{margin:0}
+.faq .ans p + p{margin-top:12px}
+.faq .ans a{color:var(--faq-accent)}
+@media (prefers-reduced-motion:reduce){.faq summary,.faq .pm::before,.faq .pm::after{transition:none}}

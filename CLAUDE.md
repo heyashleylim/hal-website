@@ -43,13 +43,17 @@ hal-website/
     ├── og/                ← social share images (1200×630 JPEG)
     └── assets/
         ├── css/
-        │   ├── brand.css       ← Ashley's design system (DESIGN.md): @font-face, tokens, base, buttons, header, footer
+        │   ├── brand.css       ← Ashley's design system (DESIGN.md): tokens, base, buttons, header
+        │   ├── footer.css      ← the site footer, shared by EVERY page (self-contained: own tokens, font, resets)
+        │   ├── faq.css         ← the FAQ accordion (the /nsmb style), shared by every page with a FAQ
+        │   ├── lv-carousel.css ← arrows/dots for rebuilt image carousels (with js/lv-carousel.js)
         │   ├── pages/nsmb.css  ← /nsmb section layouts
         │   ├── tokens.css      ← ENGINE palette variables (/engine only)
         │   ├── base.css        ← /engine: reset, typography, layout, reveal
         │   └── components.css  ← /engine: components + responsive
         ├── js/main.js          ← /engine: enrollment state, countdown, reveal, lite-YouTube, forms
         ├── js/nsmb.js          ← /nsmb: progress bars, lite-YouTube, waitlist form
+        ├── js/lv-carousel.js   ← generated pages: image carousel (autoplay, loop, arrows, dots), no dependencies
         ├── css/fonts.css       ← @font-face for every page (link before page CSS)
         ├── fonts/              ← subset woff2: gmarket-sans-300/500/700, pretendard-400/500/600/700
         └── img/
@@ -106,6 +110,10 @@ Rules for the structure:
 - `/lifeartist2026`, `/eft`, `/chosen`, `/switch` and the three policy pages are **generated** by `tools/rebuild/` from captures of the live pages. Each has its CSS inline, with one class per style combination. **Don't hand-edit them**: when the live page changes, re-capture and regenerate (see `tools/rebuild/README.md`). If a page here should diverge from the live site, hand-build it like `/nsmb` instead.
 - `/preview/<page>` shows the same page **including elements hidden on the live site**, outlined in rose with a "숨김 · 데스크톱/태블릿/모바일" tag. Images used only by hidden elements live under `/preview/<page>/img/`, so they're protected too.
 - Previews are protected by `middleware.js`: any `/preview/*` URL shows a login page (아이디 / 비밀번호), and a correct login sets an HttpOnly cookie for `/preview` valid 30 days. Changing `PREVIEW_PASSWORD` logs everyone out. Don't switch back to the browser's Basic Auth pop-up: its credentials don't reach the middleware behind Vercel's deployment protection. `PREVIEW_USER` and `PREVIEW_PASSWORD` are set in Vercel (all environments). Without them `/preview/*` returns 503 for everyone. They're also `noindex` (meta + `X-Robots-Tag`) and disallowed in `robots.txt`.
+- Every FAQ uses the /nsmb accordion style (`faq.css`): the generator rebuilds each live accordion as `<div class="faq"><details><summary>…<span class="pm"></span></summary><div class="ans">…</div></details></div>`, keeping the live questions and answers word for word.
+- Deliberate differences from the live pages (asked for by Ashley) live in `tools/rebuild/overrides.json` so they survive regeneration. Currently: equal-height EFT cards ("수업이 끝나면, 이렇게 달라집니다") at every width; extra space after the FAQ on /switch and /lifeartist2026 and after the last section of the policy pages; the /lifeartist2026 plan hover outline (live behaviour the capture can't record).
+- Sticky headers (`/eft`, `/chosen`, like live) carry the same 1px #D7D7D7 bottom rule as `/nsmb`.
+- Every page uses the same footer: the `<footer class="site-footer">` markup from `site/index.html` plus `footer.css`. The generator copies that markup from the home page each time it runs, so change the footer in `site/index.html` (and `/nsmb`), then regenerate the generated pages.
 - Generated public pages carry `<link rel="canonical">` to their ashleylim.com originals, so search engines don't treat this site as duplicate content. Remove it only when this site *becomes* ashleylim.com.
 
 ## Page configuration

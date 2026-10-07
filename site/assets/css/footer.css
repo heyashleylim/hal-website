@@ -1,0 +1,34 @@
+/* =========================================================
+   Site footer — shared by every page (home, /nsmb and the pages generated from ashleylim.com).
+   Self-contained: it sets its own tokens, font and resets, so it looks the same whatever page CSS
+   surrounds it. Markup: copy <footer class="site-footer"> from site/index.html (tools/rebuild does this).
+   ========================================================= */
+.site-footer{
+  --ft-bg:#082D2E;          /* = --deep */
+  --ft-fg:#FFFFFF;
+  --ft-icon:#69727D;
+  --ft-rule:rgba(255,255,255,.15);
+  --ft-focus:#DB4A2B;        /* = --accent */
+  --ft-gutter:20px;
+  --ft-width:1000px;        /* = --w-wide */
+  background:var(--ft-bg);color:var(--ft-fg);
+  font:400 16px/1.4 "Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,sans-serif;
+  -webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:break-word;text-align:left
+}
+.site-footer *,.site-footer *::before,.site-footer *::after{box-sizing:border-box}
+.site-footer p{margin:0}
+.site-footer__in{max-width:var(--ft-width);margin:0 auto;padding:60px var(--ft-gutter)}
+.site-footer__top{display:flex;justify-content:space-between;align-items:flex-start;gap:30px}
+.site-footer__biz{font-size:13px;line-height:22.4px}
+.site-footer__biz a{color:var(--ft-fg);text-decoration:underline}
+.site-footer__social{display:flex;gap:16px}
+.site-footer__social a{display:grid;place-items:center;width:44px;height:44px;color:var(--ft-icon);transition:color .2s}
+.site-footer__social a:hover{color:var(--ft-fg)}
+.site-footer__social svg{width:25px;height:25px;fill:currentColor}
+.site-footer__bottom{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-top:40px;padding-top:20px;border-top:1px solid var(--ft-rule);font-size:13px}
+.site-footer__links{display:flex;gap:20px;flex-wrap:wrap}
+.site-footer__links a{color:var(--ft-fg);text-decoration:none;padding:6px 0}
+.site-footer__links a:hover{text-decoration:underline}
+.site-footer a:focus-visible{outline:3px solid var(--ft-focus);outline-offset:3px;border-radius:6px}
+@media (max-width:767px){.site-footer__top{flex-direction:column}}
+@media (prefers-reduced-motion:reduce){.site-footer__social a{transition:none}}

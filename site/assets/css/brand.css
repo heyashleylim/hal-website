@@ -90,8 +90,8 @@ em{font-style:italic}
 .btn[disabled]{opacity:.5;cursor:not-allowed}
 
 /* ---------- Header ---------- */
-.site-header{position:sticky;top:0;z-index:50;background:var(--bg)}
-.site-header__in{max-width:1210px;height:60px;margin:0 auto;padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.site-header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--line)}  /* live: 1px #D7D7D7 rule, 60px total */
+.site-header__in{max-width:1210px;height:59px;margin:0 auto;padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:16px}
 .site-header__logo img{width:148px;height:auto}
 
 /* ---------- Cards ---------- */
@@ -101,20 +101,7 @@ em{font-style:italic}
 .t-card__body{line-height:1.5}
 .t-card__by{color:var(--muted);margin-top:auto}
 
-/* ---------- Footer ---------- */
-.site-footer{background:var(--deep);color:#fff}
-.site-footer__in{max-width:var(--w-wide);margin:0 auto;padding:60px var(--gutter)}
-.site-footer__top{display:flex;justify-content:space-between;align-items:flex-start;gap:30px}
-.site-footer__biz{font-size:13px;line-height:22.4px}
-.site-footer__biz a{color:#fff}
-.site-footer__social{display:flex;gap:16px}
-.site-footer__social a{display:grid;place-items:center;width:44px;height:44px;color:#69727D;transition:color .2s}
-.site-footer__social a:hover{color:#fff}
-.site-footer__social svg{width:25px;height:25px;fill:currentColor}
-.site-footer__bottom{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-top:40px;padding-top:20px;border-top:1px solid rgba(255,255,255,.15);font-size:13px}
-.site-footer__links{display:flex;gap:20px;flex-wrap:wrap}
-.site-footer__links a{color:#fff;text-decoration:none;padding:6px 0}
-.site-footer__links a:hover{text-decoration:underline}
+/* Footer: see footer.css (shared with the generated pages). */
 
 @media (max-width:767px){
   body{font-size:15px}
@@ -125,7 +112,6 @@ em{font-style:italic}
   h5{font-size:18px}
   .site-header__logo img{width:120px}
   .btn--header{font-size:14px;padding:10px 16px}
-  .site-footer__top{flex-direction:column}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
