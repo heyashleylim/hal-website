@@ -42,7 +42,9 @@ The local `python3 -m http.server` preview can't run the function; test the form
 
 `/preview/<page>` shows a page with the elements that are hidden on the live site, outlined.
 These are password-protected by `middleware.js`: set `PREVIEW_USER` and `PREVIEW_PASSWORD` in
-Vercel → Settings → Environment Variables, then redeploy. The browser asks for them on first visit.
+Vercel → Settings → Environment Variables, then redeploy. The first visit shows a login page;
+after logging in, all preview pages stay open for 30 days (changing the password logs everyone out).
+On `*.vercel.app` addresses, Vercel's own sign-in may come first.
 
 ## Rebuilding a page from ashleylim.com
 

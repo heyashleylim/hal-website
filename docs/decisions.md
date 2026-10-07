@@ -10,7 +10,9 @@ Newest first. One entry per decision: what, why, date.
   live page uses them (Poppins, Abhaya Libre, Newsreader on the NSMB preview).
 - Links, checkout buttons and footer links keep pointing at ashleylim.com (the live site).
 - Private copies with hidden elements at /preview/<page> (incl. /preview/nsmb from the live NSMB page),
-  protected by Basic Auth middleware, noindex, and robots.txt. EFT and SWITCH have no hidden elements.
+  protected by a middleware login page (cookie), noindex, and robots.txt. EFT and SWITCH have no hidden elements.
+  (Basic Auth was tried first: the browser pop-up's credentials never reached the middleware behind
+  Vercel's deployment protection, so it was replaced with a login form on 2026-10-07.)
 - Body text uses the live kit's 15px/21px on phones; Hangul breaking follows the live site (no keep-all) on generated pages.
 
 ## 2026-10-05 — Homepage rebuilt from ashleylim.com

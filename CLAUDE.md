@@ -16,7 +16,7 @@ hal-website/
 ├── README.md              ← human quick-start (preview, deploy)
 ├── vercel.json            ← outputDirectory: "site", clean URLs, cache headers
 ├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
-├── middleware.js          ← password-protects /preview/* (Basic Auth: PREVIEW_USER / PREVIEW_PASSWORD)
+├── middleware.js          ← password-protects /preview/* (login page + cookie: PREVIEW_USER / PREVIEW_PASSWORD)
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
 ├── .env.example           ← names of the env vars the function needs (values live in Vercel only)
 ├── .gitignore
@@ -105,7 +105,7 @@ Rules for the structure:
 
 - `/lifeartist2026`, `/eft`, `/chosen`, `/switch` and the three policy pages are **generated** by `tools/rebuild/` from captures of the live pages. Each has its CSS inline, with one class per style combination. **Don't hand-edit them**: when the live page changes, re-capture and regenerate (see `tools/rebuild/README.md`). If a page here should diverge from the live site, hand-build it like `/nsmb` instead.
 - `/preview/<page>` shows the same page **including elements hidden on the live site**, outlined in rose with a "숨김 · 데스크톱/태블릿/모바일" tag. Images used only by hidden elements live under `/preview/<page>/img/`, so they're protected too.
-- Previews are protected by `middleware.js` (Basic Auth). Set `PREVIEW_USER` and `PREVIEW_PASSWORD` in Vercel (all environments). Without them `/preview/*` returns 503 for everyone. They're also `noindex` (meta + `X-Robots-Tag`) and disallowed in `robots.txt`.
+- Previews are protected by `middleware.js`: any `/preview/*` URL shows a login page (아이디 / 비밀번호), and a correct login sets an HttpOnly cookie for `/preview` valid 30 days. Changing `PREVIEW_PASSWORD` logs everyone out. Don't switch back to the browser's Basic Auth pop-up: its credentials don't reach the middleware behind Vercel's deployment protection. `PREVIEW_USER` and `PREVIEW_PASSWORD` are set in Vercel (all environments). Without them `/preview/*` returns 503 for everyone. They're also `noindex` (meta + `X-Robots-Tag`) and disallowed in `robots.txt`.
 - Generated public pages carry `<link rel="canonical">` to their ashleylim.com originals, so search engines don't treat this site as duplicate content. Remove it only when this site *becomes* ashleylim.com.
 
 ## Page configuration
@@ -134,5 +134,4 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 - [ ] Confirm "7일" vs "14일" refund wording on the NSMB page.
 - [ ] Check Gmarket Sans license terms for public web hosting (subset woff2 files are now served).
 - [ ] Decide whether to keep `/engine` or delete it.
-- [ ] Set `PREVIEW_USER` / `PREVIEW_PASSWORD` in Vercel before using `/preview/*`.
 - [ ] When this site replaces ashleylim.com: remove the canonical tags and switch absolute ashleylim.com links in generated pages to relative ones.
