@@ -20,6 +20,18 @@ at the same layout for desktop (1440px), tablet (900px) and mobile (390px).
 5. Check the page at 1440 / 900 / 390px, then commit.
 
 Notes
+- The footer isn't captured: every generated page gets the home page's `<footer class="site-footer">` (from
+  `site/index.html`) and `/assets/css/footer.css`, so all pages share one footer. Regenerate after changing it.
+- Checking a rebuild: compare against the live page at 1440 / 900 / 390px (section heights, and every text's
+  font, weight, size, colour and underline), and check 375 / 768 / 1024px for content sticking out.
+- Why some generated rules exist (each fixed a measured difference from the live site):
+  - values the capture skips because they equal the parent's fall back to the live body's (weight 400, no
+    underline, 15px/21px on phones), so browser defaults (bold headings, underlined links) don't leak in;
+  - default paragraph/heading margins are written in px (the browser's 1em would shrink on phones);
+  - grids whose items share one height get `repeat(n, 1fr)` rows, applied per width only where the capture shows it;
+  - widths are written as a share of the parent so they scale between captures (e.g. 768-1024px);
+  - lines that fill their row get 3px of slack (FAQ questions: no-wrap) against sub-pixel font differences.
+- `collector.py` keeps visible "https://ashleylim.com" text intact (only URLs in attributes/CSS are rewritten).
 - Elements hidden on the live page at every width are left out of the public page and shown, outlined, in the preview.
 - Images download to `site/assets/img/<slug>/` (public) or `site/preview/<slug>/img/` (only used by hidden elements).
 - `dumps/`, `imgcache/` and `proxycache/` are local working files (git-ignored).

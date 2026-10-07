@@ -21,6 +21,7 @@ INHERITED = {'font-family','font-size','font-weight','font-style','line-height',
              'text-underline-offset','list-style-type','visibility','fill','stroke'}
 IMGLIKE = {'img','iframe','video'}
 VOID = {'br','img','input','hr','source','wbr'}
+INLINE_TAGS = {'a','span','strong','b','em','i','u','s','small','sup','sub','mark','code','label','br','img'}
 BPS = ['d','t','m']
 BP_LABEL = {'d':'데스크톱','t':'태블릿','m':'모바일'}
 GOOGLE = {'Newsreader':'Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500',
@@ -31,6 +32,7 @@ ICON_FONTS = re.compile(r'icomoon|eicons|Font Awesome|fa-|elementor-icons', re.I
 
 slug = sys.argv[1]; STICKY = '--sticky-header' in sys.argv
 DEBUG = '--debug' in sys.argv
+NOWRAP = '--no-nowrap' not in sys.argv
 MODES = [False] if '--public-only' in sys.argv else [True] if '--preview-only' in sys.argv else [False, True]
 D = json.loads(open(os.path.join(HERE, 'dumps', slug + '.d.json')).read().replace('http://127.0.0.1:8799', 'https://ashleylim.com').replace('"/wp-content/', '"https://ashleylim.com/wp-content/').replace('(\\"/wp-content/', '(\\"https://ashleylim.com/wp-content/').replace('(/wp-content/', '(https://ashleylim.com/wp-content/'))
 T = json.loads(open(os.path.join(HERE, 'dumps', slug + '.t.json')).read().replace('http://127.0.0.1:8799', 'https://ashleylim.com').replace('"/wp-content/', '"https://ashleylim.com/wp-content/').replace('(\\"/wp-content/', '(\\"https://ashleylim.com/wp-content/').replace('(/wp-content/', '(https://ashleylim.com/wp-content/'))['styles']
@@ -68,7 +70,21 @@ def eff(bp, i, prop):
         v = S(bp, x).get(prop)
         if v: return v
         x = parent[x]
-    return {'line-height': D['meta']['bodyLH'], 'font-size': D['meta']['bodySize']}.get(prop)
+    # Nothing captured up the tree: the value is the body's (15px/21px on phones, see the base CSS). Without these, browser defaults leak through
+    # (bold h1-h6, underlined links), because the capture only records values that differ from the parent.
+    if bp == 'm' and prop in ('font-size', 'line-height'): return {'font-size': '15px', 'line-height': '21px'}[prop]
+    return {'line-height': D['meta']['bodyLH'], 'font-size': D['meta']['bodySize'], 'font-weight': '400',
+            'font-style': 'normal', 'color': D['meta']['bodyColor'], 'font-family': D['meta']['bodyFont'],
+            'text-decoration-line': 'none', 'letter-spacing': 'normal', 'text-transform': 'none'}.get(prop)
+
+def in_summary(i):
+    # Single-line FAQ questions that fill their row: pinned to one line, else sub-pixel font differences wrap them.
+    # (Only there: elsewhere it would overflow between breakpoints.)
+    p = i
+    while p is not None:
+        if nodes[p]['t'] == 'summary': return True
+        p = parent[p]
+    return False
 
 def is_panel(i): return nodes[i]['a'].get('role') == 'tabpanel'
 def in_details_body(i):
@@ -140,8 +156,32 @@ for t_ in ('small', 'big', 'sub', 'sup'): UA_INH[t_] = ('font-size',)
 for t_ in ('code', 'kbd', 'pre', 'samp', 'tt'): UA_INH[t_] = ('font-family', 'font-size')
 for t_ in ('button', 'input', 'select', 'textarea', 'option'):
     UA_INH[t_] = ('font-family', 'font-size', 'font-weight', 'font-style', 'line-height', 'color', 'letter-spacing', 'text-align', 'text-transform')
-UA_INH['a'] = ('color',)
+UA_INH['a'] = ('color', 'text-decoration-line')
 UA_INH['mark'] = ('color',)
+
+# Chrome's default margins, in px at the capture's 16px. The capture skips values equal to the default, but the
+# defaults are em-based here, so on phones (15px body text) they'd shrink: write them out in px instead.
+UA_MARGIN = {'p': 16, 'ul': 16, 'ol': 16, 'dl': 16, 'blockquote': 16, 'figure': 16,
+             'h1': 21.44, 'h2': 19.92, 'h3': 18.72, 'h4': 21.28, 'h5': 22.1776, 'h6': 24.9776}
+
+def fluid(wv, pw, pdisp, pi):
+    """A captured width as a share of the parent's, so the box scales between breakpoints (e.g. 768-1024px uses the
+    900px capture) instead of overflowing. At the capture width it's the same pixel value."""
+    if not pw or pw < 200 or pdisp.startswith('inline') or pdisp in ('contents', 'table-cell') or \
+            (pi is not None and S('d', pi).get('position') in ('absolute', 'fixed')):
+        return '%gpx' % wv
+    return '%.4f%%' % (wv / pw * 100)
+
+def equal_fr_rows(i):
+    """Rows of a grid whose items all share one height at desktop (Elementor's repeat(n, 1fr) rows), else 0."""
+    s = S('d', i)
+    if 'grid' not in s.get('display', ''): return 0
+    kids = [c for c in nodes[i].get('c', []) if isinstance(c, dict) and not hid('d', c['i'])]
+    hs = [S('d', c['i']).get('__h') for c in kids]
+    tc = s.get('grid-template-columns', 'none')
+    cols = len(tc.split()) if tc != 'none' else 1
+    if len(kids) > cols and all(hs) and max(hs) - min(hs) <= 1: return -(-len(kids) // cols)
+    return 0
 
 def decls(i, bp, preview):
     n = nodes[i]; s = S(bp, i); out = {}
@@ -176,6 +216,9 @@ def decls(i, bp, preview):
                     v = map_font(v)
                     if not v: continue
                 out[prop] = v
+    if n['t'] in UA_MARGIN:
+        for side in ('margin-top', 'margin-bottom'):
+            if side not in out: out[side] = '%gpx' % UA_MARGIN[n['t']]
     # ----- layout -----
     w, pw = s.get('__w'), s.get('__pw')
     disp = s.get('display', '')
@@ -207,9 +250,9 @@ def decls(i, bp, preview):
                 out['width'] = '100%'  # full-width row item: in a centred row it would otherwise shrink to its content
             if pw and w < pw - 1 and not inline:
                 if s.get('flex-grow', '0') in ('0',):
-                    if not single_line: out['width'] = '%gpx' % ((int(w) + 1) if only_text else w)
+                    if not single_line: out['width'] = fluid((int(w) + 3) if only_text else w, pw, pdisp, pi)
                 else:
-                    out['flex-basis'] = '%gpx' % w
+                    out['flex-basis'] = fluid(w, pw, pdisp, pi)
             # Items that don't fill the row's height must have had an explicit height (stretch is the default).
             if h and pd.get('align-items', 'normal') in ('normal', 'stretch') and pd.get('flex-wrap', 'nowrap') == 'nowrap' \
                     and s.get('align-self', 'auto') in ('auto', 'normal', 'stretch'):
@@ -221,6 +264,9 @@ def decls(i, bp, preview):
         elif 'flex' in pdisp and pw and abs(w - pw) <= 1 and not inline and not only_text and \
                 (pd.get('align-items', 'normal') not in ('normal', 'stretch') or s.get('align-self', 'auto') not in ('auto', 'normal', 'stretch')):
             out['width'] = '100%'  # full-width box in a centred / start-aligned column: it won't stretch by itself
+        elif pw and abs(w + (px(s.get('margin-left', '0')) or 0) + (px(s.get('margin-right', '0')) or 0) - pw) <= 1 \
+                and 'flex' not in pdisp and not inline:
+            pass  # a block that fills its parent apart from its margins (e.g. an indented list): auto width does that
         elif pw and abs(w - pw) > 1 and not inline and not single_line:
             # In a flex column, only stretched items can have had an explicit width; centred / start-aligned
             # items are sized by their own text, and pinning that width makes sub-pixel differences wrap.
@@ -230,10 +276,21 @@ def decls(i, bp, preview):
             # Shrink-to-fit text only stays narrower than its parent when a <br> sets the line length.
             text_fit = only_text and has_br
             if 'flex' not in pdisp or stretch or not text_fit:
-                out['width'] = '%gpx' % ((int(w) + 1) if only_text else w); out['max-width'] = '100%'
+                out['width'] = fluid((int(w) + 3) if only_text else w, pw, pdisp, pi); out['max-width'] = '100%'
         # Single-line text that fills (almost) all of its room on the live page: keep it on one line here too.
-        if single_line and only_text and pw and w >= pw * 0.9 and not n['a'].get('href'):
-            out['white-space'] = 'nowrap'
+        if NOWRAP and single_line and only_text and pw and w >= pw * 0.9 and not n['a'].get('href'):
+            if in_summary(i): out['white-space'] = 'nowrap'
+            elif disp in ('block', 'flow-root', '') and n['t'] not in INLINE_TAGS and (px(out.get('margin-left', '0')) or 0) == 0 \
+                    and (px(out.get('margin-right', '0')) or 0) == 0 and 'width' not in out \
+                    and pi is not None and S(bp, pi).get('__w') and S(bp, pi).get('__pw') \
+                    and S(bp, pi)['__w'] + (px(S(bp, pi).get('margin-left', '0')) or 0) + (px(S(bp, pi).get('margin-right', '0')) or 0) \
+                        < S(bp, pi)['__pw'] - 1:  # only inside a box sized to its content (not just indented)
+                # A line that fills its row: 3px of slack so sub-pixel font differences don't wrap it at the
+                # capture width, while it can still wrap on narrower screens (nowrap would overflow there).
+                ta = eff(bp, i, 'text-align') or 'start'
+                if ta == 'center': out['margin-left'] = out['margin-right'] = '-1.5px'
+                elif ta in ('right', 'end'): out['margin-left'] = '-3px'
+                else: out['margin-right'] = '-3px'
         mw = s.get('__maxw', 'none')
         if mw not in ('none', '') and n['t'] != 'svg': out['max-width'] = mw
         has_text = any(isinstance(c, str) and c.strip() for c in n.get('c', []))
@@ -247,12 +304,38 @@ def decls(i, bp, preview):
         txt = ''.join(c for c in n.get('c', []) if isinstance(c, str)).strip()
         if only_text and txt and len(txt) <= 4 and h and not inline:
             vpad = sum(px(s.get(k, '0')) or 0 for k in ('padding-top', 'padding-bottom', 'border-top-width', 'border-bottom-width'))
-            if h > lh + vpad + 4: out['height'] = '%gpx' % h
+            if abs(h - (lh + vpad)) > 1: out['height'] = '%gpx' % h  # fixed-size badges ("1", "#1"), taller or shorter than a line
             hpad = sum(px(s.get(k, '0')) or 0 for k in ('padding-left', 'padding-right', 'border-left-width', 'border-right-width'))
             if w and w > len(txt) * fs * 0.7 + hpad + 6 and 'flex' in pdisp: out['width'] = '%gpx' % w; out['flex-shrink'] = '0'
+            elif w and pw and w < pw - 1 and 'height' in out and 'width' not in out: out['width'] = '%gpx' % w; out['flex-shrink'] = '0'
         has_kids = any(isinstance(c, dict) or (isinstance(c, str) and c.strip()) for c in n.get('c', []))
         if h and not has_kids and n['t'] not in VOID:
             out['height' if 'background-image' not in out else 'min-height'] = '%gpx' % h
+    # Equal-height grids: Elementor grids use 1fr rows, so every row is as tall as the tallest item. The capture
+    # only has the resulting pixel heights, so when all items share one height, make the rows equal again.
+    if 'grid' in disp:
+        kids = [c for c in n.get('c', []) if isinstance(c, dict) and not hid(bp, c['i'])]
+        hs = [S(bp, c['i']).get('__h') for c in kids]
+        cols = len(s.get('grid-template-columns', 'none').split()) if s.get('grid-template-columns', 'none') != 'none' else 1
+        fr_rows = equal_fr_rows(i)
+        if fr_rows:
+            # The explicit row count is set once (desktop) and usually kept at every width: on a one-column phone
+            # layout only the first rows are equalised, the rest size to their content. Apply it at this width only
+            # if the captured row heights show it (a page can override the rows per breakpoint).
+            row_h = [max(hs[k:k + cols]) for k in range(0, len(hs), cols)] if all(hs) else []
+            first = row_h[:fr_rows]
+            out['grid-template-rows'] = 'repeat(%d, 1fr)' % fr_rows if first and max(first) - min(first) <= 1 else 'none'
+        elif kids and all(hs) and s.get('__h'):
+            # fr rows with top-aligned items leave the grid taller than its rows of content: keep the live height.
+            rows = [max(hs[k:k + cols]) for k in range(0, len(hs), cols)]
+            gap = px(s.get('row-gap', '0')) or 0
+            box = sum(px(s.get(k_, '0')) or 0 for k_ in ('padding-top', 'padding-bottom', 'border-top-width', 'border-bottom-width'))
+            if s['__h'] > sum(rows) + gap * (len(rows) - 1) + box + 1: out['min-height'] = '%gpx' % s['__h']
+    # ...and a grid item's single box that fills the whole cell on the live page (cards) fills it here too.
+    if pi is not None and 'grid' in S(bp, pi).get('__pdisp', '') and w is not None and n['t'] not in IMGLIKE and not disp.startswith('inline'):
+        ph_ = S(bp, pi).get('__h'); h_ = s.get('__h')
+        sibs = [c for c in nodes[pi].get('c', []) if isinstance(c, dict)]
+        if ph_ and h_ and len(sibs) == 1 and abs(ph_ - h_) <= 1: out['height'] = '100%'
     if out.get('position') == 'absolute' and w is not None and pw:
         # Computed left/right/top/bottom come back as pixels on both sides; keep only the side the box hugs.
         for a_, b_ in (('left', 'right'), ('top', 'bottom')):
@@ -380,6 +463,9 @@ def build(preview):
     parts = []
     for r in D['tree']:
         if not r['node']: continue
+        if r['role'] == 'footer':
+            parts.append(SITE_FOOTER)  # every page shares the home page's footer (styles: footer.css)
+            continue
         h = render(r['node'])
         if r['role'] in ('wp-page', 'wp-post', 'main'): h = '<main id="main">' + h + '</main>'
         parts.append(h)
@@ -435,6 +521,9 @@ def _width(f):
     r = subprocess.run(['sips', '-g', 'pixelWidth', f], capture_output=True, text=True).stdout
     m = re.search(r'pixelWidth: (\d+)', r); return int(m.group(1)) if m else 0
 
+# The site-wide footer, taken verbatim from the home page so there is one source of truth.
+SITE_FOOTER = re.search(r'<footer class="site-footer">.*?</footer>', open(os.path.join(SITE, 'index.html')).read(), re.S).group(0)
+
 def page(body, css, preview, nhidden):
     fl = ''
     gfam = [GOOGLE[f] for f in sorted(fonts_used)]
@@ -473,7 +562,7 @@ def page(body, css, preview, nhidden):
         if '[role=tab]' in body or 'role="tab"' in body else ''
     return ('<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             '<title>%s</title>\n%s%s\n<link rel="icon" href="/favicon.png">\n<link rel="apple-touch-icon" href="/apple-touch-icon.png">\n'
-            '<link rel="stylesheet" href="/assets/css/fonts.css">\n%s\n'
+            '<link rel="stylesheet" href="/assets/css/fonts.css">\n<link rel="stylesheet" href="/assets/css/footer.css">\n%s\n'
             '<style>\n/* Generated from ashleylim.com%s (captured at 1440/900/390px). Edit with care: regenerate instead. */\n%s\n%s\n%s\n</style>\n</head>\n<body>\n%s%s\n%s\n</body>\n</html>\n'
             % (html.escape(title), robots, ('<meta name="description" content="%s">' % html.escape(desc, quote=True)) if desc else '',
                fl, meta['path'].replace('/p/', '/'), base, pcss, css, banner, body, tabs_js))

@@ -43,7 +43,8 @@ hal-website/
     ├── og/                ← social share images (1200×630 JPEG)
     └── assets/
         ├── css/
-        │   ├── brand.css       ← Ashley's design system (DESIGN.md): @font-face, tokens, base, buttons, header, footer
+        │   ├── brand.css       ← Ashley's design system (DESIGN.md): tokens, base, buttons, header
+        │   ├── footer.css      ← the site footer, shared by EVERY page (self-contained: own tokens, font, resets)
         │   ├── pages/nsmb.css  ← /nsmb section layouts
         │   ├── tokens.css      ← ENGINE palette variables (/engine only)
         │   ├── base.css        ← /engine: reset, typography, layout, reveal
@@ -106,6 +107,7 @@ Rules for the structure:
 - `/lifeartist2026`, `/eft`, `/chosen`, `/switch` and the three policy pages are **generated** by `tools/rebuild/` from captures of the live pages. Each has its CSS inline, with one class per style combination. **Don't hand-edit them**: when the live page changes, re-capture and regenerate (see `tools/rebuild/README.md`). If a page here should diverge from the live site, hand-build it like `/nsmb` instead.
 - `/preview/<page>` shows the same page **including elements hidden on the live site**, outlined in rose with a "숨김 · 데스크톱/태블릿/모바일" tag. Images used only by hidden elements live under `/preview/<page>/img/`, so they're protected too.
 - Previews are protected by `middleware.js`: any `/preview/*` URL shows a login page (아이디 / 비밀번호), and a correct login sets an HttpOnly cookie for `/preview` valid 30 days. Changing `PREVIEW_PASSWORD` logs everyone out. Don't switch back to the browser's Basic Auth pop-up: its credentials don't reach the middleware behind Vercel's deployment protection. `PREVIEW_USER` and `PREVIEW_PASSWORD` are set in Vercel (all environments). Without them `/preview/*` returns 503 for everyone. They're also `noindex` (meta + `X-Robots-Tag`) and disallowed in `robots.txt`.
+- Every page uses the same footer: the `<footer class="site-footer">` markup from `site/index.html` plus `footer.css`. The generator copies that markup from the home page each time it runs, so change the footer in `site/index.html` (and `/nsmb`), then regenerate the generated pages.
 - Generated public pages carry `<link rel="canonical">` to their ashleylim.com originals, so search engines don't treat this site as duplicate content. Remove it only when this site *becomes* ashleylim.com.
 
 ## Page configuration
