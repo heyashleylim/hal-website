@@ -18,8 +18,8 @@ def fetch(url):
     return body, ct
 def rewrite(b):
     # Visible text such as <a href="...">https://ashleylim.com</a> must survive: hide text occurrences
-    # (right after a tag, or after an opening bracket that isn't url( ) behind an entity before rewriting URLs.
-    b = re.sub(rb'(>|(?<!url)\()https://ashleylim\.com', rb'\1https&#58;//ashleylim.com', b)
+    # (right after a tag, optionally after spaces, or after an opening bracket that isn't url( ) behind an entity before rewriting URLs.
+    b = re.sub(rb'(>\s*|(?<!url)\()https://ashleylim\.com', rb'\1https&#58;//ashleylim.com', b)
     b = re.sub(rb'https://ashleylim\.com(?=["\'])', b'/', b)  # bare-domain links would otherwise become href=""
     return b.replace(b'https://ashleylim.com', b'').replace(b'https:\\/\\/ashleylim.com', b'').replace(b'//ashleylim.com/', b'/')
 class H(http.server.BaseHTTPRequestHandler):
