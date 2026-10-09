@@ -38,6 +38,18 @@ D = json.loads(open(os.path.join(HERE, 'dumps', slug + '.d.json')).read().replac
 T = json.loads(open(os.path.join(HERE, 'dumps', slug + '.t.json')).read().replace('http://127.0.0.1:8799', 'https://ashleylim.com').replace('"/wp-content/', '"https://ashleylim.com/wp-content/').replace('(\\"/wp-content/', '(\\"https://ashleylim.com/wp-content/').replace('(/wp-content/', '(https://ashleylim.com/wp-content/'))['styles']
 M = json.loads(open(os.path.join(HERE, 'dumps', slug + '.m.json')).read().replace('http://127.0.0.1:8799', 'https://ashleylim.com').replace('"/wp-content/', '"https://ashleylim.com/wp-content/').replace('(\\"/wp-content/', '(\\"https://ashleylim.com/wp-content/').replace('(/wp-content/', '(https://ashleylim.com/wp-content/'))['styles']
 meta = D['meta']
+# Optional second desktop pass at 1920px: tells fixed widths/paddings apart from percentage ones.
+_wp = os.path.join(HERE, 'dumps', slug + '.w.json')
+WD = json.loads(open(_wp).read())['styles'] if os.path.exists(_wp) else {}
+_np = os.path.join(HERE, 'dumps', slug + '.n.json')   # and at 1100px (narrow desktop)
+ND = json.loads(open(_np).read())['styles'] if os.path.exists(_np) else {}
+# Tablet and phone ranges, captured at their other end too: 1024px (with the 900px pass) and 767px (with 390px).
+def _pass(suffix):
+    f = os.path.join(HERE, 'dumps', slug + suffix + '.json')
+    return json.loads(open(f).read())['styles'] if os.path.exists(f) else {}
+PAIR = {'t': _pass('.tw'), 'm': _pass('.mw')}
+# Extra captures per breakpoint range: (lower end, upper end) around the main capture.
+RANGE = {'d': (ND, WD), 't': (_pass('.tl'), PAIR['t']), 'm': ({}, PAIR['m'])}
 
 nodes, parent = {}, {}
 def index(n, p=None):
@@ -169,7 +181,9 @@ def map_font(v):
     if 'Gmarket' in v: return 'var(--font-head)'
     for g in GOOGLE:
         if g in v:
-            fonts_used.add(g); return '"%s", var(--font-body)' % g
+            # Keep the live fallback chain (e.g. Poppins, "Noto Sans KR"): Korean characters in these Latin-only
+            # fonts then fall back exactly as on the live page.
+            fonts_used.add(g); return v
     return 'var(--font-body)'
 
 def px(v):
@@ -205,13 +219,58 @@ UA_INH['mark'] = ('color',)
 UA_MARGIN = {'p': 16, 'ul': 16, 'ol': 16, 'dl': 16, 'blockquote': 16, 'figure': 16,
              'h1': 21.44, 'h2': 19.92, 'h3': 18.72, 'h4': 21.28, 'h5': 22.1776, 'h6': 24.9776}
 
-def fluid(wv, pw, pdisp, pi):
-    """A captured width as a share of the parent's, so the box scales between breakpoints (e.g. 768-1024px uses the
-    900px capture) instead of overflowing. At the capture width it's the same pixel value."""
+def _line(p1, w1, p2, w2):
+    """Width as a straight line of the parent's width through two captures: (slope, offset), or None."""
+    if abs(p2 - p1) < 2: return None
+    a = (w2 - w1) / (p2 - p1)
+    if a < -0.02 or a > 1.02: return None
+    return max(a, 0), w1 - max(a, 0) * p1
+
+def _css(line, extra):
+    a, b = line
+    if a < 0.0005: return '%gpx' % round(b + extra, 2)
+    if abs(b) <= 1.5 and not extra: return '%.4f%%' % (a * 100)
+    return 'calc(%.4f%% + %.2fpx)' % (a * 100, b + extra)
+
+def desk_width(i, w, pw, extra=0, bp='d'):
+    """Desktop width from the 1100 / 1440 / 1920px captures, as CSS props: fixed, a share of the parent, a mix
+    (calc), or a scaling width capped where the live box stops growing (max-width) / starts (min-width).
+    None when the captures don't give a usable answer (the caller then keeps the 1440px pixels)."""
+    s0, s2 = RANGE[bp][0].get(str(i)), RANGE[bp][1].get(str(i))
+    if not pw: return None
+    up = _line(pw, w, s2['__pw'], s2['__w']) if s2 and s2.get('__w') is not None and s2.get('__pw') else None
+    lo = _line(s0['__pw'], s0['__w'], pw, w) if s0 and s0.get('__w') is not None and s0.get('__pw') else None
+    if up is None and lo is None: return None
+    if up is None: return {'width': _css(lo, extra)}
+    if lo is None: return {'width': _css(up, extra)}
+    if abs(up[0] - lo[0]) < 0.01 and abs(up[1] - lo[1]) < 2: return {'width': _css(up, extra)}   # one line
+    if up[0] < 0.0005 and abs(s0['__w'] - s0['__pw']) <= 1 and w < pw - 1:
+        # fills its parent at the low end, fixed from here up: min(100%, Wpx) (e.g. an 800px column, centred)
+        return {'width': '100%', 'max-width': 'min(100%%, %gpx)' % round(w + extra, 2)}
+    if up[0] < 0.0005 and lo[0] > 0.0005:   # grows up to here, fixed above: scale, capped
+        return {'width': _css(lo, extra), 'max-width': 'min(100%%, %gpx)' % round(w + extra, 2)}
+    if lo[0] < 0.0005 and up[0] > 0.0005:   # fixed below, grows above
+        return {'width': _css(up, extra), 'min-width': '%gpx' % round(w + extra, 2)}
+    return {'width': _css(up, extra)}
+
+def fluid(wv, pw, pdisp, pi, bp='t', i=None, w=None):
+    """A captured width, written so the box keeps the live behaviour between captures.
+    Desktop: from the 1440/1920 pair (fixed, % or calc). Tablet/mobile: a share of the parent's width, so
+    768-1024px (900px capture) and phones scale instead of overflowing. At the capture width it's the same pixels."""
     if not pw or pw < 200 or pdisp.startswith('inline') or pdisp in ('contents', 'table-cell') or \
-            (pi is not None and S('d', pi).get('position') in ('absolute', 'fixed')):
-        return '%gpx' % wv
-    return '%.4f%%' % (wv / pw * 100)
+            (pi is not None and S('d', pi).get('position') in ('absolute', 'fixed') and not in_role(pi, 'header')):
+        return '%gpx' % wv   # (the header's 'fixed' is Elementor's sticky state, dropped in our output)
+    r = desk_width(i, w if w is not None else wv, pw, (wv - w) if w is not None else 0, bp) if i is not None else None
+    if r: return r
+    return {'width': '%gpx' % wv} if bp == 'd' else '%.4f%%' % (wv / pw * 100)
+
+def put_width(out, key, val):
+    """Apply fluid()/desk_width() output: a plain value, or a dict with width (+ max-/min-width)."""
+    if isinstance(val, dict):
+        out[key] = val['width']
+        for k in ('max-width', 'min-width'):
+            if k in val: out[k] = val[k]
+    else: out[key] = val
 
 def equal_fr_rows(i):
     """Rows of a grid whose items all share one height at desktop (Elementor's repeat(n, 1fr) rows), else 0."""
@@ -249,6 +308,11 @@ def decls(i, bp, preview):
             for u in re.findall(r'url\("?([^")]+)"?\)', v): note_img(u, i)
         out[k] = v
     if is_panel(i) and out.get('display') == 'none': out.pop('display')
+    # A border style without a captured width means 0px on the live page (0 is the default, so the capture skips it);
+    # left alone, the browser would draw 'medium' (3px) borders.
+    for side in ('top', 'right', 'bottom', 'left'):
+        if out.get('border-%s-style' % side, 'none') not in ('none', 'hidden') and 'border-%s-width' % side not in out:
+            out['border-%s-width' % side] = '0px'
     for prop in UA_INH.get(n['t'], ()):
         if prop not in out:
             v = eff(bp, i, prop)
@@ -260,6 +324,16 @@ def decls(i, bp, preview):
     if n['t'] in UA_MARGIN:
         for side in ('margin-top', 'margin-bottom'):
             if side not in out: out[side] = '%gpx' % UA_MARGIN[n['t']]
+    # Side paddings that scale with the page on the live site (e.g. the header's 8%): proportional to the parent's
+    # width at both 1440px and 1920px -> write them as percentages.
+    s0, s2 = RANGE[bp][0].get(str(i)), RANGE[bp][1].get(str(i))
+    if s2 and s.get('__pw') and s2.get('__pw') and abs(s2['__pw'] - s['__pw']) >= 2 and \
+            all(abs((px(s0.get(k, '0px')) or 0) / s0['__pw'] - (px(s.get(k, '0px')) or 0) / s['__pw']) < 0.001
+                for k in ('padding-left', 'padding-right')) if s0 and s0.get('__pw') else s2 and s.get('__pw') and s2.get('__pw') and abs(s2['__pw'] - s['__pw']) >= 2:
+        for k in ('padding-left', 'padding-right'):
+            v1, v2 = px(s.get(k, '0px')) or 0, px(s2.get(k, '0px')) or 0
+            if v1 > 0 and abs(v2 - v1) > 0.5 and abs(v1 / s['__pw'] - v2 / s2['__pw']) < 0.001:
+                out[k] = '%.4f%%' % (v1 / s['__pw'] * 100)
     # ----- layout -----
     w, pw = s.get('__w'), s.get('__pw')
     disp = s.get('display', '')
@@ -269,7 +343,7 @@ def decls(i, bp, preview):
         h = s.get('__h')
         ptag = nodes[pi]['t'] if pi is not None else ''
         if pw and abs(w - pw) <= 1 and ptag not in ('picture', 'a', 'span', 'figure'): out['width'] = '100%'
-        else: out['width'] = '%gpx' % w; out['max-width'] = '100%'
+        else: out['max-width'] = '100%'; put_width(out, 'width', desk_width(i, w, pw, 0, bp) or '%gpx' % w)
         if n['t'] == 'img':
             nw, nh = n['a'].get('nw'), n['a'].get('nh')
             fit = s.get('object-fit', 'fill')
@@ -292,9 +366,16 @@ def decls(i, bp, preview):
                 out['width'] = '100%'  # full-width row item: in a centred row it would otherwise shrink to its content
             if pw and w < pw - 1 and not inline:
                 if s.get('flex-grow', '0') in ('0',):
-                    if not single_line: out['width'] = fluid((int(w) + 3) if only_text else w, pw, pdisp, pi)
+                    if not single_line:
+                        fw = fluid((int(w) + 3) if only_text else w, pw, pdisp, pi, bp, i, w)
+                        fv = fw['width'] if isinstance(fw, dict) else fw
+                        # Text in a row (e.g. a checklist line next to its icon): on the live page it's sized by its
+                        # own text, wrapping only when it must. Keep that unless the live width is fixed.
+                        if not (only_text and not re.fullmatch(r'[\d.]+px', fv) and bp != 'd'):
+                            put_width(out, 'width', fw)
                 else:
-                    out['flex-basis'] = fluid(w, pw, pdisp, pi)
+                    if s.get('flex-basis', 'auto') in ('auto', ''):   # keep a live basis such as 'content'
+                        put_width(out, 'flex-basis', fluid(w, pw, pdisp, pi, bp, i, w))
             # Items that don't fill the row's height must have had an explicit height (stretch is the default).
             if h and pd.get('align-items', 'normal') in ('normal', 'stretch') and pd.get('flex-wrap', 'nowrap') == 'nowrap' \
                     and s.get('align-self', 'auto') in ('auto', 'normal', 'stretch'):
@@ -304,10 +385,18 @@ def decls(i, bp, preview):
                     if h < ph - pad - 1.5: out['height'] = '%gpx' % h
         elif 'grid' in pdisp:
             # Grid items centred / end-aligned in their cell (justify-self/-items isn't captured): use the offsets.
+            # Offsets are measured from the grid's edges, so work out the item's own column (cell) first.
             gl, gr = s.get('__ml'), s.get('__mr')
-            if gl is not None and gr is not None and w and pw and w < pw - 1:
-                if gl > 1 and abs(gl - gr) <= 1.5: out['justify-self'] = 'center'
-                elif gl > 1 and gr <= 1: out['justify-self'] = 'end'
+            tracks = pd.get('grid-template-columns', 'none')
+            ncol = len(tracks.split()) if tracks not in ('none', '') else 1
+            gap = px(pd.get('column-gap', '0')) or 0
+            if gl is not None and gr is not None and w and pw and ncol >= 1:
+                cell = (pw - gap * (ncol - 1)) / ncol
+                col = max(0, min(ncol - 1, int((gl + 1) // (cell + gap)))) if cell > 0 else 0
+                lm = gl - col * (cell + gap); rm = cell - w - lm
+                if w < cell - 1:
+                    if lm > 1 and abs(lm - rm) <= 1.5: out['justify-self'] = 'center'
+                    elif lm > 1 and rm <= 1: out['justify-self'] = 'end'
         elif 'flex' in pdisp and pw and abs(w - pw) <= 1 and not inline and not only_text and \
                 (pd.get('align-items', 'normal') not in ('normal', 'stretch') or s.get('align-self', 'auto') not in ('auto', 'normal', 'stretch')):
             out['width'] = '100%'  # full-width box in a centred / start-aligned column: it won't stretch by itself
@@ -323,7 +412,7 @@ def decls(i, bp, preview):
             # Shrink-to-fit text only stays narrower than its parent when a <br> sets the line length.
             text_fit = only_text and has_br
             if 'flex' not in pdisp or stretch or not text_fit:
-                out['width'] = fluid((int(w) + 3) if only_text else w, pw, pdisp, pi); out['max-width'] = '100%'
+                out['max-width'] = '100%'; put_width(out, 'width', fluid((int(w) + 3) if only_text else w, pw, pdisp, pi, bp, i, w))
         # Single-line text that fills (almost) all of its room on the live page: keep it on one line here too.
         if NOWRAP and single_line and only_text and pw and w >= pw * 0.9 and not n['a'].get('href'):
             if in_summary(i): out['white-space'] = 'nowrap'
@@ -341,7 +430,9 @@ def decls(i, bp, preview):
         mw = s.get('__maxw', 'none')
         if mw not in ('none', '') and n['t'] != 'svg': out['max-width'] = mw
         has_text = any(isinstance(c, str) and c.strip() for c in n.get('c', []))
-        if inline and disp != 'inline' and not has_text and h and n.get('c'):
+        if disp == 'inline-block' and pw and abs(w - pw) <= 1 and 'width' not in out and n['t'] not in IMGLIKE:
+            out['width'] = '100%'   # full-width buttons (live: width 100%); shrink-to-fit would centre a narrow one
+        if inline and disp != 'inline' and not has_text and h and n.get('c') and not node_text(i).strip():
             out['width'] = '%gpx' % w; out['height'] = '%gpx' % h  # icon-only inline boxes (e.g. social icons)
         ml, mr = px(s.get('margin-left', '0')), px(s.get('margin-right', '0'))
         if ml and mr and ml > 0 and abs(ml - mr) <= 1 and pw and abs((pw - w) / 2 - ml) <= 1.5 \
@@ -354,11 +445,16 @@ def decls(i, bp, preview):
             vpad = sum(px(s.get(k, '0')) or 0 for k in ('padding-top', 'padding-bottom', 'border-top-width', 'border-bottom-width'))
             if abs(h - (lh + vpad)) > 1: out['height'] = '%gpx' % h  # fixed-size badges ("1", "#1"), taller or shorter than a line
             hpad = sum(px(s.get(k, '0')) or 0 for k in ('padding-left', 'padding-right', 'border-left-width', 'border-right-width'))
-            if w and w > len(txt) * fs * 0.7 + hpad + 6 and 'flex' in pdisp: out['width'] = '%gpx' % w; out['flex-shrink'] = '0'
-            elif w and pw and w < pw - 1 and 'height' in out and 'width' not in out: out['width'] = '%gpx' % w; out['flex-shrink'] = '0'
+            small = w and pw and (w < pw - 1 or w <= 60)   # a badge, not a full-width line of short text ("01")
+            if small and w > len(txt) * fs * 0.7 + hpad + 6 and 'flex' in pdisp: out['width'] = '%gpx' % w; out['flex-shrink'] = '0'
+            elif small and w <= 60 and 'width' not in out:
+                out['width'] = '%gpx' % w; out['flex-shrink'] = '0'
+                if 'height' not in out and h: out['height'] = '%gpx' % h
         has_kids = any(isinstance(c, dict) or (isinstance(c, str) and c.strip()) for c in n.get('c', []))
         if h and not has_kids and n['t'] not in VOID:
             out['height' if 'background-image' not in out else 'min-height'] = '%gpx' % h
+            if P(bp, i) and w and out.get('width') in (None, '100%'):
+                out['width'] = '%gpx' % w   # icon-font glyph boxes (::before): our fallback glyph has another width
     # Equal-height grids: Elementor grids use 1fr rows, so every row is as tall as the tallest item. The capture
     # only has the resulting pixel heights, so when all items share one height, make the rows equal again.
     if 'grid' in disp:
@@ -384,6 +480,16 @@ def decls(i, bp, preview):
         ph_ = S(bp, pi).get('__h'); h_ = s.get('__h')
         sibs = [c for c in nodes[pi].get('c', []) if isinstance(c, dict)]
         if ph_ and h_ and len(sibs) == 1 and abs(ph_ - h_) <= 1: out['height'] = '100%'
+    # A box that fills its parent here but is capped at the top of this width range on the live page
+    # (e.g. 1000px content, centred, at 1024px): give it that max-width, and auto margins if it's centred.
+    if w is not None and pw and abs(w - pw) <= 1 and not disp.startswith('inline') and out.get('width', '100%') == '100%' \
+            and n['t'] not in IMGLIKE:
+        s2 = RANGE[bp][1].get(str(i))
+        if s2 and s2.get('__w') and s2.get('__pw') and s2['__w'] < s2['__pw'] - 1:
+            if out.get('max-width', '100%') in ('100%', 'none'): out['max-width'] = 'min(100%%, %gpx)' % s2['__w']
+            ml2, mr2 = s2.get('__ml') or 0, s2.get('__mr') or 0
+            if ml2 > 1 and abs(ml2 - mr2) <= 1.5: out['margin-left'] = out['margin-right'] = 'auto'
+            elif ml2 > 1 and mr2 <= 1: out['margin-left'] = 'auto'
     if i in EQUAL_GRIDS: out['grid-template-rows'] = 'none'; out['grid-auto-rows'] = '1fr'; out['align-items'] = 'stretch'
     if i in CARD_FILL: out['height'] = '100%'
     if out.get('position') == 'absolute' and w is not None and pw:
@@ -400,8 +506,10 @@ def decls(i, bp, preview):
     if STICKY and n['i'] == D['tree'][0]['node']['i']:
         # Sticky on every device (as live: sticky_on desktop/tablet/mobile), with the /nsmb header's 1px rule.
         # The -1px margin keeps the page from shifting by the rule's pixel.
-        out.update({'position': 'sticky', 'top': '0', 'z-index': '100',
-                    'border-bottom': '1px solid rgb(215, 215, 215)', 'margin-bottom': '-1px'})
+        out.update({'position': 'sticky', 'top': '0', 'z-index': '100'})
+        bar = next((c for c in n.get('c', []) if isinstance(c, dict)), None)
+        if not (bar and (px(S(bp, bar['i']).get('border-bottom-width', '0')) or 0) >= 1):   # live bar has no rule of its own
+            out.update({'border-bottom': '1px solid rgb(215, 215, 215)', 'margin-bottom': '-1px'})
     if i in CAROUSEL_TRACK: out.pop('transform', None)  # lv-carousel.js positions the slides
     if i in BOTTOM_SPACE: out['padding-bottom'] = '%dpx' % BOTTOM_SPACE[i][{'d': 0, 't': 1, 'm': 2}[bp]]
     return out
@@ -410,8 +518,15 @@ def pdecls(i, bp, preview):
     p = P(bp, i) if not (hid(bp, i) and preview) else (P('d', i) or P('t', i) or P('m', i))
     if not p: return {}
     res = {}
+    # Divider lines on both sides of a label in a flex row ("—— 해외 거주자 ——"): on the live page they share
+    # the free space; captured as fixed pixels they'd only centre the label at the capture width.
+    node_s0 = S(bp, i) if not hid(bp, i) else {}
+    split = 'flex' in node_s0.get('display', '') and not node_s0.get('flex-direction', 'row').startswith('column') and \
+        all(ps in p and p[ps].get('content') in ('""', "''") and p[ps].get('position', 'static') == 'static' for ps in ('::before', '::after'))
     for ps, st in p.items():
         o = {}
+        if split and ps in ('::before', '::after'):
+            st = {k: v for k, v in st.items() if k != 'width'}; o['flex'] = '1 1 0'
         absolute = st.get('position') in ('absolute', 'fixed')
         node_s = S(bp, i) if not hid(bp, i) else {}
         for k, v in st.items():

@@ -18,6 +18,10 @@ at the same layout for desktop (1440px), tablet (900px) and mobile (390px).
    same at 390px → `await __C.capturePassFresh('<slug>.m', N)`. `N` is `meta.n` of `dumps/<slug>.d.json` (element count);
    a page that loaded differently is refused instead of saved. (Don't just resize a loaded page: it can keep stale
    styles, e.g. desktop button padding.)
+   Then capture the other ends of each range the same way (fresh load at each width):
+   desktop 1920px → `.w` and 1100px → `.n`; tablet 1024px → `.tw` and 768px → `.tl`; phone 767px → `.mw`. From 1100 / 1440 / 1920 the generator tells fixed widths and
+   paddings apart from percentage ones (e.g. the header's 8% padding, 40/60 columns, text boxes that shrink
+   below 1440 but stop growing above it), so pages match the live site on any desktop screen, not only at 1440.
 4. `python3 tools/rebuild/gen.py <slug>` — add `--sticky-header` only for pages whose live header is sticky
    (currently `eft`, `chosen` and the `nsmb` preview; `switch`, `lifeartist2026` and the policy pages scroll it away).
    Add `--public-only` or `--preview-only` when needed (policy pages: `--public-only`);
@@ -43,7 +47,13 @@ Notes
     underline, 15px/21px on phones), so browser defaults (bold headings, underlined links) don't leak in;
   - default paragraph/heading margins are written in px (the browser's 1em would shrink on phones);
   - grids whose items share one height get `repeat(n, 1fr)` rows, applied per width only where the capture shows it;
-  - widths are written as a share of the parent so they scale between captures (e.g. 768-1024px);
+  - widths and side paddings from the captures at both ends of each range (desktop 1100/1440/1920, tablet
+    768/900/1024, phone 390/767): fixed, %, calc, "fill up to N px" or capped with max-/min-width, so every screen
+    width matches, not only the capture widths;
+  - text in a row (checklist lines) keeps its natural width unless live shows a fixed one; full-width buttons get
+    width 100%; divider lines either side of a label share the free space (flex: 1); small badges keep their size;
+  - a border style without a captured width is 0px (the browser would otherwise draw 3px borders);
+  - grid items are centred/end-aligned within their own column, measured from the capture's offsets;
   - lines that fill their row get 3px of slack (FAQ questions: no-wrap) against sub-pixel font differences.
 - `collector.py` keeps visible "https://ashleylim.com" text intact (only URLs in attributes/CSS are rewritten).
 - Elements hidden on the live page at every width are left out of the public page and shown, outlined, in the preview.
