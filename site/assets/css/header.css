@@ -1,0 +1,21 @@
+/* =========================================================
+   Site header — the main header, shared by every page except home (programs, policies, /nsmb).
+   Logo on the left; pages that have a call-to-action keep their button on the right.
+   Self-contained (own tokens), like footer.css. Markup: <header class="site-header"> in site/nsmb/index.html;
+   tools/rebuild copies it into the generated pages (without /nsmb's button, with the page's own button if any).
+   ========================================================= */
+.site-header{
+  --hd-bg:#FFFDF7;        /* = --bg */
+  --hd-line:#D7D7D7;      /* = --line */
+  --hd-gutter:20px;
+  --hd-focus:#DB4A2B;     /* = --accent */
+  position:sticky;top:0;z-index:1000;background:var(--hd-bg);border-bottom:1px solid var(--hd-line)  /* 60px total */
+}
+.site-header *,.site-header *::before,.site-header *::after{box-sizing:border-box}
+.site-header__in{max-width:1210px;height:59px;margin:0 auto;padding:0 var(--hd-gutter);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.site-header__logo{display:block;flex-shrink:0}
+.site-header__logo img{display:block;width:148px;height:auto;max-width:none}
+.site-header a:focus-visible{outline:3px solid var(--hd-focus);outline-offset:3px;border-radius:6px}
+/* A generated page's own header button keeps its live look; only its size/placement is reset for this bar. */
+.site-header .site-header__btn{width:auto!important;max-width:none!important;margin:0!important;flex-shrink:0;position:static!important}
+@media (max-width:767px){.site-header__logo img{width:120px}}

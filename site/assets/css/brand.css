@@ -89,10 +89,7 @@ em{font-style:italic}
 .btn--block{width:100%}
 .btn[disabled]{opacity:.5;cursor:not-allowed}
 
-/* ---------- Header ---------- */
-.site-header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--line)}  /* live: 1px #D7D7D7 rule, 60px total */
-.site-header__in{max-width:1210px;height:59px;margin:0 auto;padding:0 var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:16px}
-.site-header__logo img{width:148px;height:auto}
+/* ---------- Header: see header.css (shared with every page except home) ---------- */
 
 /* ---------- Cards ---------- */
 .stars{color:var(--star);font-size:16px;line-height:1.4;letter-spacing:0}
@@ -110,7 +107,6 @@ em{font-style:italic}
   h3{font-size:22px}
   h4{font-size:20px}
   h5{font-size:18px}
-  .site-header__logo img{width:120px}
   .btn--header{font-size:14px;padding:10px 16px}
 }
 @media (prefers-reduced-motion:reduce){
