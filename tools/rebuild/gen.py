@@ -579,7 +579,10 @@ def build(preview):
                   'value', 'for', 'title', 'open', 'required', 'checked', 'selected', 'start', 'reversed'):
             if k in a and not (t == 'iframe' and k == 'title'): out.append((k, a[k]))
         if t == 'a' and a.get('href'):
-            out.append(('href', a['href']))
+            href = a['href']
+            m = re.match(r'https://ashleylim\.com(/[^#?]*)#(.+)$', href)
+            if m and m.group(1).rstrip('/') == meta['path'].replace('/p/', '/').rstrip('/'): href = '#' + m.group(2)
+            out.append(('href', href))
             if a.get('target'): out.append(('target', a['target'])); out.append(('rel', 'noopener'))
         if t == 'form': out.append(('action', '#'))
         if is_panel(n['i']) and S('d', n['i']).get('__hidden'): out.append(('hidden', ''))
@@ -674,6 +677,21 @@ def build(preview):
         if r['role'] == 'footer':
             parts.append(SITE_FOOTER)  # every page shares the home page's footer (styles: footer.css)
             continue
+        if r['role'] == 'header':
+            # Every page shares the main header (styles: header.css). A page whose live header has a button keeps
+            # it (its live look), placed on the right of the bar.
+            btn = ''
+            def first_link(x, vis):
+                if x['t'] == 'a' and x['a'].get('href') and node_text(x['i']).strip() and (not vis or public_visible(x['i'])): return x
+                for c in x.get('c', []):
+                    if isinstance(c, dict):
+                        f = first_link(c, vis)
+                        if f: return f
+            ln = first_link(r['node'], True) or (first_link(r['node'], False) if preview else None)
+            if ln:
+                btn = re.sub(r'^<a class="', '<a class="site-header__btn ', render(ln), count=1)
+            parts.append(SITE_HEADER.replace('<!--btn-->', btn))
+            continue
         h = render(r['node'])
         if r['role'] in ('wp-page', 'wp-post', 'main'): h = '<main id="main">' + h + '</main>'
         parts.append(h)
@@ -754,6 +772,10 @@ def _width(f):
 
 # The site-wide footer, taken verbatim from the home page so there is one source of truth.
 SITE_FOOTER = re.search(r'<footer class="site-footer">.*?</footer>', open(os.path.join(SITE, 'index.html')).read(), re.S).group(0)
+# The main header, taken from /nsmb (the reference page) without its own button; '<!--btn-->' marks where a
+# page's button goes.
+SITE_HEADER = re.sub(r'\s*<a class="btn btn--header"[^>]*>.*?</a>', '<!--btn-->',
+                     re.search(r'<header class="site-header">.*?</header>', open(os.path.join(SITE, 'nsmb', 'index.html')).read(), re.S).group(0), count=1, flags=re.S)
 
 def page(body, css, preview, nhidden):
     fl = ''
@@ -769,7 +791,7 @@ def page(body, css, preview, nhidden):
     if preview:
         banner = ('<div class="lv-banner">비공개 미리보기 · 실제 페이지에서 숨겨진 요소 <b>%d개</b>를 점선으로 표시했어요 · '
                   '<a href="/%s">공개 페이지 보기 →</a></div>' % (nhidden, slug))
-        pcss = ('.lv-banner{position:sticky;top:0;z-index:1000;background:#082D2E;color:#FFFDF7;font:500 14px/1.4 var(--font-body);padding:10px 16px;text-align:center}'
+        pcss = ('.lv-banner{position:relative;z-index:1001;background:#082D2E;color:#FFFDF7;font:500 14px/1.4 var(--font-body);padding:10px 16px;text-align:center}'
                 '.lv-banner a{color:#F8F6D3}'
                 '.lv-hidden{outline:2px dashed #C37568!important;outline-offset:3px}'
                 '[data-hidden-on]:not(img):not(span):not(strong):not(a)::marker{color:inherit}'
@@ -793,7 +815,7 @@ def page(body, css, preview, nhidden):
         if '[role=tab]' in body or 'role="tab"' in body else ''
     return ('<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             '<title>%s</title>\n%s%s\n<link rel="icon" href="/favicon.png">\n<link rel="apple-touch-icon" href="/apple-touch-icon.png">\n'
-            '<link rel="stylesheet" href="/assets/css/fonts.css">\n<link rel="stylesheet" href="/assets/css/footer.css">\n%s%s\n'
+            '<link rel="stylesheet" href="/assets/css/fonts.css">\n<link rel="stylesheet" href="/assets/css/header.css">\n<link rel="stylesheet" href="/assets/css/footer.css">\n%s%s\n'
             '<style>\n/* Generated from ashleylim.com%s (captured at 1440/900/390px). Edit with care: regenerate instead. */\n%s\n%s\n%s\n</style>\n</head>\n<body>\n%s%s\n%s\n</body>\n</html>\n'
             % (html.escape(title), robots, ('<meta name="description" content="%s">' % html.escape(desc, quote=True)) if desc else '',
                ('<link rel="stylesheet" href="/assets/css/faq.css">\n' if '<details' in body else '') +

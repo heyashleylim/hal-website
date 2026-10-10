@@ -43,7 +43,8 @@ hal-website/
     ├── og/                ← social share images (1200×630 JPEG)
     └── assets/
         ├── css/
-        │   ├── brand.css       ← Ashley's design system (DESIGN.md): tokens, base, buttons, header
+        │   ├── brand.css       ← Ashley's design system (DESIGN.md): tokens, base, buttons
+        │   ├── header.css      ← the main header (logo + optional button), shared by every page except home
         │   ├── footer.css      ← the site footer, shared by EVERY page (self-contained: own tokens, font, resets)
         │   ├── faq.css         ← the FAQ accordion (the /nsmb style), shared by every page with a FAQ
         │   ├── lv-carousel.css ← arrows/dots for rebuilt image carousels (with js/lv-carousel.js)
@@ -112,7 +113,7 @@ Rules for the structure:
 - Previews are protected by `middleware.js`: any `/preview/*` URL shows a login page (아이디 / 비밀번호), and a correct login sets an HttpOnly cookie for `/preview` valid 30 days. Changing `PREVIEW_PASSWORD` logs everyone out. Don't switch back to the browser's Basic Auth pop-up: its credentials don't reach the middleware behind Vercel's deployment protection. `PREVIEW_USER` and `PREVIEW_PASSWORD` are set in Vercel (all environments). Without them `/preview/*` returns 503 for everyone. They're also `noindex` (meta + `X-Robots-Tag`) and disallowed in `robots.txt`.
 - Every FAQ uses the /nsmb accordion style (`faq.css`): the generator rebuilds each live accordion as `<div class="faq"><details><summary>…<span class="pm"></span></summary><div class="ans">…</div></details></div>`, keeping the live questions and answers word for word.
 - Deliberate differences from the live pages (asked for by Ashley) live in `tools/rebuild/overrides.json` so they survive regeneration. Currently: equal-height EFT cards ("수업이 끝나면, 이렇게 달라집니다") at every width; extra space after the FAQ on /switch and /lifeartist2026 and after the last section of the policy pages; the /lifeartist2026 plan hover outline (live behaviour the capture can't record).
-- Sticky headers (`/eft`, `/chosen`, like live) carry the same 1px #D7D7D7 bottom rule as `/nsmb`.
+- Every page except home uses the same main header: the `<header class="site-header">` markup from `site/nsmb/index.html` plus `header.css` (sticky, 60px, 1px #D7D7D7 bottom rule, logo linking to ashleylim.com). The generator copies it into each generated page without /nsmb's button; pages whose live header has a button (`/eft`, `/chosen`) keep theirs, with its live look, linking to the price section on the same page. Change the header in `site/nsmb/index.html`, then regenerate.
 - Every page uses the same footer: the `<footer class="site-footer">` markup from `site/index.html` plus `footer.css`. The generator copies that markup from the home page each time it runs, so change the footer in `site/index.html` (and `/nsmb`), then regenerate the generated pages.
 - Generated public pages carry `<link rel="canonical">` to their ashleylim.com originals, so search engines don't treat this site as duplicate content. Remove it only when this site *becomes* ashleylim.com.
 

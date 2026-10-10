@@ -38,6 +38,9 @@ Notes
 - Tab lists (e.g. the /lifeartist2026 plan picker) get selected / not-selected styles from the capture; hover styles
   can't be captured, so they come from `overrides.json` (`tab_hover`).
 - Ordered lists keep their `start` numbers.
+- The header isn't copied either: every generated page gets the main header from `site/nsmb/index.html`
+  (`/assets/css/header.css`), plus the page's own header button if the live header has one (class
+  `site-header__btn`, live styles kept). Same-page links (`ashleylim.com/<this page>#x`) become `#x`.
 - The footer isn't captured: every generated page gets the home page's `<footer class="site-footer">` (from
   `site/index.html`) and `/assets/css/footer.css`, so all pages share one footer. Regenerate after changing it.
 - Checking a rebuild: compare against the live page at 1440 / 900 / 390px (section heights, and every text's
