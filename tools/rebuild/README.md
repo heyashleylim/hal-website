@@ -26,7 +26,8 @@ at the same layout for desktop (1440px), tablet (900px) and mobile (390px).
    `await __C.capturePanels('<slug>.<suffix>.tabs', N)` (e.g. `lifeartist2026.d.tabs`, `.t.tabs`, … for all 8 widths).
    It opens each tab that's closed on load and records its panel's layout, which the plain capture can't see
    (closed panels have no size); without it, the other tabs' content is misaligned.
-4. `python3 tools/rebuild/gen.py <slug>` — add `--sticky-header` only for pages whose live header is sticky
+4. `python3 tools/rebuild/gen.py <slug>` (writes `site/<slug>/`, or `site/<path>/` when overrides.json gives the slug a
+   `path`: `lifeartist2026` → `/lifeartist`) — add `--sticky-header` only for pages whose live header is sticky
    (currently `eft`, `chosen` and the `nsmb` preview; `switch`, `lifeartist2026` and the policy pages scroll it away).
    Add `--public-only` or `--preview-only` when needed (policy pages: `--public-only`);
    `--debug` writes an element-tagged copy to `site/_debug/` for comparing against the capture).

@@ -3,7 +3,7 @@
 Newest first. One entry per decision: what, why, date.
 
 ## 2026-10-05 — Live pages rebuilt by capture + generation
-- /lifeartist2026, /eft, /chosen, /switch and the three policy pages are generated from the live pages
+- /lifeartist (live: /lifeartist2026), /eft, /chosen, /switch and the three policy pages are generated from the live pages
   (computed styles captured at 1440/900/390px) instead of hand-built, to match them as closely as possible.
   Verified section heights match the captures to within ~0–45px at all three widths.
 - Fonts: same families as live (Gmarket Sans, Pretendard; metrics identical), plus Google Fonts where the

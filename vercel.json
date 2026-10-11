@@ -38,5 +38,17 @@
         }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/lifeartist2026",
+      "destination": "/lifeartist",
+      "permanent": true
+    },
+    {
+      "source": "/preview/lifeartist2026",
+      "destination": "/preview/lifeartist",
+      "permanent": true
+    }
   ]
 }

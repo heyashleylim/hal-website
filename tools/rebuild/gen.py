@@ -4,9 +4,10 @@ Generate a static page from a live-page capture (cap.js dumps at 1440 / 900 / 39
   python3 gen.py <slug> [--sticky-header] [--public-only | --preview-only]
 
 Writes:
-  site/<slug>/index.html          public: elements hidden at every breakpoint are dropped
-  site/preview/<slug>/index.html  private: every element shown; hidden ones outlined + labelled
-Images go to site/assets/img/<slug>/ when visible publicly, else site/preview/<slug>/img/.
+  site/<page>/index.html          public: elements hidden at every breakpoint are dropped
+  site/preview/<page>/index.html  private: every element shown; hidden ones outlined + labelled
+Images go to site/assets/img/<page>/ when visible publicly, else site/preview/<page>/img/.
+<page> is the live slug, or the "path" set for it in overrides.json.
 """
 import hashlib, html, json, os, re, subprocess, sys
 
@@ -87,6 +88,8 @@ def in_role(i, role): return ROLE.get(i) == role
 
 # Deliberate differences from the live page (overrides.json), e.g. equal-height cards at every width.
 OVR = json.load(open(os.path.join(HERE, 'overrides.json'))).get(slug, {})
+# Our URL for the page: the live slug unless overrides.json gives another "path" (e.g. lifeartist2026 → /lifeartist).
+PAGE = OVR.get('path', slug)
 def node_text(i):
     n = nodes[i]
     return ''.join(c if isinstance(c, str) else node_text(c['i']) for c in n.get('c', []))
@@ -787,7 +790,7 @@ def build(preview):
 
 def localize_images(html_text, css_text):
     urls = set(re.findall(r'@@IMG:(.*?)@@', html_text)) | set(re.findall(r'url\("?(https?://[^")]+)"?\)', css_text))
-    pub_dir = os.path.join(SITE, 'assets', 'img', slug); prv_dir = os.path.join(SITE, 'preview', slug, 'img')
+    pub_dir = os.path.join(SITE, 'assets', 'img', PAGE); prv_dir = os.path.join(SITE, 'preview', PAGE, 'img')
     for u in sorted(urls):
         if u in IMGMAP: continue
         base = re.sub(r'\?.*$', '', u.split('/')[-1])
@@ -809,7 +812,7 @@ def localize_images(html_text, css_text):
                 subprocess.run(['cwebp', '-quiet', '-q', '82', '-m', '6', '-resize', '1600', '0', raw, '-o', dst]) \
                     if _width(raw) > 1600 else subprocess.run(['cwebp', '-quiet', '-q', '82', '-m', '6', raw, '-o', dst])
         if not os.path.exists(dst): print('  ! no output for:', u, '(raw', os.path.exists(raw) and os.path.getsize(raw), ')')
-        IMGMAP[u] = ('/assets/img/%s/%s' % (slug, name)) if public else ('/preview/%s/img/%s' % (slug, name))
+        IMGMAP[u] = ('/assets/img/%s/%s' % (PAGE, name)) if public else ('/preview/%s/img/%s' % (PAGE, name))
         if os.path.exists(dst) and not dst.endswith('.svg'):
             r = subprocess.run(['sips', '-g', 'pixelWidth', '-g', 'pixelHeight', dst], capture_output=True, text=True).stdout
             m_ = re.findall(r'pixel(?:Width|Height): (\d+)', r)
@@ -842,7 +845,7 @@ def page(body, css, preview, nhidden):
     pcss = ''
     if preview:
         banner = ('<div class="lv-banner">비공개 미리보기 · 실제 페이지에서 숨겨진 요소 <b>%d개</b>를 점선으로 표시했어요 · '
-                  '<a href="/%s">공개 페이지 보기 →</a></div>' % (nhidden, slug))
+                  '<a href="/%s">공개 페이지 보기 →</a></div>' % (nhidden, PAGE))
         pcss = ('.lv-banner{position:relative;z-index:1001;background:#082D2E;color:#FFFDF7;font:500 14px/1.4 var(--font-body);padding:10px 16px;text-align:center}'
                 '.lv-banner a{color:#F8F6D3}'
                 '.lv-hidden{outline:2px dashed #C37568!important;outline-offset:3px}'
@@ -883,8 +886,8 @@ for preview in MODES:
     body = re.sub(r'@@IMG:(.*?)@@', lambda m: IMGMAP.get(m.group(1), m.group(1)), body)
     body = re.sub(r'@@DIM:(.*?)@@', lambda m: (' width="%d" height="%d"' % IMGDIM[m.group(1)]) if m.group(1) in IMGDIM else '', body)
     css = re.sub(r'url\("?(https?://[^")]+)"?\)', lambda m: 'url("%s")' % IMGMAP.get(m.group(1), m.group(1)), css)
-    out = os.path.join(SITE, 'preview', slug) if preview else os.path.join(SITE, slug)
-    if DEBUG: out = os.path.join(SITE, '_debug', slug)
+    out = os.path.join(SITE, 'preview', PAGE) if preview else os.path.join(SITE, PAGE)
+    if DEBUG: out = os.path.join(SITE, '_debug', PAGE)
     os.makedirs(out, exist_ok=True)
     open(os.path.join(out, 'index.html'), 'w').write(page(body, css, preview, nh))
     print(('preview' if preview else 'public'), out, len(body) // 1024, 'KB html', len(css) // 1024, 'KB css', 'hidden marked:', nh)
