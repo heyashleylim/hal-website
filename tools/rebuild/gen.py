@@ -882,6 +882,9 @@ def page(body, css, preview, nhidden):
             '@media (max-width:767px){body{font-size:15px;line-height:21px}}'
             ':root{--font-head:"GmarketSans","Pretendard","Noto Sans KR",sans-serif;--font-body:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,sans-serif}'
             % (meta['bodyBg'], meta['bodyColor'], meta['bodySize'], meta['bodyLH']))
+    if OVR.get('keep_words'):
+        # Korean lines break between words, never inside one (overrides.json); very long tokens (URLs) may still break.
+        base += 'body{word-break:keep-all;overflow-wrap:break-word}'
     tabs_js = ('<script>document.querySelectorAll(\'[role=tab]\').forEach(function(t){t.addEventListener(\'click\',function(){'
                'var list=t.closest(\'[role=tablist]\')||t.parentElement;list.querySelectorAll(\'[role=tab]\').forEach(function(o){o.setAttribute(\'aria-selected\',o===t?\'true\':\'false\');'
                'var p=document.getElementById(o.getAttribute(\'aria-controls\'));if(p){if(o===t)p.removeAttribute(\'hidden\');else p.setAttribute(\'hidden\',\'\')}})})})</script>') \
