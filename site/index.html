@@ -21,10 +21,14 @@
 body{background:var(--bg-blush)}
 .home-profile{padding:20px var(--gutter) 0;text-align:center}
 .home-profile__avatar{width:100px;height:100px;margin:0 auto;border-radius:50%}
-.home-profile__text{max-width:840px;margin:0 auto;padding-top:20px}
+.home-profile__text{margin:0 auto;padding-top:20px}
 .home-profile__text h1{font-size:38px;line-height:1.4;margin-bottom:16px}
 .home-profile__text h2{font-family:var(--font-body);font-size:19px;font-weight:700;margin-bottom:16px}
 .home-profile__text p{font-size:14px;line-height:22.4px;margin-bottom:16.8px}
+/* Intro paragraph, as on ashleylim.com: desktop = the page minus 300px each side (840px at 1440px),
+   tablet = 550px, centred. (.home-profile__text spans the page minus the 20px gutters.) */
+.home-profile__intro{width:calc(100% - 560px);max-width:100%;margin-left:auto;margin-right:auto}
+@media (max-width:1024px){.home-profile__intro{width:550px}}
 .offers{padding:0 10px 40px}
 .offer{max-width:550px;margin:0 auto;padding:10px 0}
 .offer__card{background:var(--surface);border-radius:var(--r-sm);padding:20px;display:flex;flex-direction:column;gap:20px}
@@ -37,6 +41,7 @@ body{background:var(--bg-blush)}
 .offer__btn{display:inline-flex;align-self:center;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:14px;font-weight:500;line-height:1.4;padding:15px 20px;border-radius:5px;text-decoration:none;transition:background-color .2s}
 .offer__btn:hover,.offer__btn:focus-visible{background:var(--accent-hover)}
 @media (max-width:767px){
+  .home-profile__intro{width:auto}
   .home-profile__text h1{font-size:28px}
   .home-profile__text h2{font-size:17px}
   .offer__card h2{font-size:24px}
@@ -54,7 +59,7 @@ body{background:var(--bg-blush)}
     <div class="home-profile__text">
       <h1>애슐리림</h1>
       <h2>라이프 아티스트 · 자기사랑 코치 🇰🇷🇦🇺</h2>
-      <p>완벽주의, 만성적 불안, 번아웃의 삶에서 벗어나, 나의 불완전한 모든 면을 사랑하는 삶으로 – 그리고 다른 한국 여성들이 같은 변화를 만들어가도록 돕습니다.</p>
+      <p class="home-profile__intro">완벽주의, 만성적 불안, 번아웃의 삶에서 벗어나, 나의 불완전한 모든 면을 사랑하는 삶으로 – 그리고 다른 한국 여성들이 같은 변화를 만들어가도록 돕습니다.</p>
       <p>🧲 함께 할 수 있는 방법 ↓</p>
     </div>
   </section>
