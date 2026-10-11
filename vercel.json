@@ -49,6 +49,21 @@
       "source": "/preview/lifeartist2026",
       "destination": "/preview/lifeartist",
       "permanent": true
+    },
+    {
+      "source": "/go/instagram",
+      "destination": "https://www.instagram.com/heyashleylim",
+      "permanent": false
+    },
+    {
+      "source": "/go/threads",
+      "destination": "https://www.threads.com/@heyashleylim",
+      "permanent": false
+    },
+    {
+      "source": "/go/youtube",
+      "destination": "https://www.youtube.com/@heyashleylim",
+      "permanent": false
     }
   ]
 }
