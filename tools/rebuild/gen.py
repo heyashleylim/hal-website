@@ -776,6 +776,8 @@ SITE_FOOTER = re.search(r'<footer class="site-footer">.*?</footer>', open(os.pat
 # page's button goes.
 SITE_HEADER = re.sub(r'\s*<a class="btn btn--header"[^>]*>.*?</a>', '<!--btn-->',
                      re.search(r'<header class="site-header">.*?</header>', open(os.path.join(SITE, 'nsmb', 'index.html')).read(), re.S).group(0), count=1, flags=re.S)
+if '<!--btn-->' not in SITE_HEADER:   # /nsmb has no header button: a page's own button goes after the logo
+    SITE_HEADER = re.sub(r'(</a>)(\s*</div>\s*</header>)$', r'\1<!--btn-->\2', SITE_HEADER, count=1)
 
 def page(body, css, preview, nhidden):
     fl = ''
