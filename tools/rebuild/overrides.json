@@ -1,8 +1,9 @@
 {
-  "_about": "Deliberate differences from the live pages requested by Ashley, plus live behaviour the capture cannot record (hover styles). Applied every time a page is regenerated. Anchors are exact text on the page (masonry: part of an image file name); px = [desktop, tablet, mobile]. path: our URL when it differs from the live slug.",
+  "_about": "Deliberate differences from the live pages requested by Ashley, plus live behaviour the capture cannot record (hover styles). Applied every time a page is regenerated. Anchors are exact text on the page (masonry: part of an image file name); px = [desktop, tablet, mobile]. path: our URL when it differs from the live slug. mobile_button_padding: [vertical, horizontal] for filled buttons on phones.",
   "eft": {
     "equal_height_cards": ["수업이 끝나면, 이렇게 달라집니다"],
-    "masonry": [{"img": "review-1-1024x499", "columns": [3, 2, 1], "gap": 20}]
+    "masonry": [{"img": "review-1-1024x499", "columns": [3, 2, 1], "gap": 20}],
+    "mobile_button_padding": ["11px", "24px"]
   },
   "switch": {
     "bottom_space": [{"after": "FAQ", "px": [100, 80, 60]}]

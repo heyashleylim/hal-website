@@ -564,8 +564,16 @@ def decls(i, bp, preview):
             out.update({'border-bottom': '1px solid rgb(215, 215, 215)', 'margin-bottom': '-1px'})
     if i in CAROUSEL_TRACK: out.pop('transform', None)  # lv-carousel.js positions the slides
     if i in BOTTOM_SPACE: out['padding-bottom'] = '%dpx' % BOTTOM_SPACE[i][{'d': 0, 't': 1, 'm': 2}[bp]]
+    if bp == 'm' and OVR.get('mobile_button_padding') and n['t'] in ('a', 'button') and not in_role(i, 'header'):
+        # Slimmer buttons on phones (overrides.json): links drawn as filled buttons.
+        bg = s.get('background-color', '')
+        if bg and bg not in ('rgba(0, 0, 0, 0)', 'transparent') and (px(s.get('padding-top', '0')) or 0) >= 12:
+            v, h = OVR['mobile_button_padding']
+            out.update({'padding-top': v, 'padding-bottom': v, 'padding-left': h, 'padding-right': h})
     return out
 
+CHECK_MASK = ('url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 16 16\'%3E%3Cpath '
+              'd=\'M13.3 3.3 6 10.6 2.7 7.3 1.3 8.7 6 13.4l8.7-8.7z\'/%3E%3C/svg%3E") center/contain no-repeat')
 def pdecls(i, bp, preview):
     p = P(bp, i) if not (hid(bp, i) and preview) else (P('d', i) or P('t', i) or P('m', i))
     if not p: return {}
@@ -592,7 +600,11 @@ def pdecls(i, bp, preview):
                 if ICON_FONTS.search(v):
                     o['font-family'] = 'var(--font-body)'
                     if re.fullmatch(r'"\\?[^"]{1}"', st.get('content', '')) or len(st.get('content', '')) <= 4:
-                        o['content'] = '"✔"'
+                        # Icon-font check → a check shape in the icon's colour. Not the "✔" character: phones
+                        # draw that as a grey emoji, and it's larger than the live icon.
+                        o.update({'content': '""', 'display': 'inline-block', 'width': '.8em', 'height': '.8em',
+                                  'vertical-align': '-.05em', 'background-color': 'currentColor',
+                                  '-webkit-mask': CHECK_MASK, 'mask': CHECK_MASK})
                     continue
                 f = map_font(v); v = f or v
             if k == 'background-image' and 'url(' in v:
