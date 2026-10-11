@@ -94,6 +94,7 @@ def node_text(i):
     n = nodes[i]
     return ''.join(c if isinstance(c, str) else node_text(c['i']) for c in n.get('c', []))
 EQUAL_GRIDS, CARD_FILL = set(), set()
+CARD_COL, CARD_GROW, CARD_PUSH = set(), set(), set()
 CAROUSEL_TRACK, CAROUSEL_VP, BOTTOM_SPACE = set(), set(), {}
 MASONRY, MASONRY_CELL = {}, set()
 def top_section(i):
@@ -149,6 +150,13 @@ def apply_overrides():
                   kids = [c for c in k.get('c', []) if isinstance(c, dict)]
                   if len(kids) != 1 or any(isinstance(c, str) and c.strip() for c in k.get('c', [])): break
                   k = kids[0]; CARD_FILL.add(k['i'])
+              if anchor in OVR.get('last_line_bottom', []):
+                  # Card's last line (e.g. "→ 결과") at the bottom: card = column, its text box grows, last line pushed down.
+                  kids = [c for c in k.get('c', []) if isinstance(c, dict)]
+                  if kids:
+                      CARD_COL.add(k['i']); t = kids[-1]; CARD_GROW.add(t['i'])
+                      tk = [c for c in t.get('c', []) if isinstance(c, dict)]
+                      if tk: CARD_PUSH.add(tk[-1]['i'])
 
 def S(bp, i):
     if bp == 'd': return nodes[i]['s']
@@ -533,6 +541,9 @@ def decls(i, bp, preview):
             elif ml2 > 1 and mr2 <= 1: out['margin-left'] = 'auto'
     if i in EQUAL_GRIDS: out['grid-template-rows'] = 'none'; out['grid-auto-rows'] = '1fr'; out['align-items'] = 'stretch'
     if i in CARD_FILL: out['height'] = '100%'
+    if i in CARD_COL: out.update({'display': 'flex', 'flex-direction': 'column'})
+    if i in CARD_GROW: out.update({'display': 'flex', 'flex-direction': 'column', 'flex': '1 1 auto'})
+    if i in CARD_PUSH: out['margin-top'] = 'auto'
     if i in MASONRY:
         for k in [k for k in out if k.startswith('grid-') or k in ('min-height', 'justify-content', 'align-content', 'justify-items', 'align-items')]: out.pop(k)
         gap = MASONRY[i].get('gap', 20)
