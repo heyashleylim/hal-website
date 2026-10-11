@@ -75,6 +75,7 @@ def node_text(i):
     return ''.join(c if isinstance(c, str) else node_text(c['i']) for c in n.get('c', []))
 EQUAL_GRIDS, CARD_FILL = set(), set()
 CAROUSEL_TRACK, CAROUSEL_VP, BOTTOM_SPACE = set(), set(), {}
+MASONRY, MASONRY_CELL = {}, set()
 def top_section(i):
     # The page section (child of the main content root) that contains node i.
     root = D['tree'][1]['node']['i']
@@ -82,6 +83,11 @@ def top_section(i):
     x = i
     while parent[x] is not None and parent[x] != root: x = parent[x]
     return x
+def _under(x, a):
+    while x is not None:
+        if x == a: return True
+        x = parent[x]
+    return False
 def apply_overrides():
   for i, n in nodes.items():  # image carousels: the slide track and its clipping viewport
       if any(isinstance(c, dict) and 'swiper-slide' in c['a'].get('cls', '') for c in n.get('c', [])):
@@ -90,6 +96,21 @@ def apply_overrides():
       hits = [i for i, n in nodes.items() if rule['after'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
       if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, rule['after']))
       BOTTOM_SPACE[top_section(hits[0])] = rule['px']
+  for rule in OVR.get('masonry', []):
+      # An image grid shown as a masonry (CSS columns): every image keeps its own height, no gaps under short ones.
+      # The images right after the grid in the same container (e.g. one large review below it) join the masonry.
+      hits = [i for i, n in nodes.items() if rule['img'] in n['a'].get('src', '')]
+      if not hits: sys.exit('overrides.json: masonry image not found on %s: %s' % (slug, rule['img']))
+      g = hits[0]
+      while g is not None and 'grid' not in S('d', g).get('display', ''): g = parent[g]
+      if g is None: sys.exit('overrides.json: no grid around %s' % rule['img'])
+      box = nodes[parent[g]]
+      kids = [c for c in box['c'] if isinstance(c, dict)]
+      for c in kids[kids.index(nodes[g]) + 1:]:
+          if not node_text(c['i']).strip() and any(nodes[x]['t'] == 'img' for x in nodes if _under(x, c['i'])):
+              box['c'].remove(c); nodes[g]['c'].append(c); parent[c['i']] = g
+      MASONRY[g] = rule
+      MASONRY_CELL.update(c['i'] for c in nodes[g]['c'] if isinstance(c, dict))
   for anchor in OVR.get('equal_height_cards', []):
       hits = [i for i, n in nodes.items() if anchor in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
       if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, anchor))
@@ -492,6 +513,17 @@ def decls(i, bp, preview):
             elif ml2 > 1 and mr2 <= 1: out['margin-left'] = 'auto'
     if i in EQUAL_GRIDS: out['grid-template-rows'] = 'none'; out['grid-auto-rows'] = '1fr'; out['align-items'] = 'stretch'
     if i in CARD_FILL: out['height'] = '100%'
+    if i in MASONRY:
+        for k in [k for k in out if k.startswith('grid-') or k in ('min-height', 'justify-content', 'align-content', 'justify-items', 'align-items')]: out.pop(k)
+        gap = MASONRY[i].get('gap', 20)
+        out.update({'display': 'block', 'columns': str(MASONRY[i]['columns'][{'d': 0, 't': 1, 'm': 2}[bp]]), 'column-gap': '%dpx' % gap})
+    if i in MASONRY_CELL:
+        gap = MASONRY[parent[i]].get('gap', 20)
+        for k in ('justify-self', 'align-self', 'grid-column', 'grid-row', 'height'): out.pop(k, None)
+        out.update({'break-inside': 'avoid', 'margin-bottom': '0px' if [c for c in nodes[parent[i]]['c'] if isinstance(c, dict)][-1] is nodes[i] else '%dpx' % gap, 'width': '100%'})
+    if pi is not None and pi in MASONRY_CELL and n['t'] not in IMGLIKE: out['display'] = 'block'
+    if n['t'] == 'img' and any(_under(i, c) for c in MASONRY_CELL):
+        out.update({'width': '100%', 'height': 'auto', 'display': 'block'}); out.pop('max-width', None)
     if out.get('position') == 'absolute' and w is not None and pw:
         # Computed left/right/top/bottom come back as pixels on both sides; keep only the side the box hugs.
         for a_, b_ in (('left', 'right'), ('top', 'bottom')):
@@ -652,6 +684,7 @@ def build(preview):
         if t == 'details': return faq_item(n, (' class="lv-hidden"' + flag) if mark else '')
         if i in CAROUSEL_TRACK: cls += ' lv-track'
         if i in CAROUSEL_VP: cls += ' lv-viewport'
+        if i in MASONRY: flag += ' data-lv-masonry'
         if 'swiper-slide' in n['a'].get('cls', ''): cls += ' lv-slide'
         if n['a'].get('settings') and 'carousel' in n['a'].get('wt', ''):
             flag += ' data-lv-carousel="%s"' % html.escape(n['a']['settings'], quote=True)
@@ -803,7 +836,7 @@ def page(body, css, preview, nhidden):
                 'padding:0 8px!important;border-radius:100px!important;opacity:1!important;transform:none!important;pointer-events:none}')
     base = ('*,*::before,*::after{box-sizing:border-box}html{-webkit-text-size-adjust:100%%;scroll-behavior:smooth}'
             'body{margin:0;background:%s;color:%s;font-family:var(--font-body);font-size:%s;line-height:%s;-webkit-font-smoothing:antialiased;overflow-x:clip}'
-            'img{max-width:100%%}a{color:inherit}[hidden]{display:none!important}'
+            'img{max-width:100%%;height:auto}a{color:inherit}[hidden]{display:none!important}'
             'details>summary{list-style:none;cursor:pointer}details>summary::-webkit-details-marker{display:none}'
             'details:not([open]) .e-opened{display:none!important}details[open] .e-closed{display:none!important}'
             '.lv-video{display:block;width:100%%;aspect-ratio:16/9;border:0}'
@@ -822,7 +855,8 @@ def page(body, css, preview, nhidden):
             % (html.escape(title), robots, ('<meta name="description" content="%s">' % html.escape(desc, quote=True)) if desc else '',
                ('<link rel="stylesheet" href="/assets/css/faq.css">\n' if '<details' in body else '') +
                ('<link rel="stylesheet" href="/assets/css/lv-carousel.css">\n<script src="/assets/js/lv-carousel.js" defer></script>\n'
-                if 'data-lv-carousel' in body else ''), fl,
+                if 'data-lv-carousel' in body else '') +
+               ('<script src="/assets/js/lv-masonry.js" defer></script>\n' if 'data-lv-masonry' in body else ''), fl,
                meta['path'].replace('/p/', '/'), base, pcss, css, banner, body, tabs_js))
 
 apply_overrides()

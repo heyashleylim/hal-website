@@ -7,9 +7,10 @@ import http.server, os, re, subprocess, urllib.parse, hashlib
 HERE = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(HERE, 'dumps'); CACHE = os.path.join(HERE, 'proxycache')
 os.makedirs(CACHE, exist_ok=True); os.makedirs(OUT, exist_ok=True)
 LIVE = 'https://ashleylim.com'
-def fetch(url):
+def fetch(url, fresh=False):
+    # Assets are cached between runs; pages (fresh=True) are always fetched again, so edits on the live site show up.
     key = os.path.join(CACHE, hashlib.md5(url.encode()).hexdigest())
-    if os.path.exists(key) and not url.endswith(('/', '')) is False and os.path.exists(key + '.ct'):
+    if not fresh and os.path.exists(key) and os.path.exists(key + '.ct'):
         return open(key, 'rb').read(), open(key + '.ct').read()
     r = subprocess.run(['curl', '-sL', '-A', 'Mozilla/5.0 (Macintosh) Chrome/130', '-w', '\n%{content_type}', url], capture_output=True)
     body, _, ct = r.stdout.rpartition(b'\n')
@@ -32,7 +33,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == '/cap.js':
             return self.send(open(os.path.join(HERE, 'cap.js'), 'rb').read(), 'text/javascript', cache=False)
         if u.path.startswith('/p/'):
-            body, ct = fetch(LIVE + '/' + u.path[3:] + (('?' + u.query) if u.query else ''))
+            body, ct = fetch(LIVE + '/' + u.path[3:] + (('?' + u.query) if u.query else ''), fresh=True)
             body = re.sub(rb'<meta[^>]+Content-Security-Policy[^>]*>', b'', rewrite(body), flags=re.I)
             return self.send(body, 'text/html; charset=utf-8', cache=False)
         body, ct = fetch(LIVE + self.path)

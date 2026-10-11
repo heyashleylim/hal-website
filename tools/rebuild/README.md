@@ -33,6 +33,9 @@ Notes
   with the live question and answer text.
 - `overrides.json` holds deliberate differences from the live page, per slug (e.g. `equal_height_cards`:
   card grids under a given heading get equal-height cards at every width). The anchor text must exist on the page.
+  `masonry` turns the image grid around an image (`img`: part of its file name) into a masonry with `columns`
+  [desktop, tablet, mobile] and a `gap`; image-only boxes right after the grid join it. CSS columns lay it out,
+  and `/assets/js/lv-masonry.js` rebalances the columns (tallest image into the shortest column).
 - Image carousels (Elementor image-carousel, e.g. /switch) are rebuilt for `/assets/js/lv-carousel.js` +
   `/assets/css/lv-carousel.css`, using the widget's captured settings (autoplay timing, slides per view, loop, arrows/dots).
 - Tab lists (e.g. the /lifeartist2026 plan picker) get selected / not-selected styles from the capture; hover styles
