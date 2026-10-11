@@ -96,6 +96,7 @@ def node_text(i):
 EQUAL_GRIDS, CARD_FILL = set(), set()
 CARD_COL, CARD_GROW, CARD_PUSH = set(), set(), set()
 PAD_SCALE = {}
+EXTRA_CSS = {}
 CAROUSEL_TRACK, CAROUSEL_VP, BOTTOM_SPACE = set(), set(), {}
 MASONRY, MASONRY_CELL = {}, set()
 def top_section(i):
@@ -133,6 +134,13 @@ def apply_overrides():
               box['c'].remove(c); nodes[g]['c'].append(c); parent[c['i']] = g
       MASONRY[g] = rule
       MASONRY_CELL.update(c['i'] for c in nodes[g]['c'] if isinstance(c, dict))
+  for rule in OVR.get('css', []):
+      # Extra CSS on the block around a text, at chosen breakpoints (e.g. keep a price on one line on phones).
+      hits = [i for i, n in nodes.items() if rule['text'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
+      if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, rule['text']))
+      x = hits[0]
+      while parent[x] is not None and nodes[x]['t'] in INLINE_TAGS: x = parent[x]
+      for bp_ in rule.get('bp', BPS): EXTRA_CSS.setdefault((x, bp_), {}).update(rule['set'])
   for rule in OVR.get('padding_scale', []):
       # Scale the padding of the box around a heading (e.g. halve a card's padding).
       hits = [i for i, n in nodes.items() if rule['in'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
@@ -553,6 +561,7 @@ def decls(i, bp, preview):
     if i in CARD_COL: out.update({'display': 'flex', 'flex-direction': 'column'})
     if i in CARD_GROW: out.update({'display': 'flex', 'flex-direction': 'column', 'flex': '1 1 auto'})
     if i in CARD_PUSH: out['margin-top'] = 'auto'
+    if (i, bp) in EXTRA_CSS: out.update(EXTRA_CSS[(i, bp)])
     if i in PAD_SCALE:
         for k in ('top', 'right', 'bottom', 'left'):
             v = px(out.get('padding-' + k, '') or S(bp, i).get('padding-' + k, ''))
