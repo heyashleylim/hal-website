@@ -45,6 +45,7 @@ Notes
   `/assets/css/lv-carousel.css`, using the widget's captured settings (autoplay timing, slides per view, loop, arrows/dots).
 - Tab lists (e.g. the /lifeartist2026 plan picker) get selected / not-selected styles from the capture; hover styles
   can't be captured, so they come from `overrides.json` (`tab_hover`).
+- Links to ashleylim.com pages become site paths (`sitelinks.py`); payment links (`?product=…`) and the canonical tag keep ashleylim.com.
 - Ordered lists keep their `start` numbers.
 - The header isn't copied either: every generated page gets the main header from `site/nsmb/index.html`
   (`/assets/css/header.css`), plus the page's own header button if the live header has one (class

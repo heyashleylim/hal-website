@@ -10,6 +10,8 @@ Images go to site/assets/img/<page>/ when visible publicly, else site/preview/<p
 <page> is the live slug, or the "path" set for it in overrides.json.
 """
 import hashlib, html, json, os, re, subprocess, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sitelinks import localize_html
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -947,6 +949,6 @@ for preview in MODES:
     out = os.path.join(SITE, 'preview', PAGE) if preview else os.path.join(SITE, PAGE)
     if DEBUG: out = os.path.join(SITE, '_debug', PAGE)
     os.makedirs(out, exist_ok=True)
-    open(os.path.join(out, 'index.html'), 'w').write(page(body, css, preview, nh))
+    open(os.path.join(out, 'index.html'), 'w').write(localize_html(page(body, css, preview, nh)))   # ashleylim.com page links → /paths
     print(('preview' if preview else 'public'), out, len(body) // 1024, 'KB html', len(css) // 1024, 'KB css', 'hidden marked:', nh)
 print('images:', len(IMGMAP), 'public:', sum(1 for u in IMGMAP if img_public.get(u, True)), 'fonts:', sorted(fonts_used))
