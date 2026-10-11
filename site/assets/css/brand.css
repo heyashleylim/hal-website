@@ -107,6 +107,7 @@ em{font-style:italic}
   h3{font-size:22px}
   h4{font-size:20px}
   h5{font-size:18px}
+  .btn{font-size:15px;padding:11px 22px}
   .btn--header{font-size:14px;padding:10px 16px}
 }
 @media (prefers-reduced-motion:reduce){

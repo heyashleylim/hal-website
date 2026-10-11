@@ -32,6 +32,7 @@
 .site-footer__links a{color:var(--ft-fg);text-decoration:none;padding:6px 0}
 .site-footer__links a:hover{text-decoration:underline}
 .site-footer a:focus-visible{outline:3px solid var(--ft-focus);outline-offset:3px;border-radius:6px}
-/* Phones: icons under the business details, with less space around them (their 44px tap boxes already add ~10px). */
-@media (max-width:767px){.site-footer__top{flex-direction:column;gap:12px}.site-footer__follow{margin-left:-10px}.site-footer__bottom{margin-top:12px}}
+/* Phones: icons under the business details, with less space around them (their 44px tap boxes already add ~10px);
+   the " | " separators (except on the TEL line) become line breaks. */
+@media (max-width:767px){.site-footer__top{flex-direction:column;gap:12px}.site-footer__sep{display:block;height:0;overflow:hidden}.site-footer__follow{margin-left:-10px}.site-footer__bottom{margin-top:12px}}
 @media (prefers-reduced-motion:reduce){.site-footer__follow a{transition:none}}

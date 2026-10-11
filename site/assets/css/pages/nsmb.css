@@ -73,8 +73,12 @@
 .about__text h2{padding-top:0}
 .ticks{list-style:none;margin:0;padding:10px 0 0;display:flex;flex-direction:column;gap:5px}
 .ticks li{display:flex;gap:5px;align-items:flex-start;line-height:1.4}
-.tick{flex:0 0 auto;width:18px;color:var(--rose);font-size:14px;line-height:22.4px;text-align:center}
-.x-tick{color:var(--rose);font-weight:700}
+.tick{flex:0 0 auto;width:18px;height:1.4em;display:flex;align-items:center;justify-content:center;color:var(--rose)}
+.tick svg{width:14px;height:14px;fill:currentColor}   /* SVG, not ✔/✕: phones swap those characters for grey emoji or thin glyphs */
+.x-tick svg{width:13px;height:13px}
+.spark{display:inline-block;width:.8em;height:.8em;margin-right:.35em;vertical-align:-.02em}   /* ✦ as SVG: same size on every device */
+.spark svg{display:block;width:100%;height:100%;fill:currentColor}
+.h2-xl{font-size:50px;line-height:1.5}
 .about__born{padding:30px 0!important;text-align:center}
 .dark-box{background:var(--deep);color:var(--bg);border-radius:var(--r-md);padding:20px 20px 10px;text-align:center;line-height:1.4}
 .dark-box p{margin-bottom:10px}
@@ -107,6 +111,7 @@
 .v-card h4{text-align:center;line-height:1.5;padding:0 10px}
 .phone{width:100%;max-width:300px;aspect-ratio:9/16;background:var(--surface);border:1px solid var(--line);border-radius:34px;padding:9px;box-shadow:0 26px 54px rgba(34,34,34,.13);transition:transform .35s var(--ease)}
 .v-card:hover .phone{transform:translateY(-6px) rotate(-1deg)}
+.v-card.is-playing .phone,.v-card.is-playing:hover .phone,.v-card:has(iframe):hover .phone,.v-card:has(iframe) .phone{transform:none}   /* straight while the video plays */
 .phone .yt,.phone .yt-wrap,.phone iframe{height:100%;border-radius:25px}
 .v-card h5{text-align:center}
 .v-card__text{align-self:stretch;line-height:1.5}
@@ -183,9 +188,16 @@
 @media (max-width:767px){
   .sec{padding:50px var(--gutter)}
   .sec__in{gap:24px}
+  .hero{background-image:url("/assets/img/nsmb/hero-bg-mobile.webp");background-position:50% 0}   /* phone crop, as ashleylim.com */
   .hero__in{min-height:0;padding:60px 0;gap:28px}
-  .hero__sub{font-size:18px;line-height:1.7}
+  .hero h1{font-size:26px}   /* 4 lines down to 360px */
+  .hero__sub{font-size:16px;line-height:1.7}   /* 3 lines */
+  .hero__sub br{display:none}
   .hero__note{font-size:15px}
+  .h2-method{font-size:22px}   /* one line */
+  .h2-curri{font-size:23px;margin-left:-10px;margin-right:-10px}   /* 2 lines: a little wider than the column */
+  .about__born{font-size:16px}   /* 2 lines */
+  .h2-xl{font-size:26px}
   .pain-grid,.t-grid,.v-grid,.q-grid,.fit{grid-template-columns:1fr}
   .pain-grid li{min-height:0}
   .pcard__label{flex-basis:96px}

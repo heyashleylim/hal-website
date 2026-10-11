@@ -17,6 +17,7 @@
       f.title=b.getAttribute('aria-label').replace(' 재생','');
       f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
       f.allowFullscreen=true;
+      var card=b.closest('.v-card');if(card)card.classList.add('is-playing');   /* phone frame stops tilting */
       w.appendChild(f);b.replaceWith(w);f.focus();
     });
   });
