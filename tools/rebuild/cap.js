@@ -96,5 +96,21 @@ async function capturePassFresh(name,expectedN){
   if(expectedN&&nextId!==expectedN)return 'NOT SAVED: '+nextId+' elements here, '+expectedN+' in the desktop capture';
   return post(name,{vw:innerWidth,styles:restyle()});
 }
-return {capture,capturePass,capturePassFresh};
+// Tab panels that aren't open on load have no layout in the passes above (display:none). After any capture at a
+// width, run this on the same page: it opens each other tab in turn and records its panel's styles, saved as
+// '<slug><suffix>.tabs' (e.g. lifeartist2026.d.tabs). The generator overlays them on that width's pass.
+async function capturePanels(name,expectedN){
+  if(!document.querySelector('[data-cap]')){nextId=0;const bcs=getComputedStyle(document.body);rootsOf().forEach(r=>walk(r,bcs));
+    if(expectedN&&nextId!==expectedN)return 'NOT SAVED: '+nextId+' elements here, '+expectedN+' in the desktop capture'}
+  const out={},wait=()=>new Promise(r=>setTimeout(r,500));
+  for(const tl of document.querySelectorAll('[role=tablist]')){
+    const tabs=[...tl.querySelectorAll('[role=tab]')],orig=tabs.findIndex(t=>t.getAttribute('aria-selected')==='true');
+    for(let k=0;k<tabs.length;k++){if(k===orig)continue;tabs[k].click();await wait();
+      const p=document.getElementById(tabs[k].getAttribute('aria-controls'));if(!p||!p.dataset.cap)continue;
+      [p,...p.querySelectorAll('[data-cap]')].forEach(el=>{const id=+el.dataset.cap,pe=el.parentElement;out[id]=styles(el,pe?getComputedStyle(pe):null);const ps=pseudo(el);if(ps)out[id].__p=ps})}
+    if(orig>=0){tabs[orig].click();await wait()}
+  }
+  return post(name,{vw:innerWidth,styles:out});
+}
+return {capture,capturePass,capturePassFresh,capturePanels};
 })();

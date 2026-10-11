@@ -22,6 +22,10 @@ at the same layout for desktop (1440px), tablet (900px) and mobile (390px).
    desktop 1920px → `.w` and 1100px → `.n`; tablet 1024px → `.tw` and 768px → `.tl`; phone 767px → `.mw`. From 1100 / 1440 / 1920 the generator tells fixed widths and
    paddings apart from percentage ones (e.g. the header's 8% padding, 40/60 columns, text boxes that shrink
    below 1440 but stop growing above it), so pages match the live site on any desktop screen, not only at 1440.
+   Pages with tabs (e.g. the /lifeartist2026 plan picker): on the same loaded page after each capture, also run
+   `await __C.capturePanels('<slug>.<suffix>.tabs', N)` (e.g. `lifeartist2026.d.tabs`, `.t.tabs`, … for all 8 widths).
+   It opens each tab that's closed on load and records its panel's layout, which the plain capture can't see
+   (closed panels have no size); without it, the other tabs' content is misaligned.
 4. `python3 tools/rebuild/gen.py <slug>` — add `--sticky-header` only for pages whose live header is sticky
    (currently `eft`, `chosen` and the `nsmb` preview; `switch`, `lifeartist2026` and the policy pages scroll it away).
    Add `--public-only` or `--preview-only` when needed (policy pages: `--public-only`);

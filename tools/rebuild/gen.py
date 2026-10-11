@@ -51,6 +51,18 @@ PAIR = {'t': _pass('.tw'), 'm': _pass('.mw')}
 # Extra captures per breakpoint range: (lower end, upper end) around the main capture.
 RANGE = {'d': (ND, WD), 't': (_pass('.tl'), PAIR['t']), 'm': ({}, PAIR['m'])}
 
+def _tabs(suffix):
+    f = os.path.join(HERE, 'dumps', slug + suffix + '.tabs.json')
+    return json.loads(open(f).read())['styles'] if os.path.exists(f) else {}
+def _overlay(styles, tabs):
+    # Styles of tab panels recorded while open (cap.js capturePanels); the panel keeps its own "hidden on load" flag.
+    for k, v in tabs.items():
+        old = styles.get(k, {})
+        styles[k] = dict(v, __hidden=old.get('__hidden', False)) if '__hidden' in old else v
+for _sfx, _st in (('.t', T), ('.m', M), ('.w', WD), ('.n', ND), ('.tw', PAIR['t']), ('.tl', RANGE['t'][0]), ('.mw', PAIR['m'])):
+    _overlay(_st, _tabs(_sfx))
+_DTABS = _tabs('.d')
+
 nodes, parent = {}, {}
 def index(n, p=None):
     nodes[n['i']] = n; parent[n['i']] = p
@@ -58,6 +70,11 @@ def index(n, p=None):
         if isinstance(c, dict): index(c, n['i'])
 for r in D['tree']:
     if r['node']: index(r['node'])
+for _k, _v in _DTABS.items():
+    if int(_k) in nodes:
+        _old = nodes[int(_k)]['s']; nodes[int(_k)]['s'] = dict((k, x) for k, x in _v.items() if k != '__p')
+        nodes[int(_k)]['s']['__hidden'] = _old.get('__hidden', False)
+        if '__p' in _v: nodes[int(_k)]['p'] = _v['__p']
 
 ROLE = {}
 for r in D['tree']:
