@@ -6,7 +6,7 @@
 .site-footer{
   --ft-bg:#082D2E;          /* = --deep */
   --ft-fg:#FFFFFF;
-  --ft-icon:#69727D;
+  --ft-icon:#FFFFFF;
   --ft-rule:rgba(255,255,255,.15);
   --ft-focus:#DB4A2B;        /* = --accent */
   --ft-gutter:20px;
@@ -22,8 +22,8 @@
 .site-footer__biz{font-size:13px;line-height:22.4px}
 .site-footer__biz a{color:var(--ft-fg);text-decoration:underline}
 .site-footer__social{display:flex;gap:16px}
-.site-footer__social a{display:grid;place-items:center;width:44px;height:44px;color:var(--ft-icon);transition:color .2s}
-.site-footer__social a:hover{color:var(--ft-fg)}
+.site-footer__social a{display:grid;place-items:center;width:44px;height:44px;color:var(--ft-icon);transition:opacity .2s}
+.site-footer__social a:hover{opacity:.7}
 .site-footer__social svg{width:25px;height:25px;fill:currentColor}
 .site-footer__bottom{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-top:40px;padding-top:20px;border-top:1px solid var(--ft-rule);font-size:13px}
 .site-footer__links{display:flex;gap:20px;flex-wrap:wrap}
