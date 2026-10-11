@@ -570,6 +570,9 @@ def decls(i, bp, preview):
         if bg and bg not in ('rgba(0, 0, 0, 0)', 'transparent') and (px(s.get('padding-top', '0')) or 0) >= 12:
             v, h = OVR['mobile_button_padding']
             out.update({'padding-top': v, 'padding-bottom': v, 'padding-left': h, 'padding-right': h})
+            # One line (arrow included): label at most 18px, shrinking on very narrow phones (4.8vw = 18px at 375px).
+            f = min(px(eff('m', i, 'font-size')) or 16, 18)
+            out.update({'font-size': 'min(%gpx, 4.8vw)' % f, 'white-space': 'nowrap'})
     return out
 
 CHECK_MASK = ('url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 16 16\'%3E%3Cpath '
@@ -602,7 +605,7 @@ def pdecls(i, bp, preview):
                     if re.fullmatch(r'"\\?[^"]{1}"', st.get('content', '')) or len(st.get('content', '')) <= 4:
                         # Icon-font check → a check shape in the icon's colour. Not the "✔" character: phones
                         # draw that as a grey emoji, and it's larger than the live icon.
-                        o.update({'content': '""', 'display': 'inline-block', 'width': '.8em', 'height': '.8em',
+                        o.update({'content': '""', 'display': 'inline-block', 'width': '.95em', 'height': '.95em',
                                   'vertical-align': '-.05em', 'background-color': 'currentColor',
                                   '-webkit-mask': CHECK_MASK, 'mask': CHECK_MASK})
                     continue
