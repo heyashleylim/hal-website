@@ -194,8 +194,8 @@
   .hero__sub{font-size:16px;line-height:1.7}   /* 3 lines */
   .hero__sub br{display:none}
   .hero__note{font-size:15px}
-  .h2-method{font-size:22px}   /* one line */
-  .h2-curri{font-size:23px;margin-left:-10px;margin-right:-10px}   /* 2 lines: a little wider than the column */
+  .h2-method{font-size:min(26px,calc((100vw - 20px) / 13.8));margin-left:-10px;margin-right:-10px;white-space:nowrap}   /* section-title size, one line: 10px side padding, scales below 375px */
+  .h2-curri{font-size:min(26px,calc((100vw - 40px) / 13.9));white-space:nowrap}   /* 2 lines (one per <br>), same width as the text below; scales below 375px */
   .about__born{font-size:16px}   /* 2 lines */
   .h2-xl{font-size:26px}
   .pain-grid,.t-grid,.v-grid,.q-grid,.fit{grid-template-columns:1fr}
