@@ -1,10 +1,11 @@
 {
-  "_about": "Deliberate differences from the live pages requested by Ashley, plus live behaviour the capture cannot record (hover styles). Applied every time a page is regenerated. Anchors are exact text on the page (masonry: part of an image file name); px = [desktop, tablet, mobile]. path: our URL when it differs from the live slug. mobile_button_padding: [vertical, horizontal] for filled buttons on phones. side_padding: px left/right of the content on tablets and phones. keep_words: never break lines inside a Korean word. last_line_bottom: in those equal-height cards, the last line sits at the bottom.",
+  "_about": "Deliberate differences from the live pages requested by Ashley, plus live behaviour the capture cannot record (hover styles). Applied every time a page is regenerated. Anchors are exact text on the page (masonry: part of an image file name); px = [desktop, tablet, mobile]. path: our URL when it differs from the live slug. mobile_button_padding: [vertical, horizontal] for filled buttons on phones. side_padding: px left/right of the content on tablets and phones. keep_words: never break lines inside a Korean word. last_line_bottom: in those equal-height cards, the last line sits at the bottom. padding_scale: multiply the padding of the box around a text.",
   "eft": {
     "keep_words": true,
     "equal_height_cards": ["수업이 끝나면, 이렇게 달라집니다", "수강생들이 말하는 진짜 변화"],
     "last_line_bottom": ["수강생들이 말하는 진짜 변화"],
-    "masonry": [{"img": "review-1-1024x499", "columns": [3, 2, 1], "gap": 20}],
+    "padding_scale": [{"in": "왜 생각을 바꾸는 것만으로는 충분하지 않을까?", "factor": 0.5}],
+    "masonry": [{"img": "review-1-1024x499", "columns": [3, 2, 1], "gap": [20, 20, 32]}],
     "mobile_button_padding": ["11px", "24px"]
   },
   "chosen": {

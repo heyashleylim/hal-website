@@ -95,6 +95,7 @@ def node_text(i):
     return ''.join(c if isinstance(c, str) else node_text(c['i']) for c in n.get('c', []))
 EQUAL_GRIDS, CARD_FILL = set(), set()
 CARD_COL, CARD_GROW, CARD_PUSH = set(), set(), set()
+PAD_SCALE = {}
 CAROUSEL_TRACK, CAROUSEL_VP, BOTTOM_SPACE = set(), set(), {}
 MASONRY, MASONRY_CELL = {}, set()
 def top_section(i):
@@ -132,6 +133,14 @@ def apply_overrides():
               box['c'].remove(c); nodes[g]['c'].append(c); parent[c['i']] = g
       MASONRY[g] = rule
       MASONRY_CELL.update(c['i'] for c in nodes[g]['c'] if isinstance(c, dict))
+  for rule in OVR.get('padding_scale', []):
+      # Scale the padding of the box around a heading (e.g. halve a card's padding).
+      hits = [i for i, n in nodes.items() if rule['in'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
+      if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, rule['in']))
+      x = parent[hits[0]]
+      while x is not None and not any((px(S('d', x).get('padding-' + k, '0')) or 0) > 0 for k in ('top', 'right', 'bottom', 'left')): x = parent[x]
+      if x is None: sys.exit('overrides.json: no padded box around %s' % rule['in'])
+      PAD_SCALE[x] = rule['factor']
   for anchor in OVR.get('equal_height_cards', []):
       hits = [i for i, n in nodes.items() if anchor in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
       if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, anchor))
@@ -544,12 +553,18 @@ def decls(i, bp, preview):
     if i in CARD_COL: out.update({'display': 'flex', 'flex-direction': 'column'})
     if i in CARD_GROW: out.update({'display': 'flex', 'flex-direction': 'column', 'flex': '1 1 auto'})
     if i in CARD_PUSH: out['margin-top'] = 'auto'
+    if i in PAD_SCALE:
+        for k in ('top', 'right', 'bottom', 'left'):
+            v = px(out.get('padding-' + k, '') or S(bp, i).get('padding-' + k, ''))
+            if v: out['padding-' + k] = '%gpx' % (v * PAD_SCALE[i])
     if i in MASONRY:
         for k in [k for k in out if k.startswith('grid-') or k in ('min-height', 'justify-content', 'align-content', 'justify-items', 'align-items')]: out.pop(k)
         gap = MASONRY[i].get('gap', 20)
+        if isinstance(gap, list): gap = gap[{'d': 0, 't': 1, 'm': 2}[bp]]   # [desktop, tablet, mobile]
         out.update({'display': 'block', 'columns': str(MASONRY[i]['columns'][{'d': 0, 't': 1, 'm': 2}[bp]]), 'column-gap': '%dpx' % gap})
     if i in MASONRY_CELL:
         gap = MASONRY[parent[i]].get('gap', 20)
+        if isinstance(gap, list): gap = gap[{'d': 0, 't': 1, 'm': 2}[bp]]
         for k in ('justify-self', 'align-self', 'grid-column', 'grid-row', 'height'): out.pop(k, None)
         out.update({'break-inside': 'avoid', 'margin-bottom': '0px' if [c for c in nodes[parent[i]]['c'] if isinstance(c, dict)][-1] is nodes[i] else '%dpx' % gap, 'width': '100%'})
     if pi is not None and pi in MASONRY_CELL and n['t'] not in IMGLIKE: out['display'] = 'block'
