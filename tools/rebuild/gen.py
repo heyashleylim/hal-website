@@ -564,6 +564,9 @@ def decls(i, bp, preview):
             out.update({'border-bottom': '1px solid rgb(215, 215, 215)', 'margin-bottom': '-1px'})
     if i in CAROUSEL_TRACK: out.pop('transform', None)  # lv-carousel.js positions the slides
     if i in BOTTOM_SPACE: out['padding-bottom'] = '%dpx' % BOTTOM_SPACE[i][{'d': 0, 't': 1, 'm': 2}[bp]]
+    if bp in ('t', 'm') and OVR.get('side_padding') and i == D['tree'][1]['node']['i']:
+        # Side padding on tablets and phones for the page content (overrides.json), e.g. text pages that run edge to edge.
+        out['padding-left'] = out['padding-right'] = '%dpx' % OVR['side_padding']
     if bp == 'm' and OVR.get('mobile_button_padding') and n['t'] in ('a', 'button') and not in_role(i, 'header'):
         # Slimmer buttons on phones (overrides.json): links drawn as filled buttons.
         bg = s.get('background-color', '')
