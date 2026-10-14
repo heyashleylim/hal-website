@@ -8,6 +8,8 @@
  * inside each column. Then the column widths are nudged so all columns end at the same height: no empty space at
  * the bottom and no cropping (heights come from each image's width/height attributes). The column holding the
  * tallest image is shown last, as Ashley asked. Spacing uses margins, not flex gap. Re-runs on resize.
+ * data-lv-masonry-limit="5" (overrides.json "mobile_limit"): in one column (phones), only the first 5 cells show; the
+ * next one fades out under a blur with a "더 보기" button that reveals the rest.
  */
 (function () {
   'use strict';
@@ -57,10 +59,46 @@
   function init(box) {
     var cells = Array.prototype.filter.call(box.children, function (c) { return !c.classList.contains('lv-mcol'); });
     var items = cells.map(function (c, idx) { return { c: c, idx: idx, r: ratio(c) }; });
+    var limit = parseInt(box.getAttribute('data-lv-masonry-limit'), 10) || 0, expanded = false, more = null;
+
+    // One column (phones) with a limit: show the first cells, fade the next one under a blur, and a "더 보기" button.
+    function collapse() {
+      if (more) { more.parentNode.removeChild(more); more = null; }
+      box.style.maxHeight = ''; box.style.overflow = '';
+      if (expanded || !limit || items.length <= limit || box.querySelectorAll(':scope > .lv-mcol').length !== 1) return;
+      var last = items[limit - 1].c.getBoundingClientRect(), top = box.getBoundingClientRect().top;
+      var peek = 140;   // part of the next cell shows through the blur
+      box.style.maxHeight = Math.round(last.bottom - top + peek) + 'px';
+      box.style.overflow = 'hidden';
+      var bg = 'rgb(255, 255, 255)';
+      for (var e = box; e; e = e.parentElement) {
+        var c = getComputedStyle(e).backgroundColor;
+        if (c && c !== 'transparent' && c !== 'rgba(0, 0, 0, 0)') { bg = c; break; }
+      }
+      more = document.createElement('div');
+      more.className = 'lv-more';
+      more.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:' + (peek + 60) + 'px;display:flex;align-items:flex-end;justify-content:center;' +
+        'padding-bottom:16px;background:linear-gradient(to bottom,' + bg.replace('rgb(', 'rgba(').replace(')', ', 0)') + ' 0%,' + bg + ' 85%);z-index:2';
+      var blur = document.createElement('div');
+      blur.setAttribute('aria-hidden', 'true');
+      blur.style.cssText = 'position:absolute;inset:0;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);' +
+        '-webkit-mask-image:linear-gradient(to bottom,transparent,#000 60%);mask-image:linear-gradient(to bottom,transparent,#000 60%)';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lv-more__btn';
+      btn.textContent = '더 보기';
+      btn.setAttribute('aria-expanded', 'false');
+      btn.style.cssText = 'position:relative;font:inherit;font-size:15px;font-weight:700;line-height:1.4;color:#fff;background:#DB4A2B;border:0;' +
+        'border-radius:30px;padding:11px 28px;min-height:44px;cursor:pointer';
+      btn.addEventListener('click', function () { expanded = true; collapse(); });
+      more.appendChild(blur); more.appendChild(btn);
+      box.appendChild(more);
+    }
 
     function layout() {
       box.classList.remove('lv-masonry-ready');
       // Put the cells back in page order and drop the old columns.
+      if (more) { more.parentNode.removeChild(more); more = null; }
       cells.forEach(function (c) { c.style.marginBottom = ''; c.style.marginTop = ''; box.appendChild(c); });
       Array.prototype.slice.call(box.querySelectorAll(':scope > .lv-mcol')).forEach(function (col) { box.removeChild(col); });
       var cs = getComputedStyle(box);
@@ -94,6 +132,7 @@
         box.appendChild(col);
       });
       box.classList.add('lv-masonry-ready');
+      collapse();
     }
 
     var rz, lastW = window.innerWidth;
@@ -102,6 +141,13 @@
       rz = setTimeout(function () { if (window.innerWidth !== lastW) { lastW = window.innerWidth; layout(); } }, 120);
     });
     layout();
+    // The cut-off depends on image heights: measure again once images and fonts have loaded.
+    if (limit) {
+      window.addEventListener('load', function () { if (!expanded) collapse(); });
+      Array.prototype.forEach.call(box.querySelectorAll('img'), function (img) {
+        if (!img.complete) img.addEventListener('load', function () { if (!expanded) collapse(); });
+      });
+    }
   }
 
   var css = document.createElement('style');

@@ -829,7 +829,7 @@ def build(preview):
         if t == 'details': return faq_item(n, (' class="lv-hidden"' + flag) if mark else '')
         if i in CAROUSEL_TRACK: cls += ' lv-track'
         if i in CAROUSEL_VP: cls += ' lv-viewport'
-        if i in MASONRY: flag += ' data-lv-masonry'
+        if i in MASONRY: flag += ' data-lv-masonry' + (' data-lv-masonry-limit="%d"' % MASONRY[i]['mobile_limit'] if MASONRY[i].get('mobile_limit') else '')
         if 'swiper-slide' in n['a'].get('cls', ''): cls += ' lv-slide'
         if n['a'].get('settings') and 'carousel' in n['a'].get('wt', ''):
             flag += ' data-lv-carousel="%s"' % html.escape(n['a']['settings'], quote=True)
