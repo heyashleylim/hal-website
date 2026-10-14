@@ -1,9 +1,9 @@
-/* Countdown for timed sales on generated pages (see /assets/js/sale.js). Accent = Vermilion #DB4A2B. */
-.sale-cd{display:flex;flex-direction:column;align-items:center;gap:8px;margin:4px 0 8px;text-align:center}
+/* Countdown for timed sales on generated pages (see /assets/js/sale.js). Digits in the dark text colour (--ink). */
+.sale-cd{display:flex;flex-direction:column;align-items:center;gap:8px;margin:8px 0 12px;text-align:center}
 .sale-cd[hidden]{display:none}
 .sale-cd__label{margin:0;font-size:14px;line-height:1.4;color:#555555}
-.sale-cd__t{display:flex;gap:8px;justify-content:center}
-.sale-cd__u{display:flex;flex-direction:column;align-items:center;min-width:56px;padding:8px 6px 6px;background:#FFFFFF;border:1px solid #E5E5E5;border-radius:10px}
-.sale-cd__u b{font-size:24px;line-height:1.2;font-weight:700;color:#DB4A2B;font-variant-numeric:tabular-nums}
-.sale-cd__u small{font-size:12px;line-height:1.4;color:#777777}
-@media (max-width:767px){.sale-cd__u{min-width:52px}.sale-cd__u b{font-size:20px}}
+.sale-cd__t{display:flex;gap:10px;justify-content:center}
+.sale-cd__u{display:flex;flex-direction:column;align-items:center;min-width:78px;padding:12px 8px 8px;background:#FFFFFF;border:1px solid #E5E5E5;border-radius:12px}
+.sale-cd__u b{font-size:36px;line-height:1.15;font-weight:700;color:#222222;font-variant-numeric:tabular-nums}
+.sale-cd__u small{font-size:13px;line-height:1.4;color:#777777;margin-top:2px}
+@media (max-width:767px){.sale-cd__t{gap:8px}.sale-cd__u{min-width:62px;padding:10px 6px 6px}.sale-cd__u b{font-size:28px}}

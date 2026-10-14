@@ -217,11 +217,18 @@ def apply_overrides():
           return x
       for text in sale.get('hide', []): SALE_ATTR[block(text)] = ' data-sale="hide"'
       p = sale['price']; SALE_ATTR[block(p['text'])] = ' data-sale="price" data-sale-after="%s"' % html.escape(p['after'], quote=True)
+      if p.get('move_after'):
+          # Show the sale price right under another block (e.g. under the crossed-out price).
+          pb, tb = block(p['text']), block(p['move_after'])
+          if parent[pb] != parent[tb]: sys.exit('overrides.json: sale price and move_after are not siblings')
+          sib = nodes[parent[pb]]['c']; node = next(c for c in sib if isinstance(c, dict) and c['i'] == pb)
+          sib.remove(node); sib.insert(next(k for k, c in enumerate(sib) if isinstance(c, dict) and c['i'] == tb) + 1, node)
       if sale.get('countdown_after'):
           after = block(sale['countdown_after']); par = parent[after]
-          cd = ('<div class="sale-cd" data-sale="countdown" data-sale-deadline="%s" role="timer" aria-label="%s" hidden>'
-                '<p class="sale-cd__label">%s</p><div class="sale-cd__t">'
-                % (sale['deadline'], html.escape(sale.get('countdown_label', ''), quote=True), html.escape(sale.get('countdown_label', ''))) +
+          label = sale.get('countdown_label', '')
+          cd = ('<div class="sale-cd" data-sale="countdown" data-sale-deadline="%s" role="timer" aria-label="%s" hidden>%s<div class="sale-cd__t">'
+                % (sale['deadline'], html.escape(sale.get('countdown_aria', label), quote=True),
+                   '<p class="sale-cd__label">%s</p>' % html.escape(label) if label else '') +
                 ''.join('<span class="sale-cd__u"><b data-u="%s">00</b><small>%s</small></span>' % u for u in (('d', '일'), ('h', '시간'), ('m', '분'), ('s', '초'))) +
                 '</div></div>')
           nid = max(nodes) + 1
