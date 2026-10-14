@@ -109,6 +109,9 @@ def top_section(i):
     x = i
     while parent[x] is not None and parent[x] != root: x = parent[x]
     return x
+def img_size(f):
+    out = subprocess.check_output(['sips', '-g', 'pixelWidth', '-g', 'pixelHeight', f]).decode().split()
+    return int(out[-3]), int(out[-1])
 def _under(x, a):
     while x is not None:
         if x == a: return True
@@ -159,13 +162,47 @@ def apply_overrides():
           for k, im in enumerate(group):
               f = os.path.join(SITE, 'assets', 'img', PAGE, im['file'])
               if not os.path.exists(f): sys.exit('overrides.json: masonry image missing: %s' % f)
-              w, h = [int(x) for x in subprocess.check_output(['sips', '-g', 'pixelWidth', '-g', 'pixelHeight', f]).decode().split()[-3::2]]
+              w, h = img_size(f)
               imgs.append('<img src="/assets/img/%s/%s" alt="%s" width="%d" height="%d" loading="lazy" decoding="async" style="display:block;width:100%%;height:auto%s">'
                           % (PAGE, im['file'], html.escape(im.get('alt', ''), quote=True), w, h, ';margin-top:6px' if k else ''))
           extra = {'i': nxt, 't': 'div', 'a': {}, 'c': [], 's': {},
                    'raw': '<div class="lv-mx" style="break-inside:avoid;margin-top:20px">%s</div>' % ''.join(imgs)}
           nodes[g]['c'].append(extra); nodes[nxt] = extra; parent[nxt] = g
           nxt += 1
+  for rule in OVR.get('background', []):
+      # A background image the capture missed (Elementor lazy-loads section backgrounds), on the section around a text.
+      hits = [i for i, n in nodes.items() if rule['in'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
+      if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, rule['in']))
+      x = hits[0]
+      while x is not None and S('d', x).get('background-color', 'rgba(0, 0, 0, 0)') in ('rgba(0, 0, 0, 0)', 'transparent'): x = parent[x]
+      if x is None: sys.exit('overrides.json: no section background around %s' % rule['in'])
+      f = os.path.join(SITE, 'assets', 'img', PAGE, rule['image'])
+      if not os.path.exists(f): sys.exit('overrides.json: background image missing: %s' % f)
+      for bp_ in BPS:
+          st = {'background-image': 'url("/assets/img/%s/%s")' % (PAGE, rule['image']),
+                'background-position': rule.get('position', 'center'), 'background-repeat': rule.get('repeat', 'no-repeat')}
+          if rule.get('size'): st['background-size'] = rule['size']
+          st.update(rule.get('per_bp', {}).get(bp_, {}))   # e.g. {"m": {"background-position": "50% 100%"}}
+          EXTRA_CSS.setdefault((x, bp_), {}).update(st)
+  for rule in OVR.get('image_carousel', []):
+      # A new image carousel (lv-carousel.js, styled like the rebuilt ones) inserted after the section around a text.
+      hits = [i for i, n in nodes.items() if rule['after'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
+      if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, rule['after']))
+      sec = top_section(hits[0]); root = parent[sec]
+      slides = ''
+      for im in rule['images']:
+          f = os.path.join(SITE, 'assets', 'img', PAGE, im['file'])
+          if not os.path.exists(f): sys.exit('overrides.json: carousel image missing: %s' % f)
+          w, h = img_size(f)
+          slides += ('<div class="lv-slide"><img src="/assets/img/%s/%s" alt="%s" width="%d" height="%d" loading="lazy" decoding="async"></div>'
+                     % (PAGE, im['file'], html.escape(im.get('alt', ''), quote=True), w, h))
+      raw = ('<section class="lv-cx" aria-label="%s"><div class="lv-cx__in" data-lv-carousel="%s"><div class="lv-viewport">'
+             '<div class="lv-track">%s</div></div></div></section>'
+             % (html.escape(rule.get('label', ''), quote=True), html.escape(json.dumps(rule.get('settings', {}), ensure_ascii=False), quote=True), slides))
+      nid = max(nodes) + 1
+      extra = {'i': nid, 't': 'section', 'a': {}, 'c': [], 's': {}, 'raw': raw}
+      k = next(k for k, c in enumerate(nodes[root]['c']) if isinstance(c, dict) and c['i'] == sec)
+      nodes[root]['c'].insert(k + 1, extra); nodes[nid] = extra; parent[nid] = root
   for rule in OVR.get('css', []):
       # Extra CSS on the block around a text, at chosen breakpoints (e.g. keep a price on one line on phones).
       hits = [i for i, n in nodes.items() if rule['text'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]

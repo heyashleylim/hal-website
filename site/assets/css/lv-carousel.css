@@ -17,3 +17,12 @@
 .lv-dot::before{content:"";position:absolute;left:6px;top:8px;width:6px;height:6px;border-radius:50%;background:#000000;opacity:.2;transition:opacity .2s}
 .lv-dot.is-active::before{opacity:1}
 @media (prefers-reduced-motion:reduce){.lv-dot::before{transition:none}}
+
+/* Carousels added here (overrides.json "image_carousel", e.g. the /eft reviews under the hero): same arrows, dots and
+   spacing as the rebuilt /switch carousel (50px side padding, slides 30px in from the arrows, dots under the slides). */
+.lv-cx{padding:10px 0 30px;background:#FFFFFF;border-top:1px solid #EEEEEE;border-bottom:1px solid #EEEEEE}
+.lv-cx__in{padding:40px 50px}
+.lv-cx .lv-viewport{margin:0 30px;padding-bottom:30px;overflow:hidden}
+.lv-cx .lv-slide{text-align:center}
+.lv-cx .lv-slide img{display:block;width:100%;height:auto;margin:0 auto}
+@media (max-width:767px){.lv-cx{padding:0 10px 20px}.lv-cx__in{padding:30px 10px}}

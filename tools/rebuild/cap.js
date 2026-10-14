@@ -69,7 +69,7 @@ function walk(el,pcs){
   });
   node.c=kids;return node;
 }
-function prep(){document.querySelectorAll('.elementor-invisible').forEach(e=>e.classList.remove('elementor-invisible'));document.querySelectorAll('.animated').forEach(e=>{e.style.animation='none'})}
+function prep(){document.querySelectorAll('.elementor-invisible').forEach(e=>e.classList.remove('elementor-invisible'));document.querySelectorAll('.e-con').forEach(e=>e.classList.add('e-lazyloaded'));/* Elementor lazy section backgrounds */document.querySelectorAll('.animated').forEach(e=>{e.style.animation='none'})}
 function restyle(){const out={};document.querySelectorAll('[data-cap]').forEach(el=>{const id=+el.dataset.cap;const p=el.parentElement;out[id]=styles(el,p?getComputedStyle(p):null);const ps=pseudo(el);if(ps)out[id].__p=ps});return out}
 async function post(name,obj){const r=await fetch('http://127.0.0.1:8799/save?name='+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});return r.text()}
 async function scrollAll(){const H=document.body.scrollHeight;for(let y=0;y<H;y+=500){scrollTo(0,y);await new Promise(r=>setTimeout(r,80))}scrollTo(0,0);await new Promise(r=>setTimeout(r,400))}
