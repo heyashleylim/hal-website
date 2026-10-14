@@ -151,6 +151,21 @@ def apply_overrides():
               box['c'].remove(c); nodes[g]['c'].append(c); parent[c['i']] = g
       MASONRY[g] = rule
       MASONRY_CELL.update(c['i'] for c in nodes[g]['c'] if isinstance(c, dict))
+      # Extra images (not on the live page), each entry one cell; a list of images = one cell, kept together.
+      nxt = max(nodes) + 1
+      for group in rule.get('add', []):
+          group = group if isinstance(group, list) else [group]
+          imgs = []
+          for k, im in enumerate(group):
+              f = os.path.join(SITE, 'assets', 'img', PAGE, im['file'])
+              if not os.path.exists(f): sys.exit('overrides.json: masonry image missing: %s' % f)
+              w, h = [int(x) for x in subprocess.check_output(['sips', '-g', 'pixelWidth', '-g', 'pixelHeight', f]).decode().split()[-3::2]]
+              imgs.append('<img src="/assets/img/%s/%s" alt="%s" width="%d" height="%d" loading="lazy" decoding="async" style="display:block;width:100%%;height:auto%s">'
+                          % (PAGE, im['file'], html.escape(im.get('alt', ''), quote=True), w, h, ';margin-top:6px' if k else ''))
+          extra = {'i': nxt, 't': 'div', 'a': {}, 'c': [], 's': {},
+                   'raw': '<div class="lv-mx" style="break-inside:avoid;margin-top:20px">%s</div>' % ''.join(imgs)}
+          nodes[g]['c'].append(extra); nodes[nxt] = extra; parent[nxt] = g
+          nxt += 1
   for rule in OVR.get('css', []):
       # Extra CSS on the block around a text, at chosen breakpoints (e.g. keep a price on one line on phones).
       hits = [i for i, n in nodes.items() if rule['text'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
@@ -748,6 +763,7 @@ def build(preview):
     first_imgs = [0]
     def render(n, depth=0, flagged_bps=frozenset()):
         i = n['i']
+        if n.get('raw'): return n['raw']   # extra markup from overrides.json (e.g. masonry images)
         if not preview and not public_visible(i): return ''
         if preview and in_role(i, 'header') and S('d', i).get('visibility') == 'hidden' and hidden_all(i):
             return ''  # Elementor's sticky-header placeholder clone: not content, skip it in previews too

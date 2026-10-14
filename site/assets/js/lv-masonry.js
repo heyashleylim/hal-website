@@ -12,10 +12,14 @@
 (function () {
   'use strict';
 
+  // Height / width of a cell: a cell can hold several images stacked (e.g. two messages that belong together).
   function ratio(cell) {
-    var img = cell.querySelector('img');
-    var w = img && parseFloat(img.getAttribute('width')), h = img && parseFloat(img.getAttribute('height'));
-    return w && h ? h / w : 1;
+    var r = 0;
+    Array.prototype.forEach.call(cell.querySelectorAll('img'), function (img, k) {
+      var w = parseFloat(img.getAttribute('width')), h = parseFloat(img.getAttribute('height'));
+      r += (w && h ? h / w : 1) + (k ? 0.02 : 0);   // + the small gap between stacked images
+    });
+    return r || 1;
   }
 
   // Columns: list of arrays of item indexes. Score = spread of the column "heights" at equal widths.
@@ -29,7 +33,7 @@
       assign.forEach(function (col, j) { s[col] += items[j].r; c[col]++; });
       return s.map(function (v, k) { return v + Math.max(0, c[k] - 1) * gapRel; });
     }
-    if (Math.pow(n, items.length) <= 20000) {
+    if (Math.pow(n, items.length) <= 2000000) {   // e.g. 3 columns × 13 images: ~1.6M tries, tens of ms (desktop only)
       // Try every assignment (each column non-empty) and keep the most even one.
       var assign = items.map(function () { return 0; });
       for (var t = 0, total = Math.pow(n, items.length); t < total; t++) {
@@ -57,7 +61,7 @@
     function layout() {
       box.classList.remove('lv-masonry-ready');
       // Put the cells back in page order and drop the old columns.
-      cells.forEach(function (c) { c.style.marginBottom = ''; box.appendChild(c); });
+      cells.forEach(function (c) { c.style.marginBottom = ''; c.style.marginTop = ''; box.appendChild(c); });
       Array.prototype.slice.call(box.querySelectorAll(':scope > .lv-mcol')).forEach(function (col) { box.removeChild(col); });
       var cs = getComputedStyle(box);
       var n = Math.max(1, Math.min(parseInt(cs.columnCount, 10) || 1, items.length));
@@ -83,6 +87,7 @@
         col.className = 'lv-mcol';
         col.style.cssText = 'flex:0 0 ' + (widths[ci] / inner * 100) + '%;min-width:0;display:block;margin-left:' + (ci ? gap : 0) + 'px';
         list.sort(function (x, y) { return x - y; }).forEach(function (j, pos) {
+          items[j].c.style.marginTop = '0';
           items[j].c.style.marginBottom = pos < list.length - 1 ? gap + 'px' : '0';
           col.appendChild(items[j].c);
         });
