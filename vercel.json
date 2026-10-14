@@ -41,6 +41,84 @@
   ],
   "redirects": [
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "product"
+        }
+      ],
+      "destination": "https://ashleylim.com/",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "add-to-cart"
+        }
+      ],
+      "destination": "https://ashleylim.com/",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "wc-api"
+        }
+      ],
+      "destination": "https://ashleylim.com/",
+      "permanent": false
+    },
+    {
+      "source": "/checkout/:path*",
+      "destination": "https://ashleylim.com/checkout/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/cart/:path*",
+      "destination": "https://ashleylim.com/cart/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/my-account/:path*",
+      "destination": "https://ashleylim.com/my-account/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/wp-admin/:path*",
+      "destination": "https://ashleylim.com/wp-admin/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/wp-json/:path*",
+      "destination": "https://ashleylim.com/wp-json/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/wp-content/:path*",
+      "destination": "https://ashleylim.com/wp-content/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/product/:path*",
+      "destination": "https://ashleylim.com/product/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/shop",
+      "destination": "https://ashleylim.com/shop",
+      "permanent": false
+    },
+    {
+      "source": "/wp-login.php",
+      "destination": "https://ashleylim.com/wp-login.php",
+      "permanent": false
+    },
+    {
       "source": "/lifeartist2026",
       "destination": "/lifeartist",
       "permanent": true

@@ -146,4 +146,4 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 - [ ] Confirm "7일" vs "14일" refund wording on the NSMB page.
 - [ ] Check Gmarket Sans license terms for public web hosting (subset woff2 files are now served).
 - [ ] Decide whether to keep `/engine` or delete it.
-- [ ] Domain move: www.ashleylim.com → Vercel, ashleylim.com (no www) stays on WordPress for the checkout. WordPress must not redirect ashleylim.com → www (its Site URL must stay `https://ashleylim.com`), or the payment links would land on this site.
+- [ ] Domain move: www.ashleylim.com → Vercel, ashleylim.com (no www) stays on WordPress for the checkout. `vercel.json` already sends WordPress/WooCommerce addresses that arrive on www back to ashleylim.com (`/?product=`, `/?add-to-cart=`, `/?wc-api=`, `/checkout`, `/cart`, `/my-account`, `/product`, `/shop`, `/wp-admin`, `/wp-login.php`, `/wp-json`, `/wp-content`); payment gateway webhooks should still be set to ashleylim.com directly. WordPress must not redirect ashleylim.com → www (its Site URL must stay `https://ashleylim.com`), or the payment links would land on this site.
