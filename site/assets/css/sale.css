@@ -1,0 +1,9 @@
+/* Countdown for timed sales on generated pages (see /assets/js/sale.js). Accent = Vermilion #DB4A2B. */
+.sale-cd{display:flex;flex-direction:column;align-items:center;gap:8px;margin:4px 0 8px;text-align:center}
+.sale-cd[hidden]{display:none}
+.sale-cd__label{margin:0;font-size:14px;line-height:1.4;color:#555555}
+.sale-cd__t{display:flex;gap:8px;justify-content:center}
+.sale-cd__u{display:flex;flex-direction:column;align-items:center;min-width:56px;padding:8px 6px 6px;background:#FFFFFF;border:1px solid #E5E5E5;border-radius:10px}
+.sale-cd__u b{font-size:24px;line-height:1.2;font-weight:700;color:#DB4A2B;font-variant-numeric:tabular-nums}
+.sale-cd__u small{font-size:12px;line-height:1.4;color:#777777}
+@media (max-width:767px){.sale-cd__u{min-width:52px}.sale-cd__u b{font-size:20px}}

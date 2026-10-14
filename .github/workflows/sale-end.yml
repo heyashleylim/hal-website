@@ -1,0 +1,28 @@
+# Ends a timed sale in the HTML just after its deadline (tools/rebuild/sale_end.py).
+# The page already switches in the browser at the deadline (site/assets/js/sale.js); this makes the regular version
+# permanent for visitors without JavaScript and for search engines. The push to main triggers a Vercel deploy.
+#
+# Current sale: /eft, ends 2026-10-16 23:59:59 KST = 14:59:59 UTC. GitHub's scheduler can run late or skip a run,
+# so it tries three times after the deadline; the script does nothing if the sale has already been ended.
+# For a new sale: update "sale" in tools/rebuild/overrides.json, regenerate the page, and change the cron line below (UTC).
+name: End timed sale
+on:
+  schedule:
+    - cron: '2,20,45 15 16 10 *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  end-sale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove the sale from the HTML (only once the deadline has passed)
+        run: python3 tools/rebuild/sale_end.py site/eft/index.html site/preview/eft/index.html
+      - name: Commit and push
+        run: |
+          if git diff --quiet; then echo "Nothing to change."; exit 0; fi
+          git config user.name "heyashleylim"
+          git config user.email "heyashleylim@gmail.com"
+          git commit -am "End the /eft sale (scheduled)"
+          git push

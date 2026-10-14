@@ -129,6 +129,8 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 - `data-deadline`: ISO date with `+09:00` (KST). After it passes, the page switches to closed on its own.
 - Preview either state with `?enroll=open` / `?enroll=closed`.
 
+**Timed sales on generated pages (e.g. /eft):** `"sale"` in `tools/rebuild/overrides.json` sets the deadline (KST), the texts that disappear at the deadline, the price that changes and where the countdown goes. `site/assets/js/sale.js` shows the countdown and switches the page in the browser at the deadline (test with `?sale-now=2026-10-17T00:00:00%2B09:00`); `.github/workflows/sale-end.yml` then runs `tools/rebuild/sale_end.py` just after it and pushes the regular version, so the HTML itself changes too. The WooCommerce price is scheduled in WordPress (product → Sale price → Schedule), with the same end date and the WordPress timezone set to Seoul. For a new sale: update `"sale"`, regenerate the page, and change the cron line in the workflow (UTC).
+
 **New cohort checklist:** deadline, prices, payment links, refund-request date (guarantee section and FAQ), live-session count/day, waitlist form endpoint, `og:` image, footer year.
 
 ## Working on this repo

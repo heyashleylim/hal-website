@@ -13,6 +13,8 @@ import hashlib, html, json, os, re, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sitelinks import localize_html
 from gtm import add_gtm
+from sale_end import end_sale
+import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -100,6 +102,7 @@ EQUAL_GRIDS, CARD_FILL = set(), set()
 CARD_COL, CARD_GROW, CARD_PUSH = set(), set(), set()
 PAD_SCALE = {}
 EXTRA_CSS = {}
+SALE_ATTR = {}
 CAROUSEL_TRACK, CAROUSEL_VP, BOTTOM_SPACE = set(), set(), {}
 MASONRY, MASONRY_CELL = {}, set()
 def top_section(i):
@@ -203,6 +206,28 @@ def apply_overrides():
       extra = {'i': nid, 't': 'section', 'a': {}, 'c': [], 's': {}, 'raw': raw}
       k = next(k for k, c in enumerate(nodes[root]['c']) if isinstance(c, dict) and c['i'] == sec)
       nodes[root]['c'].insert(k + 1, extra); nodes[nid] = extra; parent[nid] = root
+  sale = OVR.get('sale')
+  if sale:
+      # Timed sale: elements to hide at the deadline, the price that changes, and a countdown (sale.js / sale_end.py).
+      def block(text):
+          hits = [i for i, n in nodes.items() if text in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
+          if not hits: sys.exit('overrides.json: sale anchor not found on %s: %s' % (slug, text))
+          x = hits[0]
+          while parent[x] is not None and nodes[x]['t'] in INLINE_TAGS: x = parent[x]
+          return x
+      for text in sale.get('hide', []): SALE_ATTR[block(text)] = ' data-sale="hide"'
+      p = sale['price']; SALE_ATTR[block(p['text'])] = ' data-sale="price" data-sale-after="%s"' % html.escape(p['after'], quote=True)
+      if sale.get('countdown_after'):
+          after = block(sale['countdown_after']); par = parent[after]
+          cd = ('<div class="sale-cd" data-sale="countdown" data-sale-deadline="%s" role="timer" aria-label="%s" hidden>'
+                '<p class="sale-cd__label">%s</p><div class="sale-cd__t">'
+                % (sale['deadline'], html.escape(sale.get('countdown_label', ''), quote=True), html.escape(sale.get('countdown_label', ''))) +
+                ''.join('<span class="sale-cd__u"><b data-u="%s">00</b><small>%s</small></span>' % u for u in (('d', '일'), ('h', '시간'), ('m', '분'), ('s', '초'))) +
+                '</div></div>')
+          nid = max(nodes) + 1
+          extra = {'i': nid, 't': 'div', 'a': {}, 'c': [], 's': {}, 'raw': cd}
+          k = next(k for k, c in enumerate(nodes[par]['c']) if isinstance(c, dict) and c['i'] == after)
+          nodes[par]['c'].insert(k + 1, extra); nodes[nid] = extra; parent[nid] = par
   for rule in OVR.get('css', []):
       # Extra CSS on the block around a text, at chosen breakpoints (e.g. keep a price on one line on phones).
       hits = [i for i, n in nodes.items() if rule['text'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
@@ -829,6 +854,7 @@ def build(preview):
         if t == 'details': return faq_item(n, (' class="lv-hidden"' + flag) if mark else '')
         if i in CAROUSEL_TRACK: cls += ' lv-track'
         if i in CAROUSEL_VP: cls += ' lv-viewport'
+        if i in SALE_ATTR: flag += SALE_ATTR[i]
         if i in MASONRY: flag += ' data-lv-masonry' + (' data-lv-masonry-limit="%d"' % MASONRY[i]['mobile_limit'] if MASONRY[i].get('mobile_limit') else '')
         if 'swiper-slide' in n['a'].get('cls', ''): cls += ' lv-slide'
         if n['a'].get('settings') and 'carousel' in n['a'].get('wt', ''):
@@ -1004,7 +1030,8 @@ def page(body, css, preview, nhidden):
                ('<link rel="stylesheet" href="/assets/css/faq.css">\n' if '<details' in body else '') +
                ('<link rel="stylesheet" href="/assets/css/lv-carousel.css">\n<script src="/assets/js/lv-carousel.js" defer></script>\n'
                 if 'data-lv-carousel' in body else '') +
-               ('<script src="/assets/js/lv-masonry.js" defer></script>\n' if 'data-lv-masonry' in body else ''), fl,
+               ('<script src="/assets/js/lv-masonry.js" defer></script>\n' if 'data-lv-masonry' in body else '') +
+               ('<link rel="stylesheet" href="/assets/css/sale.css">\n<script src="/assets/js/sale.js" defer></script>\n' if 'data-sale=' in body else ''), fl,
                meta['path'].replace('/p/', '/'), base, pcss, css, banner, body, tabs_js))
 
 apply_overrides()
@@ -1018,6 +1045,8 @@ for preview in MODES:
     if DEBUG: out = os.path.join(SITE, '_debug', PAGE)
     os.makedirs(out, exist_ok=True)
     html_out = localize_html(page(body, css, preview, nh))   # ashleylim.com page links → /paths
+    if OVR.get('sale') and datetime.datetime.now(datetime.timezone.utc) >= datetime.datetime.fromisoformat(OVR['sale']['deadline']):
+        html_out = end_sale(html_out)   # regenerated after the sale ended: regular version only
     if not preview: html_out = add_gtm(html_out)              # Google Tag Manager on public pages only
     open(os.path.join(out, 'index.html'), 'w').write(html_out)
     print(('preview' if preview else 'public'), out, len(body) // 1024, 'KB html', len(css) // 1024, 'KB css', 'hidden marked:', nh)
