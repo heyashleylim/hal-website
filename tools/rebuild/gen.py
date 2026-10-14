@@ -135,6 +135,18 @@ def apply_overrides():
           for k, c in enumerate(n.get('c', [])):
               if isinstance(c, str) and rule['from'] in c: n['c'][k] = c.replace(rule['from'], rule['to']); found = True
       if not found: print('overrides.json: "%s" not on the live page any more (%s); nothing replaced' % (rule['from'], slug))
+  for text in OVR.get('break_before', []):
+      # A line break before a sentence (the live page runs it on after the previous one).
+      done = False
+      for n in list(nodes.values()):
+          for k, c in enumerate(n.get('c', [])):
+              if isinstance(c, str) and text in c and not c.startswith(text):
+                  a, b = c.split(text, 1)
+                  nid = max(nodes) + 1; br = {'i': nid, 't': 'br', 'a': {}, 'c': [], 's': {}, 'raw': '<br>'}
+                  nodes[nid] = br; parent[nid] = n['i']
+                  n['c'][k:k + 1] = [a.rstrip(), br, text + b]; done = True; break
+          if done: break
+      if not done: print('overrides.json: break_before "%s" not found on %s' % (text, slug))
   for name in OVR.get('remove_images', []):
       # Drop an image the live page shows (with its single-child wrappers), e.g. a review Ashley took out here.
       hits = [i for i, n in nodes.items() if n['t'] == 'img' and name in n['a'].get('src', '')]
