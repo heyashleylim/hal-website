@@ -106,6 +106,7 @@ Rules for the structure:
 - **Accessibility**: one `h1` per page, sequential headings, visible focus rings, labels on every input, 44px touch targets, text contrast ≥ 4.5:1, skip link.
 - **Responsive**: check 375px, 768px, 1024px and 1440px. There must be no horizontal scroll at 375px.
 - **Third parties**: no new trackers, pixels, chat widgets or CDNs without asking. Fonts may come from Google Fonts or jsDelivr only until self-hosted.
+- **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`: head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
 
 ## Generated pages and private previews
 

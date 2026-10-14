@@ -12,6 +12,7 @@ Images go to site/assets/img/<page>/ when visible publicly, else site/preview/<p
 import hashlib, html, json, os, re, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sitelinks import localize_html
+from gtm import add_gtm
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -963,6 +964,8 @@ for preview in MODES:
     out = os.path.join(SITE, 'preview', PAGE) if preview else os.path.join(SITE, PAGE)
     if DEBUG: out = os.path.join(SITE, '_debug', PAGE)
     os.makedirs(out, exist_ok=True)
-    open(os.path.join(out, 'index.html'), 'w').write(localize_html(page(body, css, preview, nh)))   # ashleylim.com page links → /paths
+    html_out = localize_html(page(body, css, preview, nh))   # ashleylim.com page links → /paths
+    if not preview: html_out = add_gtm(html_out)              # Google Tag Manager on public pages only
+    open(os.path.join(out, 'index.html'), 'w').write(html_out)
     print(('preview' if preview else 'public'), out, len(body) // 1024, 'KB html', len(css) // 1024, 'KB css', 'hidden marked:', nh)
 print('images:', len(IMGMAP), 'public:', sum(1 for u in IMGMAP if img_public.get(u, True)), 'fonts:', sorted(fonts_used))
