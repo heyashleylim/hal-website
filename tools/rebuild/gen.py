@@ -121,6 +121,20 @@ def apply_overrides():
       hits = [i for i, n in nodes.items() if rule['after'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
       if not hits: sys.exit('overrides.json: anchor not found on %s: %s' % (slug, rule['after']))
       BOTTOM_SPACE[top_section(hits[0])] = rule['px']
+  for rule in OVR.get('replace_text', []):
+      # Ashley's wording here (e.g. a new deadline) where the live page still shows the old one.
+      found = False
+      for n in nodes.values():
+          for k, c in enumerate(n.get('c', [])):
+              if isinstance(c, str) and rule['from'] in c: n['c'][k] = c.replace(rule['from'], rule['to']); found = True
+      if not found: print('overrides.json: "%s" not on the live page any more (%s); nothing replaced' % (rule['from'], slug))
+  for name in OVR.get('remove_images', []):
+      # Drop an image the live page shows (with its single-child wrappers), e.g. a review Ashley took out here.
+      hits = [i for i, n in nodes.items() if n['t'] == 'img' and name in n['a'].get('src', '')]
+      if not hits: sys.exit('overrides.json: image not found on %s: %s' % (slug, name))
+      x = hits[0]
+      while parent[x] is not None and len([c for c in nodes[parent[x]].get('c', []) if isinstance(c, dict) and c['t'] != 'source']) == 1: x = parent[x]
+      nodes[parent[x]]['c'] = [c for c in nodes[parent[x]]['c'] if not (isinstance(c, dict) and c['i'] == x)]
   for rule in OVR.get('masonry', []):
       # An image grid shown as a masonry (CSS columns): every image keeps its own height, no gaps under short ones.
       # The images right after the grid in the same container (e.g. one large review below it) join the masonry.
