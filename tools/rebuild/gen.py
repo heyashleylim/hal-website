@@ -180,8 +180,9 @@ def apply_overrides():
               w, h = img_size(f)
               imgs.append('<img src="/assets/img/%s/%s" alt="%s" width="%d" height="%d" loading="lazy" decoding="async" style="display:block;width:100%%;height:auto%s">'
                           % (PAGE, im['file'], html.escape(im.get('alt', ''), quote=True), w, h, ';margin-top:6px' if k else ''))
+          first = ' data-lv-mobile-first' if any(im.get('mobile_first') for im in group) else ''
           extra = {'i': nxt, 't': 'div', 'a': {}, 'c': [], 's': {},
-                   'raw': '<div class="lv-mx" style="break-inside:avoid;margin-top:20px">%s</div>' % ''.join(imgs)}
+                   'raw': '<div class="lv-mx"%s style="break-inside:avoid;margin-top:20px">%s</div>' % (first, ''.join(imgs))}
           nodes[g]['c'].append(extra); nodes[nxt] = extra; parent[nxt] = g
           nxt += 1
   for rule in OVR.get('background', []):
@@ -1034,6 +1035,9 @@ def page(body, css, preview, nhidden):
             '@media (max-width:767px){body{font-size:15px;line-height:21px}}'
             ':root{--font-head:"GmarketSans","Pretendard","Noto Sans KR",sans-serif;--font-body:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,sans-serif}'
             % (meta['bodyBg'], meta['bodyColor'], meta['bodySize'], meta['bodyLH']))
+    if STICKY:
+        # In-page links (e.g. → #price-section) stop below the 60px sticky header, with a little air.
+        base += 'html{scroll-padding-top:64px}'
     if OVR.get('keep_words'):
         # Korean lines break between words, never inside one (overrides.json); very long tokens (URLs) may still break.
         base += 'body{word-break:keep-all;overflow-wrap:break-word}'
@@ -1050,7 +1054,8 @@ def page(body, css, preview, nhidden):
                ('<link rel="stylesheet" href="/assets/css/lv-carousel.css">\n<script src="/assets/js/lv-carousel.js" defer></script>\n'
                 if 'data-lv-carousel' in body else '') +
                ('<script src="/assets/js/lv-masonry.js" defer></script>\n' if 'data-lv-masonry' in body else '') +
-               ('<link rel="stylesheet" href="/assets/css/sale.css">\n<script src="/assets/js/sale.js" defer></script>\n' if 'data-sale=' in body else ''), fl,
+               ('<link rel="stylesheet" href="/assets/css/sale.css">\n<script src="/assets/js/sale.js" defer></script>\n' if 'data-sale=' in body else '') +
+               ('<script src="/assets/js/anchors.js" defer></script>\n' if 'href="#' in body else ''), fl,
                meta['path'].replace('/p/', '/'), base, pcss, css, banner, body, tabs_js))
 
 apply_overrides()
