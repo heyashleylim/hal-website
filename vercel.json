@@ -6,6 +6,11 @@
   "outputDirectory": "site",
   "cleanUrls": true,
   "trailingSlash": false,
+  "functions": {
+    "api/podcast-page.js": {
+      "includeFiles": "site/{index.html,nsmb/index.html}"
+    }
+  },
   "headers": [
     {
       "source": "/assets/fonts/(.*)",
@@ -56,6 +61,19 @@
         {
           "key": "X-Frame-Options",
           "value": "DENY"
+        }
+      ]
+    },
+    {
+      "source": "/podcast/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
         }
       ]
     }
@@ -163,6 +181,20 @@
       "source": "/go/youtube",
       "destination": "https://www.youtube.com/@heyashleylim",
       "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/f/:token([A-Za-z0-9_-]+)",
+      "destination": "/api/podcast-feed?token=:token"
+    },
+    {
+      "source": "/a/:token([A-Za-z0-9_-]+)/:file",
+      "destination": "/api/podcast-audio?token=:token&file=:file"
+    },
+    {
+      "source": "/podcast/:token([A-Za-z0-9_-]+)",
+      "destination": "/api/podcast-page?token=:token"
     }
   ]
 }

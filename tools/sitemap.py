@@ -16,7 +16,7 @@ EXCLUDE = {'/engine'}   # alternative design of /nsmb: not offered to search eng
 
 def pages():
     for root, dirs, files in os.walk(SITE):
-        dirs[:] = sorted(d for d in dirs if d not in ('preview', 'admin', 'assets', '_debug', 'og'))
+        dirs[:] = sorted(d for d in dirs if d not in ('preview', 'admin', 'podcast', 'assets', '_debug', 'og'))
         if 'index.html' not in files: continue
         f = os.path.join(root, 'index.html')
         path = '/' + os.path.relpath(root, SITE).replace(os.sep, '/').strip('.').strip('/')
