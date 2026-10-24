@@ -133,7 +133,11 @@ Per-student private podcast feeds for NSMB (cohorts, weekly drip, 1-year access,
 Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branch.
 - Data lives in Neon Postgres (`DATABASE_URL`), never in the repo (it is public). All SQL goes through `api/_lib/db.js`.
 - Release and access rules are in `api/_lib/release.js` (pure, unit-tested). Change them there and in its tests only.
-- `/admin/*` is behind its own login (middleware); `/api/podcast-admin` checks the same cookie itself.
+- `/admin/*` is behind its own login (middleware); `/api/podcast-admin` checks the same cookie itself. Admin pages:
+  `site/admin/podcast/` (Dashboard, `episodes/`, `cohorts/`, `show/`), shared `assets/js/admin/admin.js` + `assets/css/admin/admin.css`.
+  API actions are split into `api/_lib/admin-content.js` (show, artwork, episodes) and `admin-cohorts.js`.
+- Uploads go straight from the browser to the private Blob store through a short-lived signed URL (`upload-url`), so
+  there's no 4.5 MB function limit. Cover art is served publicly at `/a/art/<show>.<ext>`.
 - The admin API only runs on Vercel deployments: the local `site` preview serves static files only.
 - Student URLs (rewrites in `vercel.json`, token = 22 random characters): `/podcast/<token>` subscribe page (api/podcast-page.js,
   header/footer read from `site/nsmb` and `site/index.html` at runtime), `/f/<token>` feed, `/a/<token>/<guid>.mp3` audio streamed

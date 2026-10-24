@@ -22,7 +22,7 @@ and emails.
 | D7 | **GTM exception** | ✅ No GTM on `/podcast/*` and `/admin/*`. |
 | D8 | **Vercel plan** | ✅ Hobby now, Pro soon. Built to work on Hobby (5 functions, daily cron). On Pro the cron can run hourly. |
 | D9 | **Privacy policy** (Korea PIPA) | ✅ Ashley updates the WordPress privacy policy before launch. |
-| D10 | **Spotify** (section 8) | ✅ No Spotify. The web player (option C) is parked for later. |
+| D10 | **Spotify** (section 8) | ✅ No Spotify, and no web player (option C dropped 2026-10-24). 팟빵 can't take private feeds either (section 8). |
 
 ---
 
@@ -192,7 +192,7 @@ vercel.json           ← rewrites, cron, noindex headers
 | 0. Setup | Decisions D1–D9, create Neon and Blob through Vercel, env vars, AC custom fields | 0.5 day (+ Ashley's time) |
 | 1. Foundation ✅ code done 2026-10-23 | `package.json`, schema and migrations, `_lib` (db, ac, auth, release rule with tests), admin login, admin health page | 1 day |
 | 2. Delivery 🟡 code done 2026-10-24, needs the Blob store + app testing | Feed, audio streaming with ranges, subscribe page, help page, admin test tools (test upload ≤ 4 MB, test student). **Milestone:** a test student subscribes in Apple Podcasts, Pocket Casts and Overcast and receives a weekly drip on a compressed test schedule. QR code moved to phase 7. | 1.5–2 days |
-| 3. Admin: content | Show settings, episodes (direct upload), cohorts with schedule preview and overrides | 1.5–2 days |
+| 3. Admin: content 🟡 code done 2026-10-24, to test on preview | Show settings + cover art, episodes (direct upload to private Blob with signed URLs, any size up to 500 MB, preview player), cohorts with schedule preview and per-cohort date changes | 1.5–2 days |
 | 4. Admin: students | List, filters, detail, all actions, CSV import/export, activity log | 1.5 days |
 | 5. AC automation | Inbound webhooks, outbound fields/tags through the outbox, daily cron, automation log page | 1–1.5 days |
 | 6. Analytics | Event logging, IAB counting, rollups, dashboard and analytics pages, alerts | 1–1.5 days |
@@ -265,7 +265,7 @@ Prices are from third-party summaries dated 2026. Check them on the providers' o
   Enrolment adds them there through Hello Audio's webhook, and their cohort start date is set there by hand.
   Cost: Hello Audio Pro (about $39–47/month) plus our build. Two places to manage, and Spotify listeners
   are missing from our analytics.
-- **C. No Spotify, but a web player** (parked 2026-10-23, may come back later): `/podcast/<token>` gets a built-in player. It needs no app,
+- **C. No Spotify, but a web player** (dropped 2026-10-24, Alex: not wanted): `/podcast/<token>` gets a built-in player. It needs no app,
   supports lock-screen controls and can be added to the home screen. Students who only use Spotify can
   listen there. About +1 day of work.
 - **D. Hello Audio only**, no custom build, if Spotify is essential and B's double management is too much.
@@ -273,3 +273,9 @@ Prices are from third-party summaries dated 2026. Check them on the providers' o
 **Before deciding, check two things (cheap):**
 1. With Hello Audio's 7-day free trial, a Korean Spotify account tries a test Spotify-enabled feed.
 2. Ask Ashley's students (AC poll or Instagram story) which podcast app they use.
+
+**팟빵 (Podbbang), checked 2026-10-24:** the app exists on iPhone and Android, but it's a closed platform.
+Listeners can't add a show by feed address: only shows uploaded to 팟빵 by their creators appear in it. Since
+2017, 팟빵 has also blocked most other apps from reading its own feeds. Sources: namu.wiki "팟빵",
+pages.wiserain.com "팟빵과 팟캐스트 주소에 관한 몇가지 사실", clien.net posts from 2017. A private,
+per-student feed therefore can't be supported in 팟빵. Not verified hands-on in the app.
