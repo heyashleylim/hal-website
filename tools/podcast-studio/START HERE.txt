@@ -1,0 +1,40 @@
+PODCAST STUDIO
+Prepares podcast episodes on your Mac: transcribes them, suggests chapters,
+lets you check the chapters while listening, and exports the final MP3
+(mono, 96 kbps, -16 LUFS, chapters inside). Everything stays on your Mac.
+
+
+1. INSTALL (once)
+
+   Open Claude Code and send this message:
+
+     Unzip ~/Downloads/Podcast-Studio.zip into my home folder and set it up by following its CLAUDE.md
+
+   Claude installs what's needed (it can take 5–10 minutes the first time).
+   If Claude says Homebrew is missing, follow its instructions, then send the
+   message again.
+
+
+2. USE
+
+   In Claude Code, send:
+
+     Open Podcast Studio
+
+   Your browser opens the Studio. Drop your MP3 files on the page and wait
+   until each file says it's done transcribing.
+
+   Then send:
+
+     Suggest chapters for all files in Podcast Studio
+
+   The chapters appear on the page by themselves. Click ▶ next to a chapter
+   to listen from there, adjust the time or the title if needed.
+
+   When they're right: tick the files and click "Export selected".
+   The finished MP3s are in Downloads › Podcast Studio.
+   Upload those to the podcast admin (Episodes page).
+
+
+Without Claude Code: double-click "Podcast Studio.command" in the
+Podcast-Studio folder, and use "Suggest from pauses" for chapters.
