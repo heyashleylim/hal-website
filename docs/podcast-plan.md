@@ -279,3 +279,13 @@ Listeners can't add a show by feed address: only shows uploaded to 팟빵 by the
 2017, 팟빵 has also blocked most other apps from reading its own feeds. Sources: namu.wiki "팟빵",
 pages.wiserain.com "팟빵과 팟캐스트 주소에 관한 몇가지 사실", clien.net posts from 2017. A private,
 per-student feed therefore can't be supported in 팟빵. Not verified hands-on in the app.
+
+## 9. Podcast Studio (local episode preparation), added 2026-10-24
+
+Asked by Alex: a local Forecast/Auphonic equivalent, shared with Ashley as a **standalone zip** (not a plugin, not
+part of the site): source in `tools/podcast-studio/`, built with `bash tools/build-podcast-studio-zip.sh`.
+Ashley asks Claude Code to unzip and set it up; `CLAUDE.md` inside tells Claude how to install (Homebrew:
+ffmpeg, whisper-cpp, Whisper large-v3-turbo q5 model), open, suggest chapters and export; `START HERE.txt` is
+for her. A browser UI served on 127.0.0.1: batch upload, waveform player, chapter editor, chapters suggested
+from pauses or by Claude in her Claude Code session (`podcast-studio transcript` / `set-chapters`, no API key),
+batch export: mono MP3 96 kbps, −16 LUFS, peaks ≤ −1 dB, ID3 chapters.
