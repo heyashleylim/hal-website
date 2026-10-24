@@ -6,9 +6,12 @@
  * otherwise 404. Byte ranges are passed through to Blob storage (Apple Podcasts requires them).
  * A download is logged when a request starts at byte 0 and isn't a tiny probe (apps first ask for
  * a couple of bytes to read the file size); counting rules are applied later in analytics.
+ *
+ * Also serves the show artwork at /a/art/<slug>.<ext> (public, cached).
  */
 const { Readable } = require('node:stream');
 const blob = require('@vercel/blob');
+const db = require('./_lib/db.js');
 const podcast = require('./_lib/podcast.js');
 const { extension } = require('./_lib/rss.js');
 
@@ -28,6 +31,42 @@ function isDownloadStart(range) {
   return m[2] === '' || Number(m[2]) + 1 >= PROBE_BYTES;
 }
 
+// GET/HEAD /a/art/<show slug>.<jpg|png> → the show's cover image (public: podcast apps fetch it without a token).
+async function artwork(req, res, file) {
+  const m = /^([a-z0-9-]+)\.(jpg|png)$/.exec(file);
+  if (!m) return notFound(res);
+  let show;
+  try {
+    show = await db.one('SELECT settings FROM shows WHERE slug = $1', [m[1]]);
+  } catch (err) {
+    console.error('podcast-art', err);
+    res.statusCode = 503;
+    return res.end();
+  }
+  const pathname = show && show.settings && show.settings.artwork_pathname;
+  if (!pathname || !pathname.endsWith('.' + m[2])) return notFound(res);
+  try {
+    const result = await blob.get(pathname, { access: 'private' });
+    if (!result || !result.stream) return notFound(res);
+    res.statusCode = 200;
+    res.setHeader('Content-Type', result.blob.contentType);
+    res.setHeader('Content-Length', String(result.blob.size));
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800'); // URLs carry ?v=, so a new image gets a new URL
+    if (req.method === 'HEAD') {
+      result.stream.cancel().catch(() => {});
+      return res.end();
+    }
+    Readable.fromWeb(result.stream).pipe(res);
+  } catch (err) {
+    console.error('podcast-art', pathname, err);
+    if (!res.headersSent) {
+      res.statusCode = 502;
+      return res.end();
+    }
+    res.destroy(err);
+  }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.setHeader('Referrer-Policy', 'no-referrer');
@@ -39,6 +78,7 @@ module.exports = async function handler(req, res) {
 
   const params = new URL(req.url, 'http://local').searchParams;
   const token = params.get('token') || '';
+  if (token === 'art') return artwork(req, res, params.get('file') || '');
   const m = /^([0-9a-f-]{36})\.([a-z0-9]{2,4})$/.exec(params.get('file') || '');
   if (!m) return notFound(res);
 

@@ -26,6 +26,12 @@ function audioPath(token, episode) {
   return `/a/${token}/${episode.guid}.${extension(episode.mime_type)}`;
 }
 
+function artworkUrl(base, url, query) {
+  if (/^https?:/.test(url)) return url;
+  const extra = query ? (url.includes('?') ? '&' + query.slice(1) : query) : '';
+  return base + url + extra;
+}
+
 function notice(state, show) {
   const text = NOTICES[state];
   if (!text) return '';
@@ -62,7 +68,7 @@ function buildFeed({ base, show, listener, state, items, now = new Date(), query
     `<itunes:summary>${cdata(description)}</itunes:summary>`,
     show.author ? `<itunes:author>${esc(show.author)}</itunes:author>` : '',
     show.owner_email ? `<itunes:owner><itunes:name>${esc(show.author || show.title)}</itunes:name><itunes:email>${esc(show.owner_email)}</itunes:email></itunes:owner>` : '',
-    show.artwork_url ? `<itunes:image href="${esc(show.artwork_url.startsWith('http') ? show.artwork_url : base + show.artwork_url)}"/>` : '',
+    show.artwork_url ? `<itunes:image href="${esc(artworkUrl(base, show.artwork_url, query))}"/>` : '',
     `<itunes:category text="${esc(show.category || 'Education')}"/>`,
     '<itunes:explicit>false</itunes:explicit>',
     '<itunes:type>serial</itunes:type>',

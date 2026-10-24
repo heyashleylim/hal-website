@@ -36,3 +36,8 @@ test('bonus episodes and m4a files', () => {
   assert.doesNotMatch(xml, /<itunes:episode>/);
   assert.equal(audioPath('T', ep(3, { mime_type: 'audio/x-m4a' })), '/a/T/00000000-0000-4000-8000-000000000003.m4a');
 });
+
+test('artwork URL keeps its version and gets the preview bypass appended', () => {
+  const xml = buildFeed({ base, show: { ...show, artwork_url: '/a/art/nsmb.jpg?v=1' }, listener, state: 'active', items: [], query: '?x-vercel-protection-bypass=s' });
+  assert.match(xml, /<itunes:image href="https:\/\/www\.ashleylim\.com\/a\/art\/nsmb\.jpg\?v=1&amp;x-vercel-protection-bypass=s"\/>/);
+});
