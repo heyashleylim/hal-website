@@ -1,5 +1,7 @@
 """
-Google Tag Manager (container GTM-MK4FNWNV) on every public page; never on /preview pages.
+Google Tag Manager (container GTM-MK4FNWNV) and Vercel Web Analytics on every public page; never on /preview pages.
+Vercel Web Analytics: window.va queue + /_vercel/insights/script.js (served by Vercel once Analytics is enabled in the
+project), right before </head>. Locally the script 404s, which is harmless.
 The head script goes right after <meta charset>, the <noscript> fallback right after <body>.
 
 gen.py adds it to generated pages; run it directly for the hand-built pages (it skips pages that already have it):
@@ -21,6 +23,15 @@ BODY = ('<!-- Google Tag Manager (noscript) -->\n'
         '<!-- End Google Tag Manager (noscript) -->\n') % GTM_ID
 
 
+VA = ('<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>\n'
+      '<script defer src="/_vercel/insights/script.js"></script>\n')
+
+
+def add_vercel_analytics(html):
+    if '/_vercel/insights/script.js' in html: return html
+    return html.replace('</head>', VA + '</head>', 1)
+
+
 def add_gtm(html):
     if 'googletagmanager.com/gtm.js' in html: return html
     html = re.sub(r'(<meta charset="[^"]*">\n?)', lambda m: m.group(1) + ('' if m.group(1).endswith('\n') else '\n') + HEAD, html, count=1)
@@ -31,5 +42,5 @@ def add_gtm(html):
 if __name__ == '__main__':
     for f in sys.argv[1:]:
         if '/preview/' in f: print('skipped (preview)', f); continue
-        s = open(f).read(); n = add_gtm(s)
+        s = open(f).read(); n = add_vercel_analytics(add_gtm(s))
         if n != s: open(f, 'w').write(n); print('added', f)

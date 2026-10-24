@@ -108,6 +108,7 @@ Rules for the structure:
 - **Responsive**: check 375px, 768px, 1024px and 1440px. There must be no horizontal scroll at 375px.
 - **Third parties**: no new trackers, pixels, chat widgets or CDNs without asking. Fonts may come from Google Fonts or jsDelivr only until self-hosted.
 - **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`: head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
+- **Vercel Web Analytics** is enabled in the Vercel project and loaded on the same public pages as GTM (never `/preview/*`): `window.va` queue + `<script defer src="/_vercel/insights/script.js">` right before `</head>`. `tools/rebuild/gtm.py` adds both (gen.py runs it). Locally the script 404s; that's expected.
 
 ## Generated pages and private previews
 

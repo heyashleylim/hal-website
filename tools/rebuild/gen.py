@@ -12,7 +12,7 @@ Images go to site/assets/img/<page>/ when visible publicly, else site/preview/<p
 import hashlib, html, json, os, re, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sitelinks import localize_html
-from gtm import add_gtm
+from gtm import add_gtm, add_vercel_analytics
 from sale_end import end_sale
 import datetime
 
@@ -1071,7 +1071,7 @@ for preview in MODES:
     html_out = localize_html(page(body, css, preview, nh))   # ashleylim.com page links → /paths
     if OVR.get('sale') and datetime.datetime.now(datetime.timezone.utc) >= datetime.datetime.fromisoformat(OVR['sale']['deadline']):
         html_out = end_sale(html_out)   # regenerated after the sale ended: regular version only
-    if not preview: html_out = add_gtm(html_out)              # Google Tag Manager on public pages only
+    if not preview: html_out = add_vercel_analytics(add_gtm(html_out))   # GTM + Vercel Web Analytics, public pages only
     open(os.path.join(out, 'index.html'), 'w').write(html_out)
     print(('preview' if preview else 'public'), out, len(body) // 1024, 'KB html', len(css) // 1024, 'KB css', 'hidden marked:', nh)
 print('images:', len(IMGMAP), 'public:', sum(1 for u in IMGMAP if img_public.get(u, True)), 'fonts:', sorted(fonts_used))
