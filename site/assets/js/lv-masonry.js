@@ -72,6 +72,7 @@
       }
     }
     var cols = []; for (var k2 = 0; k2 < n; k2++) cols.push([]);
+    if (!best) best = items.map(function (it, j) { return j % n; });   // safety net: never leave cells unplaced
     best.forEach(function (col, j) { cols[col].push(j); });
     return cols.filter(function (c) { return c.length; });
   }
@@ -132,6 +133,7 @@
       var gap = parseFloat(cs.columnGap) || 0;
       var inner = box.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
       var avail = inner - gap * (n - 1);
+      if (!(avail > 0)) { box.classList.remove('lv-masonry-ready'); return; }   // no width yet (hidden frame, prerender): keep the CSS columns, retry on resize
       var cols = deal(items, n, gap / (avail / n));
       // Column with the tallest image last.
       var tallest = items.reduce(function (a, b) { return b.r > a.r ? b : a; }).idx;
