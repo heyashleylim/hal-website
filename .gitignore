@@ -13,3 +13,8 @@ tools/rebuild/dumps/
 tools/rebuild/imgcache/
 tools/rebuild/proxycache/
 tools/rebuild/__pycache__/
+
+# API function dependencies and local secrets (vercel env pull)
+node_modules/
+.env*.local
+.vercel/

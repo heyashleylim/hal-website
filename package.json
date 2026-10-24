@@ -1,0 +1,15 @@
+{
+  "name": "hal-website",
+  "private": true,
+  "description": "Dependencies for the API functions only (private podcast). The site in site/ has no build step.",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.{js,mjs}\"",
+    "db:migrate": "node --env-file-if-exists=.env.local tools/podcast/migrate.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "1.2.0"
+  }
+}
