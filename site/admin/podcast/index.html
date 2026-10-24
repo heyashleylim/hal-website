@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Podcast admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar">
+  <a class="admin-bar__title" href="/admin/podcast">Podcast admin</a>
+  <nav class="admin-nav" aria-label="Admin menu">
+    <a href="/admin/podcast" aria-current="page">Dashboard</a>
+  </nav>
+  <a class="admin-bar__logout" href="/admin/logout">Log out</a>
+</header>
+<main id="main" class="admin-main">
+  <h1>Private podcast</h1>
+  <section class="admin-card" aria-labelledby="setup-title">
+    <h2 id="setup-title">Setup status</h2>
+    <ul class="checklist" id="setup" aria-live="polite"><li class="muted">Checking…</li></ul>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+  Admin.get('health').then(function (h) {
+    var items = [];
+    var env = ['DATABASE_URL', 'PODCAST_SECRET', 'ADMIN_USER', 'ADMIN_PASSWORD', 'AC_API_URL', 'AC_API_KEY'];
+    env.forEach(function (name) {
+      var ok = h.missingEnv.indexOf(name) < 0;
+      items.push([ok, 'Environment variable <code>' + name + '</code>' + (ok ? '' : ' is missing in Vercel')]);
+    });
+    var d = h.database || {};
+    items.push([d.connected, d.connected ? 'Database connected' : 'Database: ' + Admin.esc(d.error || 'not connected')]);
+    if (d.connected) {
+      items.push([d.migrations.length > 0, 'Migrations applied: ' + (d.migrations.map(function (m) { return '<code>' + Admin.esc(m.name) + '</code>'; }).join(', ') || 'none')]);
+      items.push([d.shows.length > 0, 'Shows: ' + (d.shows.map(function (s) { return Admin.esc(s.title); }).join(', ') || 'none')]);
+    }
+    document.getElementById('setup').innerHTML = items.map(function (i) {
+      return '<li><span class="status ' + (i[0] ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + i[1] + '</span></li>';
+    }).join('');
+  }).catch(function (err) {
+    document.getElementById('setup').innerHTML = '<li><span class="status status--bad">Error</span><span>' + Admin.esc(err.message) + '</span></li>';
+  });
+</script>
+</body>
+</html>
