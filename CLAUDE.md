@@ -6,7 +6,7 @@ Korean-first copy, long-form sales pages, deployed on Vercel from GitHub.
 - Repo: https://github.com/heyashleylim/hal-website (`main` = production)
 - Hosting: Vercel. Push to `main` → production deploy. Any other branch → preview URL.
 - Stack: static HTML + CSS + vanilla JS. No framework, no build step.
-  npm is used **only for the API functions** (`package.json`: the Neon database driver, approved 2026-10-23 for the private podcast).
+  npm is used **only for the API functions** (`package.json`: the Neon database driver and `@vercel/blob`, approved 2026-10-23 for the private podcast).
   Pages in `site/` never import npm packages. Do not add a framework, a build step or another dependency without asking first.
 
 ## Folder structure
@@ -135,6 +135,9 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
 - Release and access rules are in `api/_lib/release.js` (pure, unit-tested). Change them there and in its tests only.
 - `/admin/*` is behind its own login (middleware); `/api/podcast-admin` checks the same cookie itself.
 - The admin API only runs on Vercel deployments: the local `site` preview serves static files only.
+- Student URLs (rewrites in `vercel.json`, token = 22 random characters): `/podcast/<token>` subscribe page (api/podcast-page.js,
+  header/footer read from `site/nsmb` and `site/index.html` at runtime), `/f/<token>` feed, `/a/<token>/<guid>.mp3` audio streamed
+  from the private Vercel Blob store. `/podcast/help` is a static page. All are noindex and in robots.txt.
 
 ## Page configuration
 

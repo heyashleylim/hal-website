@@ -191,7 +191,7 @@ vercel.json           ← rewrites, cron, noindex headers
 |---|---|---|
 | 0. Setup | Decisions D1–D9, create Neon and Blob through Vercel, env vars, AC custom fields | 0.5 day (+ Ashley's time) |
 | 1. Foundation ✅ code done 2026-10-23 | `package.json`, schema and migrations, `_lib` (db, ac, auth, release rule with tests), admin login, admin health page | 1 day |
-| 2. Delivery | Feed, audio streaming with ranges, subscribe page, help page. **Milestone:** a test student subscribes in Apple Podcasts, Pocket Casts, Overcast and YouTube Music and receives a weekly drip on a compressed test schedule | 1.5–2 days |
+| 2. Delivery 🟡 code done 2026-10-24, needs the Blob store + app testing | Feed, audio streaming with ranges, subscribe page, help page, admin test tools (test upload ≤ 4 MB, test student). **Milestone:** a test student subscribes in Apple Podcasts, Pocket Casts and Overcast and receives a weekly drip on a compressed test schedule. QR code moved to phase 7. | 1.5–2 days |
 | 3. Admin: content | Show settings, episodes (direct upload), cohorts with schedule preview and overrides | 1.5–2 days |
 | 4. Admin: students | List, filters, detail, all actions, CSV import/export, activity log | 1.5 days |
 | 5. AC automation | Inbound webhooks, outbound fields/tags through the outbox, daily cron, automation log page | 1–1.5 days |
