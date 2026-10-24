@@ -5,8 +5,9 @@ Korean-first copy, long-form sales pages, deployed on Vercel from GitHub.
 
 - Repo: https://github.com/heyashleylim/hal-website (`main` = production)
 - Hosting: Vercel. Push to `main` → production deploy. Any other branch → preview URL.
-- Stack: static HTML + CSS + vanilla JS. No framework, no build step, no npm.
-  Do not introduce one without asking first.
+- Stack: static HTML + CSS + vanilla JS. No framework, no build step.
+  npm is used **only for the API functions** (`package.json`: the Neon database driver, approved 2026-10-23 for the private podcast).
+  Pages in `site/` never import npm packages. Do not add a framework, a build step or another dependency without asking first.
 
 ## Folder structure
 
@@ -16,7 +17,11 @@ hal-website/
 ├── README.md              ← human quick-start (preview, deploy)
 ├── vercel.json            ← outputDirectory: "site", clean URLs, cache headers
 ├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
-├── middleware.js          ← password-protects /preview/* (login page + cookie: PREVIEW_USER / PREVIEW_PASSWORD)
+├── api/podcast-*.js       ← private podcast functions (docs/podcast-plan.md); shared code in api/_lib/ (not endpoints)
+├── db/migrations/         ← private podcast database schema (Neon Postgres), applied with `npm run db:migrate`
+├── tests/                 ← `npm test` (node:test, no extra packages)
+├── package.json           ← API function dependencies only
+├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
 ├── .env.example           ← names of the env vars the function needs (values live in Vercel only)
 ├── .gitignore
@@ -107,8 +112,8 @@ Rules for the structure:
 - **Accessibility**: one `h1` per page, sequential headings, visible focus rings, labels on every input, 44px touch targets, text contrast ≥ 4.5:1, skip link.
 - **Responsive**: check 375px, 768px, 1024px and 1440px. There must be no horizontal scroll at 375px.
 - **Third parties**: no new trackers, pixels, chat widgets or CDNs without asking. Fonts may come from Google Fonts or jsDelivr only until self-hosted.
-- **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`: head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
-- **Vercel Web Analytics** is enabled in the Vercel project and loaded on the same public pages as GTM (never `/preview/*`): `window.va` queue + `<script defer src="/_vercel/insights/script.js">` right before `</head>`. `tools/rebuild/gtm.py` adds both (gen.py runs it). Locally the script 404s; that's expected.
+- **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`, `/admin/*` or the private podcast pages (`/podcast/*`, feeds, audio: a student's secret token is in those URLs): head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
+- **Vercel Web Analytics** is enabled in the Vercel project and loaded on the same public pages as GTM (never `/preview/*`, `/admin/*` or the private podcast pages): `window.va` queue + `<script defer src="/_vercel/insights/script.js">` right before `</head>`. `tools/rebuild/gtm.py` adds both (gen.py runs it). Locally the script 404s; that's expected.
 
 ## Generated pages and private previews
 
@@ -121,6 +126,15 @@ Rules for the structure:
 - Every page uses the same footer: the `<footer class="site-footer">` markup from `site/index.html` plus `footer.css`. The generator copies that markup from the home page each time it runs, so change the footer in `site/index.html` (and `/nsmb`), then regenerate the generated pages.
 - Every link to an ashleylim.com page is a site path (`/eft`, `/refund-policy`, `/` for the logo; `/lifeartist2026` → `/lifeartist`) and opens in the same tab, so links follow whatever domain serves the site (www.ashleylim.com). Only payment links keep `https://ashleylim.com/?product=…`: add-to-cart links into the WooCommerce / cafe24 checkout, which stays on WordPress at ashleylim.com. `tools/rebuild/sitelinks.py` does this (gen.py runs it; run it on hand-built pages after pasting live links).
 - Public pages carry `<link rel="canonical">` naming the page on `https://www.ashleylim.com` (this site, once the domain moves to Vercel).
+
+## Private podcast
+
+Per-student private podcast feeds for NSMB (cohorts, weekly drip, 1-year access, ActiveCampaign automation, admin pages).
+Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branch.
+- Data lives in Neon Postgres (`DATABASE_URL`), never in the repo (it is public). All SQL goes through `api/_lib/db.js`.
+- Release and access rules are in `api/_lib/release.js` (pure, unit-tested). Change them there and in its tests only.
+- `/admin/*` is behind its own login (middleware); `/api/podcast-admin` checks the same cookie itself.
+- The admin API only runs on Vercel deployments: the local `site` preview serves static files only.
 
 ## Page configuration
 

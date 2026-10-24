@@ -2,6 +2,17 @@
 
 Newest first. One entry per decision: what, why, date.
 
+## 2026-10-23 — Private podcast built in-house
+- Per-student private podcast for NSMB, built on this site instead of Hello Audio: full control of cohorts,
+  Korean subscribe pages in Ashley's design, ActiveCampaign automation and our own analytics. Plan: `docs/podcast-plan.md`.
+- New services (approved): Neon Postgres (Vercel Marketplace) for data, private Vercel Blob for audio.
+  npm allowed for the API functions only.
+- Access: 1 year from the cohort start. Late joiners get every module released so far at once.
+  The cohort comes from the AC tag on the contact.
+- No Spotify: private shows reach Spotify only through approved Spotify Open Access partners.
+  A web player on the subscribe page is parked as a later option.
+- No GTM on /admin and the private podcast pages (secret tokens in the URLs).
+
 ## 2026-10-05 — Live pages rebuilt by capture + generation
 - /lifeartist (live: /lifeartist2026), /eft, /chosen, /switch and the three policy pages are generated from the live pages
   (computed styles captured at 1440/900/390px) instead of hand-built, to match them as closely as possible.
