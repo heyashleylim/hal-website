@@ -81,8 +81,8 @@ function notFoundPage() {
   });
 }
 
-function subscribePage({ base, show, cohort, listener, state, released, next, expires }) {
-  const feedUrl = `${base}/f/${listener.token}`;
+function subscribePage({ base, show, cohort, listener, state, released, next, expires, query = '' }) {
+  const feedUrl = `${base}/f/${listener.token}${query}`;
   const host = feedUrl.replace(/^https:\/\//, '');
   const support = show.support_email || 'hello@ashleylim.com';
   const name = listener.name ? `${esc(listener.name)}님, ` : '';
@@ -175,7 +175,7 @@ module.exports = async function handler(req, res) {
   const { state, episodes, next } = podcast.releasedFor(ctx, now);
   const expires = release.expiresAt(ctx);
   res.statusCode = 200;
-  return res.end(subscribePage({ base: podcast.baseUrl(req), show: ctx.show, cohort: ctx.cohort, listener: ctx.listener, state, released: episodes, next, expires }));
+  return res.end(subscribePage({ base: podcast.baseUrl(req), show: ctx.show, cohort: ctx.cohort, listener: ctx.listener, state, released: episodes, next, expires, query: podcast.linkQuery() }));
 };
 
 module.exports.subscribePage = subscribePage;

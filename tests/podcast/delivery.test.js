@@ -47,3 +47,14 @@ test('subscribe page: expired state hides the subscribe options', () => {
   assert.match(html, /수강 기간이 2027년 11월 2일에 끝나/);
   assert.doesNotMatch(html, /podcast:\/\//);
 });
+
+test('preview deployments add the protection bypass to app links; production never does', () => {
+  const { linkQuery } = require('../../api/_lib/podcast.js');
+  assert.equal(linkQuery({ VERCEL_ENV: 'preview', VERCEL_AUTOMATION_BYPASS_SECRET: 'a b' }), '?x-vercel-protection-bypass=a%20b');
+  assert.equal(linkQuery({ VERCEL_ENV: 'production', VERCEL_AUTOMATION_BYPASS_SECRET: 'x' }), '');
+  assert.equal(linkQuery({ VERCEL_ENV: 'preview' }), '');
+  const { buildFeed } = require('../../api/_lib/rss.js');
+  const xml = buildFeed({ base, show, listener, state: 'active', query: '?x-vercel-protection-bypass=s', items: [{ episode: { id: 1, guid: 'g', kind: 'module', number: 1, title: 't', bytes: 1, mime_type: 'audio/mpeg' }, releaseAt: new Date() }] });
+  assert.match(xml, /\/a\/AAAAAAAAAAAAAAAAAAAAAA\/g\.mp3\?x-vercel-protection-bypass=s"/);
+  assert.match(xml, /\/f\/AAAAAAAAAAAAAAAAAAAAAA\?x-vercel-protection-bypass=s" rel="self"/);
+});

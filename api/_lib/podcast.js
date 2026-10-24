@@ -75,4 +75,12 @@ function baseUrl(req) {
   return `https://${host}`;
 }
 
-module.exports = { loadByToken, releasedFor, appName, clientInfo, logEvent, baseUrl };
+// Preview deployments sit behind Vercel's login, which podcast apps can't pass. There, feed and audio links
+// carry the project's "Protection Bypass for Automation" secret (Settings → Deployment Protection).
+// Production links never do.
+function linkQuery(env = process.env) {
+  const secret = env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  return env.VERCEL_ENV === 'preview' && secret ? `?x-vercel-protection-bypass=${encodeURIComponent(secret)}` : '';
+}
+
+module.exports = { loadByToken, releasedFor, appName, clientInfo, logEvent, baseUrl, linkQuery };

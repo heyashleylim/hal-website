@@ -32,9 +32,9 @@ function notice(state, show) {
   return show.support_email ? `${text} 문의: ${show.support_email}` : text;
 }
 
-function buildFeed({ base, show, listener, state, items, now = new Date() }) {
+function buildFeed({ base, show, listener, state, items, now = new Date(), query = '' }) {
   const pageUrl = `${base}/podcast/${listener.token}`;
-  const feedUrl = `${base}/f/${listener.token}`;
+  const feedUrl = `${base}/f/${listener.token}${query}`;
   const description = [notice(state, show), show.description].filter(Boolean).join('\n\n') || show.title;
 
   const episodes = [...items].sort((a, b) => b.releaseAt - a.releaseAt).map(({ episode, releaseAt }) => {
@@ -44,7 +44,7 @@ function buildFeed({ base, show, listener, state, items, now = new Date() }) {
       `<description>${cdata(episode.notes || episode.title)}</description>`,
       `<guid isPermaLink="false">${esc(episode.guid)}</guid>`,
       `<pubDate>${releaseAt.toUTCString()}</pubDate>`,
-      `<enclosure url="${esc(base + audioPath(listener.token, episode))}" length="${Number(episode.bytes) || 0}" type="${esc(episode.mime_type || 'audio/mpeg')}"/>`,
+      `<enclosure url="${esc(base + audioPath(listener.token, episode) + query)}" length="${Number(episode.bytes) || 0}" type="${esc(episode.mime_type || 'audio/mpeg')}"/>`,
     ];
     if (episode.duration_seconds) lines.push(`<itunes:duration>${Number(episode.duration_seconds)}</itunes:duration>`);
     if (episode.kind === 'module' && episode.number) lines.push(`<itunes:episode>${Number(episode.number)}</itunes:episode>`);

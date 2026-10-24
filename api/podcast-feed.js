@@ -41,7 +41,7 @@ module.exports = async function handler(req, res) {
 
   const now = new Date();
   const { state, episodes } = podcast.releasedFor(ctx, now);
-  const xml = buildFeed({ base: podcast.baseUrl(req), show: ctx.show, listener: ctx.listener, state, items: episodes, now });
+  const xml = buildFeed({ base: podcast.baseUrl(req), show: ctx.show, listener: ctx.listener, state, items: episodes, now, query: podcast.linkQuery() });
 
   const client = podcast.clientInfo(req);
   const { listener } = ctx;
