@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Episodes · Podcast admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar">
+  <a class="admin-bar__title" href="/admin/podcast">Podcast admin</a>
+  <nav class="admin-nav" aria-label="Admin menu"></nav>
+  <a class="admin-bar__logout" href="/admin/logout">Log out</a>
+</header>
+<main id="main" class="admin-main">
+  <div class="admin-head">
+    <h1>Episodes</h1>
+    <button class="btn-sm" type="button" id="add">Add episode</button>
+  </div>
+
+  <section class="admin-panel" id="editor" hidden aria-labelledby="editor-title">
+    <h2 id="editor-title">Add episode</h2>
+    <form id="form" class="admin-form" novalidate>
+      <input type="hidden" name="id">
+      <label>Type
+        <select name="kind">
+          <option value="module">Module</option>
+          <option value="bonus">Bonus</option>
+        </select>
+      </label>
+      <label data-module>Module number<input name="number" type="number" min="1" max="999" inputmode="numeric"></label>
+      <label>Release day <span class="hint">days after the cohort start (module 1 = 0)</span><input name="day_offset" type="number" min="0" max="3650" inputmode="numeric" required></label>
+      <label>Status
+        <select name="status">
+          <option value="draft">Draft (hidden from students)</option>
+          <option value="published">Published</option>
+        </select>
+      </label>
+      <label class="admin-form__wide">Title<input name="title" maxlength="300" required></label>
+      <label class="admin-form__wide">Show notes <span class="hint">shown under the episode in podcast apps</span><textarea name="notes" maxlength="10000"></textarea></label>
+      <label class="admin-form__wide">Audio file <span class="hint">MP3 or M4A, up to 500 MB. Spoken word: 64–96 kbps mono is plenty.</span><input name="file" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a"></label>
+      <p class="admin-form__wide muted" id="current-audio" hidden></p>
+      <div class="progress" hidden><span></span></div>
+      <div class="admin-form__actions">
+        <button class="btn-sm" type="submit">Save</button>
+        <button class="btn-ghost" type="button" id="cancel">Cancel</button>
+        <button class="btn-danger" type="button" id="delete" hidden>Delete episode</button>
+      </div>
+      <p class="admin-form__result" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section class="admin-card" aria-labelledby="list-title">
+    <h2 id="list-title" class="sr-only">All episodes</h2>
+    <div id="list" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+    <p class="muted" id="drip-note"></p>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var episodes = [], drip = 7;
+  var editor = document.getElementById('editor'), form = document.getElementById('form');
+  var out = form.querySelector('.admin-form__result'), bar = form.querySelector('.progress'), fill = bar.firstElementChild;
+
+  function load() {
+    return Admin.get('episodes').then(function (r) {
+      episodes = r.episodes; drip = r.drip_interval_days;
+      document.getElementById('drip-note').textContent = 'Default spacing between modules: ' + drip + ' days (Show settings). Release times follow the show\'s release time, in Seoul time.';
+      render();
+    }).catch(function (err) { document.getElementById('list').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+
+  function render() {
+    var el = document.getElementById('list');
+    if (!episodes.length) { el.innerHTML = '<p class="admin-empty">No episodes yet. Add module 1 to start.</p>'; return; }
+    el.innerHTML = '<table class="admin-table"><thead><tr><th>#</th><th>Title</th><th>Release day</th><th>Audio</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+      episodes.map(function (e) {
+        var label = e.kind === 'bonus' ? '<span class="badge badge--info">Bonus</span>' : e.number;
+        var audio = e.has_audio ? Admin.duration(e.duration_seconds) + ' · ' + Admin.size(e.bytes) : '<span class="badge badge--warn">No audio</span>';
+        var status = e.status === 'published' ? '<span class="badge badge--ok">Published</span>' : '<span class="badge">Draft</span>';
+        return '<tr data-id="' + e.id + '"><td class="num">' + label + '</td><td>' + Admin.esc(e.title) + '<div class="player-slot"></div></td>' +
+          '<td class="num">Day ' + e.day_offset + (drip ? ' <span class="muted">(week ' + (Math.floor(e.day_offset / 7) + 1) + ')</span>' : '') + '</td>' +
+          '<td class="num">' + audio + '</td><td>' + status + '</td><td><div class="admin-actions">' +
+          (e.has_audio ? '<button class="btn-ghost" type="button" data-play="' + e.id + '">Listen</button>' : '') +
+          '<button class="btn-ghost" type="button" data-edit="' + e.id + '">Edit</button></div></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function nextNumber() {
+    var max = 0;
+    episodes.forEach(function (e) { if (e.kind === 'module' && e.number > max) max = e.number; });
+    return max + 1;
+  }
+
+  function syncKind() {
+    form.querySelector('[data-module]').hidden = form.kind.value !== 'module';
+  }
+
+  function open(e) {
+    form.reset();
+    Admin.say(out, '');
+    bar.hidden = true; fill.style.width = '0';
+    var n = nextNumber();
+    form.id.value = e ? e.id : '';
+    form.kind.value = e ? e.kind : 'module';
+    form.number.value = e ? (e.number || '') : n;
+    form.day_offset.value = e ? e.day_offset : (n - 1) * drip;
+    form.status.value = e ? e.status : 'draft';
+    form.title.value = e ? e.title : '';
+    form.notes.value = e ? e.notes : '';
+    var cur = document.getElementById('current-audio');
+    cur.hidden = !(e && e.has_audio);
+    cur.textContent = e && e.has_audio ? 'Current audio: ' + Admin.duration(e.duration_seconds) + ', ' + Admin.size(e.bytes) + '. Choose a file only to replace it.' : '';
+    document.getElementById('delete').hidden = !e;
+    document.getElementById('editor-title').textContent = e ? 'Edit episode' : 'Add episode';
+    syncKind();
+    editor.hidden = false;
+    editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    form.title.focus({ preventScroll: true });
+  }
+
+  form.kind.addEventListener('change', syncKind);
+  form.number.addEventListener('input', function () {
+    if (!form.id.value && form.kind.value === 'module' && form.number.value) form.day_offset.value = (Number(form.number.value) - 1) * drip;
+  });
+  document.getElementById('add').addEventListener('click', function () { open(null); });
+  document.getElementById('cancel').addEventListener('click', function () { editor.hidden = true; });
+
+  document.getElementById('list').addEventListener('click', function (ev) {
+    var edit = ev.target.closest('[data-edit]'), play = ev.target.closest('[data-play]');
+    if (edit) open(episodes.find(function (e) { return String(e.id) === edit.dataset.edit; }));
+    if (play) {
+      var slot = play.closest('tr').querySelector('.player-slot');
+      play.disabled = true;
+      Admin.get('episode-preview', { id: play.dataset.play }).then(function (r) {
+        slot.innerHTML = '<audio class="admin-player" controls preload="none" src="' + Admin.esc(r.url) + '"></audio>';
+        slot.firstElementChild.play().catch(function () {});
+      }).catch(function (err) { slot.innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; play.disabled = false; });
+    }
+  });
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var file = form.file.files[0];
+    var submit = form.querySelector('[type=submit]');
+    var data = { id: form.id.value || undefined, kind: form.kind.value, number: form.number.value, day_offset: form.day_offset.value, status: form.status.value, title: form.title.value, notes: form.notes.value };
+    if (!data.title.trim()) { Admin.say(out, 'Add a title.', true); form.title.focus(); return; }
+    submit.disabled = true;
+    var step = Promise.resolve();
+    if (file) {
+      if (!/^audio\/(mpeg|mp4|x-m4a|aac)$/.test(Admin.contentType(file))) { Admin.say(out, 'Choose an MP3 or M4A file.', true); submit.disabled = false; return; }
+      bar.hidden = false;
+      step = Admin.audioDuration(file).then(function (secs) {
+        data.duration_seconds = secs || '';
+        Admin.say(out, 'Uploading ' + Admin.size(file.size) + '…');
+        return Admin.upload(file, 'audio', function (p) { fill.style.width = p + '%'; Admin.say(out, 'Uploading… ' + p + '%'); });
+      }).then(function (pathname) { data.pathname = pathname; });
+    }
+    step.then(function () {
+      Admin.say(out, 'Saving…');
+      return Admin.post('episode-save', data);
+    }).then(function (r) {
+      Admin.say(out, 'Saved.');
+      editor.hidden = true;
+      return load();
+    }).catch(function (err) {
+      Admin.say(out, err.message, true);
+    }).then(function () { submit.disabled = false; });
+  });
+
+  document.getElementById('delete').addEventListener('click', function () {
+    var e = episodes.find(function (x) { return String(x.id) === form.id.value; });
+    if (!e || !confirm('Delete "' + e.title + '" and its audio file? Students will no longer see it. This cannot be undone.')) return;
+    Admin.post('episode-delete', { id: e.id }).then(function () { editor.hidden = true; return load(); })
+      .catch(function (err) { Admin.say(out, err.message, true); });
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>

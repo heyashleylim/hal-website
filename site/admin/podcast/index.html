@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>Podcast admin</title>
+<title>Dashboard · Podcast admin</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/brand.css">
@@ -15,9 +15,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="admin-bar">
   <a class="admin-bar__title" href="/admin/podcast">Podcast admin</a>
-  <nav class="admin-nav" aria-label="Admin menu">
-    <a href="/admin/podcast" aria-current="page">Dashboard</a>
-  </nav>
+  <nav class="admin-nav" aria-label="Admin menu"></nav>
   <a class="admin-bar__logout" href="/admin/logout">Log out</a>
 </header>
 <main id="main" class="admin-main">
@@ -28,18 +26,7 @@
   </section>
 
   <section class="admin-card" aria-labelledby="test-title">
-    <h2 id="test-title">Test tools <span class="muted">(temporary, until the full admin pages)</span></h2>
-    <h3 class="admin-h3">Episodes</h3>
-    <div id="episodes" class="muted">Loading…</div>
-    <form id="upload" class="admin-form">
-      <p class="muted">Add or replace a module. Files up to 4 MB for now (large uploads come with the Episodes page).</p>
-      <label>Module number<input name="number" type="number" min="1" value="1" required></label>
-      <label>Release day (days after the cohort start)<input name="day_offset" type="number" min="0" value="0" required></label>
-      <label class="admin-form__wide">Title<input name="title" required></label>
-      <label class="admin-form__wide">Audio file (MP3 or M4A)<input name="file" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a" required></label>
-      <button class="btn" type="submit">Upload</button>
-      <p class="admin-form__result" role="status"></p>
-    </form>
+    <h2 id="test-title">Test tools <span class="muted">(temporary, until the Students page)</span></h2>
     <h3 class="admin-h3">Test student</h3>
     <form id="test-setup" class="admin-form">
       <p class="muted">Puts a student in the "테스트" cohort. Set the start date in the past to see several modules released.</p>
@@ -73,48 +60,6 @@
     }).join('');
   }).catch(function (err) {
     document.getElementById('setup').innerHTML = '<li><span class="status status--bad">Error</span><span>' + Admin.esc(err.message) + '</span></li>';
-  });
-
-  function loadEpisodes() {
-    Admin.get('episodes').then(function (r) {
-      var el = document.getElementById('episodes');
-      if (!r.episodes.length) { el.textContent = 'No episodes yet.'; return; }
-      el.className = '';
-      el.innerHTML = '<table class="admin-table"><thead><tr><th>#</th><th>Title</th><th>Day</th><th>Size</th><th>Length</th><th>Status</th></tr></thead><tbody>' +
-        r.episodes.map(function (e) {
-          return '<tr><td>' + (e.number || '–') + '</td><td>' + Admin.esc(e.title) + '</td><td>' + e.day_offset + '</td><td>' +
-            (e.bytes ? (e.bytes / 1048576).toFixed(1) + ' MB' : '–') + '</td><td>' +
-            (e.duration_seconds ? Math.round(e.duration_seconds / 60) + ' min' : '–') + '</td><td>' + Admin.esc(e.status) + '</td></tr>';
-        }).join('') + '</tbody></table>';
-    }).catch(function (err) { document.getElementById('episodes').textContent = err.message; });
-  }
-  loadEpisodes();
-
-  function audioDuration(file) {
-    return new Promise(function (resolve) {
-      var a = document.createElement('audio');
-      a.preload = 'metadata';
-      a.onloadedmetadata = function () { resolve(isFinite(a.duration) ? Math.round(a.duration) : ''); URL.revokeObjectURL(a.src); };
-      a.onerror = function () { resolve(''); };
-      a.src = URL.createObjectURL(file);
-    });
-  }
-
-  document.getElementById('upload').addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    var f = ev.target, out = f.querySelector('.admin-form__result'), file = f.file.files[0];
-    if (file.size > 4 * 1024 * 1024) { out.textContent = 'This file is over 4 MB.'; return; }
-    out.textContent = 'Uploading…';
-    audioDuration(file).then(function (duration) {
-      var q = new URLSearchParams({ action: 'episode-upload', number: f.number.value, day_offset: f.day_offset.value, title: f.title.value, duration: duration });
-      var type = file.type || (/\.m4a$/i.test(file.name) ? 'audio/x-m4a' : 'audio/mpeg');
-      return fetch('/api/podcast-admin?' + q, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': type }, body: file })
-        .then(function (res) { return res.json().then(function (b) { if (!res.ok) throw new Error(b.error || 'HTTP ' + res.status); return b; }); });
-    }).then(function (r) {
-      out.textContent = 'Saved: module ' + r.episode.number + ' (' + r.episode.title + ').';
-      f.reset();
-      loadEpisodes();
-    }).catch(function (err) { out.textContent = 'Error: ' + err.message; });
   });
 
   document.getElementById('test-setup').addEventListener('submit', function (ev) {

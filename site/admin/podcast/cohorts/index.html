@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Cohorts · Podcast admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar">
+  <a class="admin-bar__title" href="/admin/podcast">Podcast admin</a>
+  <nav class="admin-nav" aria-label="Admin menu"></nav>
+  <a class="admin-bar__logout" href="/admin/logout">Log out</a>
+</header>
+<main id="main" class="admin-main">
+  <div class="admin-head">
+    <h1>Cohorts</h1>
+    <button class="btn-sm" type="button" id="add">Add cohort</button>
+  </div>
+
+  <section class="admin-panel" id="editor" hidden aria-labelledby="editor-title">
+    <h2 id="editor-title">Add cohort</h2>
+    <form id="form" class="admin-form" novalidate>
+      <input type="hidden" name="id">
+      <label>Name <span class="hint">e.g. 2기</span><input name="name" maxlength="60" required></label>
+      <label>ActiveCampaign tag <span class="hint">the tag that puts a buyer in this cohort</span><input name="ac_tag" maxlength="100" required autocapitalize="none" spellcheck="false"></label>
+      <label>Start date <span class="hint">module 1 is released this day</span><input name="start_date" type="date" required></label>
+      <label>Access length (days) <span class="hint" id="access-hint">empty = show default</span><input name="access_days" type="number" min="1" max="3650" inputmode="numeric"></label>
+      <p class="admin-form__wide muted">Changing the start date moves this cohort's whole schedule and every student's end of access (except students whose dates were set by hand).</p>
+      <div class="admin-form__actions">
+        <button class="btn-sm" type="submit">Save</button>
+        <button class="btn-ghost" type="button" id="cancel">Cancel</button>
+        <button class="btn-danger" type="button" id="delete" hidden>Delete cohort</button>
+      </div>
+      <p class="admin-form__result" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section class="admin-card" aria-label="All cohorts">
+    <div id="list" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+    <p class="muted" id="unassigned"></p>
+  </section>
+
+  <section class="admin-card" id="schedule" hidden aria-labelledby="schedule-title">
+    <div class="admin-head">
+      <h2 id="schedule-title">Schedule</h2>
+      <button class="btn-ghost" type="button" id="close-schedule">Close</button>
+    </div>
+    <p class="muted" id="schedule-note"></p>
+    <div id="schedule-list" class="admin-scroll" aria-live="polite"></div>
+    <p class="admin-form__result" id="schedule-out" role="status" aria-live="polite"></p>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var cohorts = [], defaultDays = 365, current = null;
+  var editor = document.getElementById('editor'), form = document.getElementById('form'), out = form.querySelector('.admin-form__result');
+  var STATUS = { upcoming: '<span class="badge badge--info">Upcoming</span>', active: '<span class="badge badge--ok">Active</span>', finished: '<span class="badge">Finished</span>' };
+
+  function load() {
+    return Admin.get('cohorts').then(function (r) {
+      cohorts = r.cohorts; defaultDays = r.default_access_days;
+      document.getElementById('access-hint').textContent = 'empty = show default (' + defaultDays + ')';
+      document.getElementById('unassigned').textContent = r.unassigned ? r.unassigned + ' student(s) have no cohort yet (no matching AC tag). They will show up on the Students page.' : '';
+      render();
+    }).catch(function (err) { document.getElementById('list').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+
+  function render() {
+    var el = document.getElementById('list');
+    if (!cohorts.length) { el.innerHTML = '<p class="admin-empty">No cohorts yet.</p>'; return; }
+    el.innerHTML = '<table class="admin-table"><thead><tr><th>Name</th><th>AC tag</th><th>Start</th><th>Status</th><th>Students</th><th>Access until</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+      cohorts.map(function (c) {
+        return '<tr><td>' + Admin.esc(c.name) + '</td><td><code>' + Admin.esc(c.ac_tag) + '</code></td><td class="num">' + Admin.kst(c.start_date + 'T00:00:00+09:00', false) + '</td>' +
+          '<td>' + STATUS[c.status] + '</td><td class="num">' + c.subscribed + ' / ' + c.students + ' subscribed' + (c.revoked ? ' <span class="muted">(' + c.revoked + ' revoked)</span>' : '') + '</td>' +
+          '<td class="num">' + Admin.kst(c.expires_at, false) + (c.access_days ? ' <span class="muted">(' + c.access_days + ' days)</span>' : '') + '</td>' +
+          '<td><div class="admin-actions"><button class="btn-ghost" type="button" data-schedule="' + c.id + '">Schedule</button><button class="btn-ghost" type="button" data-edit="' + c.id + '">Edit</button></div></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function open(c) {
+    form.reset();
+    Admin.say(out, '');
+    form.id.value = c ? c.id : '';
+    form.name.value = c ? c.name : '';
+    form.ac_tag.value = c ? c.ac_tag : '';
+    form.start_date.value = c ? c.start_date : '';
+    form.access_days.value = c && c.access_days ? c.access_days : '';
+    document.getElementById('delete').hidden = !c;
+    document.getElementById('editor-title').textContent = c ? 'Edit cohort ' + c.name : 'Add cohort';
+    editor.hidden = false;
+    editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    form.name.focus({ preventScroll: true });
+  }
+
+  function find(id) { return cohorts.find(function (c) { return String(c.id) === String(id); }); }
+
+  document.getElementById('add').addEventListener('click', function () { open(null); });
+  document.getElementById('cancel').addEventListener('click', function () { editor.hidden = true; });
+  document.getElementById('list').addEventListener('click', function (ev) {
+    var edit = ev.target.closest('[data-edit]'), sched = ev.target.closest('[data-schedule]');
+    if (edit) open(find(edit.dataset.edit));
+    if (sched) showSchedule(sched.dataset.schedule);
+  });
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var submit = form.querySelector('[type=submit]');
+    submit.disabled = true;
+    Admin.say(out, 'Saving…');
+    Admin.post('cohort-save', { id: form.id.value || undefined, name: form.name.value, ac_tag: form.ac_tag.value, start_date: form.start_date.value, access_days: form.access_days.value })
+      .then(function (r) {
+        editor.hidden = true;
+        return load().then(function () { if (current && String(current) === String(r.cohort.id)) showSchedule(current); });
+      })
+      .catch(function (err) { Admin.say(out, err.message, true); })
+      .then(function () { submit.disabled = false; });
+  });
+
+  document.getElementById('delete').addEventListener('click', function () {
+    var c = find(form.id.value);
+    if (!c || !confirm('Delete cohort ' + c.name + '? This only works when it has no students.')) return;
+    Admin.post('cohort-delete', { id: c.id }).then(function () { editor.hidden = true; return load(); })
+      .catch(function (err) { Admin.say(out, err.message, true); });
+  });
+
+  // Schedule panel
+  var panel = document.getElementById('schedule'), sout = document.getElementById('schedule-out');
+  document.getElementById('close-schedule').addEventListener('click', function () { panel.hidden = true; current = null; });
+
+  function state(e) {
+    if (e.status !== 'published') return '<span class="badge">Draft</span>';
+    if (!e.has_audio) return '<span class="badge badge--warn">No audio</span>';
+    return e.released ? '<span class="badge badge--ok">Released</span>' : '<span class="badge badge--info">Upcoming</span>';
+  }
+
+  function showSchedule(id) {
+    current = id;
+    var c = find(id);
+    document.getElementById('schedule-title').textContent = 'Schedule · ' + (c ? c.name : '');
+    panel.hidden = false;
+    Admin.say(sout, '');
+    document.getElementById('schedule-list').innerHTML = '<p class="admin-empty">Loading…</p>';
+    Admin.get('cohort-schedule', { id: id }).then(function (r) {
+      document.getElementById('schedule-note').textContent = 'Times are Seoul time. Students of this cohort can listen until ' + Admin.kst(r.expires_at) + '. "Change" moves one episode for this cohort only.';
+      var el = document.getElementById('schedule-list');
+      if (!r.episodes.length) { el.innerHTML = '<p class="admin-empty">No episodes yet.</p>'; return; }
+      el.innerHTML = '<table class="admin-table"><thead><tr><th>#</th><th>Title</th><th>Release</th><th>State</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+        r.episodes.map(function (e) {
+          var p = Admin.kstParts(e.release_at);
+          return '<tr data-episode="' + e.id + '"><td class="num">' + (e.kind === 'bonus' ? 'Bonus' : e.number) + '</td><td>' + Admin.esc(e.title) + '</td>' +
+            '<td class="num">' + Admin.kst(e.release_at) + (e.overridden ? ' <span class="badge badge--info">changed</span>' : '') + '</td><td>' + state(e) + '</td>' +
+            '<td><div class="inline-edit"><label class="sr-only" for="d' + e.id + '">Date</label><input id="d' + e.id + '" type="date" value="' + p.date + '">' +
+            '<label class="sr-only" for="t' + e.id + '">Time</label><input id="t' + e.id + '" type="time" value="' + p.time + '">' +
+            '<button class="btn-ghost" type="button" data-save>Change</button>' + (e.overridden ? '<button class="btn-ghost" type="button" data-clear>Reset</button>' : '') + '</div></td></tr>';
+        }).join('') + '</tbody></table>';
+    }).catch(function (err) { Admin.say(sout, err.message, true); });
+  }
+
+  document.getElementById('schedule-list').addEventListener('click', function (ev) {
+    var row = ev.target.closest('tr[data-episode]');
+    if (!row) return;
+    var id = row.dataset.episode, body = { cohort_id: current, episode_id: id };
+    if (ev.target.closest('[data-clear]')) body.clear = true;
+    else if (ev.target.closest('[data-save]')) { body.date = document.getElementById('d' + id).value; body.time = document.getElementById('t' + id).value; }
+    else return;
+    Admin.say(sout, 'Saving…');
+    Admin.post('cohort-override', body).then(function () { showSchedule(current); Admin.say(sout, 'Saved.'); })
+      .catch(function (err) { Admin.say(sout, err.message, true); });
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>
