@@ -48,6 +48,7 @@ const actions = {
       ready: {
         ac: configured, field, webhook: Boolean(key),
         cron: Boolean((process.env.CRON_SECRET || '').trim()),
+        production: process.env.VERCEL_ENV === 'production',
         public_url: automation.publicBase(), public_url_set: Boolean((process.env.PODCAST_PUBLIC_URL || '').trim()),
       },
       webhook: hook && {

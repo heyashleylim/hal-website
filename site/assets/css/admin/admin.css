@@ -113,3 +113,4 @@ audio.admin-player{width:100%;max-width:420px;margin-top:8px}
 .check-ac{margin:4px 0 10px}
 .check-ac .hint{flex-basis:100%;padding-left:24px;margin-top:-4px}
 .admin-form label.check-ac{flex-direction:row;flex-wrap:wrap;font:600 13px/1.5 var(--font-body);color:var(--ink)}
+.status--info{background:var(--bg-butter);color:var(--ink)}

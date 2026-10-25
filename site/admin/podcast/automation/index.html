@@ -70,7 +70,10 @@
   var $ = function (id) { return document.getElementById(id); };
   var out = $('out');
 
-  function row(ok, text) { return '<li><span class="status ' + (ok ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + text + '</span></li>'; }
+  function row(ok, text) {
+    var badge = ok === 'info' ? 'status--info">Info' : ok ? 'status--ok">OK' : 'status--bad">To do';
+    return '<li><span class="status ' + badge + '</span><span>' + text + '</span></li>';
+  }
   function copyField(id, value) {
     return '<div class="inline-edit hook-row"><input id="' + id + '" readonly value="' + Admin.esc(value) + '"><button class="btn-ghost" type="button" data-copy="' + id + '">Copy</button></div>';
   }
@@ -83,7 +86,9 @@
         row(rd.field.ok, rd.field.ok ? 'Contact field <code>' + Admin.esc(rd.field.name) + '</code> found in ActiveCampaign: it receives each student’s personal page.' :
           'Create a contact field in ActiveCampaign with the personalization tag <code>' + Admin.esc(rd.field.name) + '</code> (Contacts → Fields, type text).' + (rd.field.error ? ' <span class="muted">(' + Admin.esc(rd.field.error) + ')</span>' : '')) +
         row(rd.webhook, rd.webhook ? 'Webhook ready (key derived from PODCAST_SECRET).' : 'PODCAST_SECRET is missing.') +
-        row(rd.cron, rd.cron ? 'Daily job secured (CRON_SECRET).' : 'Add <code>CRON_SECRET</code> (any long random text) in Vercel so the daily job can run on the live site.') +
+        (rd.production || rd.cron
+          ? row(rd.cron, rd.cron ? 'Daily job secured (CRON_SECRET).' : 'Add <code>CRON_SECRET</code> (any long random text) to Production in Vercel so the daily job can run.')
+          : row('info', 'Daily job: <code>CRON_SECRET</code> lives in Production only, so it can’t be checked from this preview. Here, use “Run now” below.')) +
         row(true, 'Students’ links start with <code>' + Admin.esc(rd.public_url) + '</code>' + (rd.public_url_set ? ' (PODCAST_PUBLIC_URL).' : '. Set <code>PODCAST_PUBLIC_URL</code> in Production when the domain is ready.'));
 
       $('hooks').innerHTML = r.webhook ?
