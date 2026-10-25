@@ -1,11 +1,23 @@
-/* Shared helpers for the private podcast admin pages: API calls, navigation, uploads, formatting. */
+/* Shared helpers for the private podcast admin pages: API calls (scoped to the selected show), navigation and
+   show switcher, uploads, formatting. */
 window.Admin = (function () {
   var NAV = [
     ['/admin/podcast', 'Dashboard'],
     ['/admin/podcast/episodes', 'Episodes'],
     ['/admin/podcast/cohorts', 'Cohorts'],
-    ['/admin/podcast/show', 'Show settings'],
+    ['/admin/podcast/students', 'Students'],
+    ['/admin/podcast/show', 'Shows'],
+    ['/admin/podcast/activity', 'Activity'],
   ];
+
+  // The show being edited (Episodes, Cohorts, Shows pages and the AC sync), remembered on this browser.
+  var SHOW_KEY = 'podcast-admin-show';
+  function currentShow() {
+    try { return localStorage.getItem(SHOW_KEY) || ''; } catch (e) { return ''; }
+  }
+  function setShow(slug) {
+    try { localStorage.setItem(SHOW_KEY, slug); } catch (e) { /* private mode: falls back to the first show */ }
+  }
 
   function handle(res) {
     if (res.status === 401) {
@@ -24,7 +36,7 @@ window.Admin = (function () {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
   }
 
-  // Fills <nav class="admin-nav"> and marks the current page.
+  // Fills <nav class="admin-nav"> (current page marked) and adds the show switcher to the bar.
   function nav() {
     var el = document.querySelector('.admin-nav');
     if (!el) return;
@@ -32,6 +44,22 @@ window.Admin = (function () {
     el.innerHTML = NAV.map(function (n) {
       return '<a href="' + n[0] + '"' + (here === n[0] ? ' aria-current="page"' : '') + '>' + n[1] + '</a>';
     }).join('');
+    var bar = document.querySelector('.admin-bar');
+    if (!bar || document.getElementById('show-switch')) return;
+    var label = document.createElement('label');
+    label.className = 'show-switch';
+    label.innerHTML = '<span>Show</span><select id="show-switch" aria-label="Show you are working on"><option>…</option></select>';
+    bar.insertBefore(label, el);
+    api.get('shows').then(function (r) {
+      var sel = document.getElementById('show-switch');
+      var cur = currentShow();
+      if (!r.shows.some(function (x) { return x.slug === cur; }) && r.shows.length) { cur = r.shows[0].slug; setShow(cur); }
+      sel.innerHTML = r.shows.map(function (x) { return '<option value="' + esc(x.slug) + '"' + (x.slug === cur ? ' selected' : '') + '>' + esc(x.title) + '</option>'; }).join('') || '<option value="">No show yet</option>';
+      sel.addEventListener('change', function () { setShow(sel.value); location.reload(); });
+      var curShow = r.shows.find(function (x) { return x.slug === cur; });
+      document.querySelectorAll('[data-show-title]').forEach(function (n) { n.textContent = curShow ? curShow.title : ''; });
+      document.dispatchEvent(new CustomEvent('admin:shows', { detail: { shows: r.shows, current: cur } }));
+    }).catch(function () { label.hidden = true; });
   }
 
   // Dates in the show's timezone (Seoul), e.g. "Sun 25 Oct 2026, 09:00".
@@ -40,6 +68,11 @@ window.Admin = (function () {
     var opts = { timeZone: 'Asia/Seoul', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
     if (withTime !== false) { opts.hour = '2-digit'; opts.minute = '2-digit'; opts.hourCycle = 'h23'; }
     return new Intl.DateTimeFormat('en-GB', opts).format(new Date(value));
+  }
+
+  // Last day of access (access ends at 00:00 the next day), e.g. "Sun 10 Oct 2027".
+  function lastDay(value) {
+    return value ? kst(new Date(new Date(value).getTime() - 1), false) : '–';
   }
 
   // "YYYY-MM-DD" and "HH:MM" of an instant in Seoul time (for date/time inputs).
@@ -87,15 +120,15 @@ window.Admin = (function () {
   }
 
   var api = {
-    esc: esc, kst: kst, kstParts: kstParts, size: size, duration: duration, audioDuration: audioDuration, imageSize: imageSize,
+    esc: esc, kst: kst, kstParts: kstParts, lastDay: lastDay, size: size, duration: duration, audioDuration: audioDuration, imageSize: imageSize,
     get: function (action, params) {
-      var q = new URLSearchParams(Object.assign({ action: action }, params || {}));
+      var q = new URLSearchParams(Object.assign({ action: action, show: currentShow() }, params || {}));
       return fetch('/api/podcast-admin?' + q, { credentials: 'same-origin' }).then(handle);
     },
     post: function (action, data) {
       return fetch('/api/podcast-admin?action=' + encodeURIComponent(action), {
         method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}),
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ show: currentShow() }, data || {})),
       }).then(handle);
     },
     // Uploads a file straight to the private store. onProgress(0–100). Resolves with the stored pathname.
@@ -117,6 +150,8 @@ window.Admin = (function () {
       });
     },
     contentType: contentType,
+    currentShow: currentShow,
+    setShow: setShow,
     // Shows a message in a role=status element.
     say: function (el, message, isError) {
       el.textContent = message || '';

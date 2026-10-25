@@ -20,7 +20,7 @@
 </header>
 <main id="main" class="admin-main">
   <div class="admin-head">
-    <h1>Cohorts</h1>
+    <h1>Cohorts <span class="admin-h1-show" data-show-title></span></h1>
     <button class="btn-sm" type="button" id="add">Add cohort</button>
   </div>
 
@@ -29,10 +29,10 @@
     <form id="form" class="admin-form" novalidate>
       <input type="hidden" name="id">
       <label>Name <span class="hint">e.g. 2기</span><input name="name" maxlength="60" required></label>
-      <label>ActiveCampaign tag <span class="hint">the tag that puts a buyer in this cohort</span><input name="ac_tag" maxlength="100" required autocapitalize="none" spellcheck="false"></label>
+      <label>ActiveCampaign tag <span class="hint">the tag that puts a buyer in this cohort (unique across shows)</span><input name="ac_tag" maxlength="100" required autocapitalize="none" spellcheck="false"></label>
       <label>Start date <span class="hint">module 1 is released this day</span><input name="start_date" type="date" required></label>
       <label>Access length (days) <span class="hint" id="access-hint">empty = show default</span><input name="access_days" type="number" min="1" max="3650" inputmode="numeric"></label>
-      <p class="admin-form__wide muted">Changing the start date moves this cohort's whole schedule and every student's end of access (except students whose dates were set by hand).</p>
+      <p class="admin-form__wide muted">Changing the start date moves this cohort's whole schedule and the end of access of its students (except enrolments whose dates were set by hand).</p>
       <div class="admin-form__actions">
         <button class="btn-sm" type="submit">Save</button>
         <button class="btn-ghost" type="button" id="cancel">Cancel</button>
@@ -44,7 +44,6 @@
 
   <section class="admin-card" aria-label="All cohorts">
     <div id="list" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
-    <p class="muted" id="unassigned"></p>
   </section>
 
   <section class="admin-card" id="schedule" hidden aria-labelledby="schedule-title">
@@ -68,7 +67,6 @@
     return Admin.get('cohorts').then(function (r) {
       cohorts = r.cohorts; defaultDays = r.default_access_days;
       document.getElementById('access-hint').textContent = 'empty = show default (' + defaultDays + ')';
-      document.getElementById('unassigned').textContent = r.unassigned ? r.unassigned + ' student(s) have no cohort yet (no matching AC tag). They will show up on the Students page.' : '';
       render();
     }).catch(function (err) { document.getElementById('list').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
   }
@@ -80,7 +78,7 @@
       cohorts.map(function (c) {
         return '<tr><td>' + Admin.esc(c.name) + '</td><td><code>' + Admin.esc(c.ac_tag) + '</code></td><td class="num">' + Admin.kst(c.start_date + 'T00:00:00+09:00', false) + '</td>' +
           '<td>' + STATUS[c.status] + '</td><td class="num">' + c.subscribed + ' / ' + c.students + ' subscribed' + (c.revoked ? ' <span class="muted">(' + c.revoked + ' revoked)</span>' : '') + '</td>' +
-          '<td class="num">' + Admin.kst(c.expires_at, false) + (c.access_days ? ' <span class="muted">(' + c.access_days + ' days)</span>' : '') + '</td>' +
+          '<td class="num">' + Admin.lastDay(c.expires_at) + (c.access_days ? ' <span class="muted">(' + c.access_days + ' days)</span>' : '') + '</td>' +
           '<td><div class="admin-actions"><button class="btn-ghost" type="button" data-schedule="' + c.id + '">Schedule</button><button class="btn-ghost" type="button" data-edit="' + c.id + '">Edit</button></div></td></tr>';
       }).join('') + '</tbody></table>';
   }
@@ -149,7 +147,7 @@
     Admin.say(sout, '');
     document.getElementById('schedule-list').innerHTML = '<p class="admin-empty">Loading…</p>';
     Admin.get('cohort-schedule', { id: id }).then(function (r) {
-      document.getElementById('schedule-note').textContent = 'Times are Seoul time. Students of this cohort can listen until ' + Admin.kst(r.expires_at) + '. "Change" moves one episode for this cohort only.';
+      document.getElementById('schedule-note').textContent = 'Times are Seoul time. Students of this cohort can listen until ' + Admin.lastDay(r.expires_at) + ' (included). "Change" moves one episode for this cohort only.';
       var el = document.getElementById('schedule-list');
       if (!r.episodes.length) { el.innerHTML = '<p class="admin-empty">No episodes yet.</p>'; return; }
       el.innerHTML = '<table class="admin-table"><thead><tr><th>#</th><th>Title</th><th>Release</th><th>State</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +

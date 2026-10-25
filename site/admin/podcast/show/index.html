@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>Show settings · Podcast admin</title>
+<title>Shows · Podcast admin</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/brand.css">
@@ -19,7 +19,29 @@
   <a class="admin-bar__logout" href="/admin/logout">Log out</a>
 </header>
 <main id="main" class="admin-main">
-  <h1>Show settings</h1>
+  <div class="admin-head">
+    <h1>Shows</h1>
+    <button class="btn-sm" type="button" id="new-show-open">New show</button>
+  </div>
+
+  <section class="admin-panel" id="new-show" hidden aria-labelledby="new-show-title">
+    <h2 id="new-show-title">New show</h2>
+    <form id="new-form" class="admin-form" novalidate>
+      <label>Title <span class="hint">e.g. EFT 태핑 마스터클래스 팟캐스트</span><input name="title" maxlength="200" required></label>
+      <label>Short name <span class="hint">lowercase, in feed addresses; can't be changed later</span><input name="slug" maxlength="40" required autocapitalize="none" spellcheck="false" pattern="[a-z0-9-]+" placeholder="eft"></label>
+      <div class="admin-form__actions">
+        <button class="btn-sm" type="submit">Create show</button>
+        <button class="btn-ghost" type="button" id="new-show-cancel">Cancel</button>
+      </div>
+      <p class="admin-form__result" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section class="admin-card" aria-label="All shows">
+    <div id="shows" class="admin-scroll"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <h2 class="admin-section-title" id="settings-title">Settings</h2>
 
   <section class="admin-card" aria-labelledby="art-title">
     <h2 id="art-title">Cover art</h2>
@@ -60,6 +82,37 @@
 <script src="/assets/js/admin/admin.js"></script>
 <script>
 (function () {
+  // All shows + creating one
+  function loadShows() {
+    Admin.get('shows').then(function (r) {
+      var cur = Admin.currentShow() || (r.shows[0] && r.shows[0].slug);
+      document.getElementById('shows').innerHTML = r.shows.length ? '<table class="admin-table"><thead><tr><th>Show</th><th>Short name</th><th>Episodes</th><th>Cohorts</th><th>Students</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+        r.shows.map(function (x) {
+          return '<tr><td>' + Admin.esc(x.title) + (x.slug === cur ? ' <span class="badge badge--ok">editing</span>' : '') + '</td><td><code>' + Admin.esc(x.slug) + '</code></td>' +
+            '<td class="num">' + x.episodes + '</td><td class="num">' + x.cohorts + '</td><td class="num">' + x.students + '</td>' +
+            '<td>' + (x.slug === cur ? '' : '<button class="btn-ghost" type="button" data-switch="' + Admin.esc(x.slug) + '">Edit this show</button>') + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<p class="admin-empty">No show yet.</p>';
+      var current = r.shows.find(function (x) { return x.slug === cur; });
+      document.getElementById('settings-title').textContent = current ? 'Settings · ' + current.title : 'Settings';
+    }).catch(function (err) { document.getElementById('shows').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+  loadShows();
+  document.getElementById('shows').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-switch]');
+    if (b) { Admin.setShow(b.dataset.switch); location.reload(); }
+  });
+  var panel = document.getElementById('new-show'), nf = document.getElementById('new-form'), nout = nf.querySelector('.admin-form__result');
+  document.getElementById('new-show-open').addEventListener('click', function () { nf.reset(); Admin.say(nout, ''); panel.hidden = false; nf.title.focus(); });
+  document.getElementById('new-show-cancel').addEventListener('click', function () { panel.hidden = true; });
+  nf.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    Admin.say(nout, 'Creating…');
+    Admin.post('show-create', { title: nf.title.value, slug: nf.slug.value.trim().toLowerCase() }).then(function (r) {
+      Admin.setShow(r.show.slug);
+      location.reload();
+    }).catch(function (err) { Admin.say(nout, err.message, true); });
+  });
+
   var form = document.getElementById('form'), out = form.querySelector('.admin-form__result');
   var FIELDS = ['title', 'description', 'author', 'owner_email', 'category', 'copyright', 'release_time', 'drip_interval_days', 'access_days', 'support_email', 'ac_tag_prefix', 'page_intro'];
 
@@ -81,7 +134,7 @@
     var submit = form.querySelector('[type=submit]');
     submit.disabled = true;
     Admin.say(out, 'Saving…');
-    Admin.post('show-save', data).then(function () { Admin.say(out, 'Saved.'); })
+    Admin.post('show-save', data).then(function () { Admin.say(out, 'Saved.'); loadShows(); })
       .catch(function (err) { Admin.say(out, err.message, true); })
       .then(function () { submit.disabled = false; });
   });

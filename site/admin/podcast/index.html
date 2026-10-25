@@ -25,18 +25,6 @@
     <ul class="checklist" id="setup" aria-live="polite"><li class="muted">Checking…</li></ul>
   </section>
 
-  <section class="admin-card" aria-labelledby="test-title">
-    <h2 id="test-title">Test tools <span class="muted">(temporary, until the Students page)</span></h2>
-    <h3 class="admin-h3">Test student</h3>
-    <form id="test-setup" class="admin-form">
-      <p class="muted">Puts a student in the "테스트" cohort. Set the start date in the past to see several modules released.</p>
-      <label>Email<input name="email" type="email" required></label>
-      <label>Name<input name="name"></label>
-      <label>Cohort start date<input name="start_date" type="date" required></label>
-      <button class="btn" type="submit">Create test student</button>
-      <div class="admin-form__result" role="status"></div>
-    </form>
-  </section>
 </main>
 <script src="/assets/js/admin/admin.js"></script>
 <script>
@@ -62,16 +50,6 @@
     document.getElementById('setup').innerHTML = '<li><span class="status status--bad">Error</span><span>' + Admin.esc(err.message) + '</span></li>';
   });
 
-  document.getElementById('test-setup').addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    var f = ev.target, out = f.querySelector('.admin-form__result');
-    out.textContent = 'Saving…';
-    Admin.post('test-setup', { email: f.email.value, name: f.name.value, start_date: f.start_date.value }).then(function (r) {
-      out.innerHTML = '<p>Cohort ' + Admin.esc(r.cohort.name) + ' starts ' + Admin.esc(r.cohort.start_date) + '. Test student: ' + Admin.esc(r.listener.email) + '</p>' +
-        '<p>Subscribe page: <a href="' + Admin.esc(r.subscribeUrl) + '" target="_blank" rel="noopener">' + Admin.esc(r.subscribeUrl) + '</a></p>' +
-        '<p>Feed: <code>' + Admin.esc(r.feedUrl) + '</code></p>';
-    }).catch(function (err) { out.textContent = 'Error: ' + err.message; });
-  });
 </script>
 </body>
 </html>

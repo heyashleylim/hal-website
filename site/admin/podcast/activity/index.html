@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Activity · Podcast admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar">
+  <a class="admin-bar__title" href="/admin/podcast">Podcast admin</a>
+  <nav class="admin-nav" aria-label="Admin menu"></nav>
+  <a class="admin-bar__logout" href="/admin/logout">Log out</a>
+</header>
+<main id="main" class="admin-main admin-main--wide">
+  <h1>Activity</h1>
+  <p class="muted">Every change made in this admin: who, what and when (Seoul time), newest first.</p>
+  <section class="admin-card" aria-label="Activity log">
+    <div class="filters">
+      <label>Search<input id="q" type="search" placeholder="Action, target or detail"></label>
+    </div>
+    <div id="list" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var timer;
+  function load() {
+    Admin.get('activity', { q: document.getElementById('q').value.trim() }).then(function (r) {
+      var el = document.getElementById('list');
+      if (!r.entries.length) { el.innerHTML = '<p class="admin-empty">Nothing recorded yet.</p>'; return; }
+      el.innerHTML = '<table class="admin-table"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Details</th></tr></thead><tbody>' +
+        r.entries.map(function (e) {
+          var d = e.details && Object.keys(e.details).length ? JSON.stringify(e.details) : '';
+          return '<tr><td class="num">' + Admin.kst(e.at) + '</td><td>' + Admin.esc(e.admin) + '</td><td><code>' + Admin.esc(e.action) + '</code></td><td>' + Admin.esc(e.target || '') + '</td>' +
+            '<td class="log-details">' + Admin.esc(d.length > 300 ? d.slice(0, 300) + '…' : d) + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }).catch(function (err) { document.getElementById('list').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+  document.getElementById('q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(load, 300); });
+  load();
+})();
+</script>
+</body>
+</html>
