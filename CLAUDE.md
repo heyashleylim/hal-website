@@ -139,7 +139,7 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
 - Data lives in Neon Postgres (`DATABASE_URL`), never in the repo (it is public). All SQL goes through `api/_lib/db.js`.
 - Release and access rules are in `api/_lib/release.js` (pure, unit-tested). Change them there and in its tests only.
 - `/admin/*` is behind its own login (middleware); `/api/podcast-admin` checks the same cookie itself. Admin pages:
-  `site/admin/podcast/` (Dashboard, `episodes/`, `cohorts/`, `students/`, `show/`, `activity/`), shared `assets/js/admin/admin.js`
+  `site/admin/podcast/` (Dashboard, `episodes/`, `cohorts/`, `students/`, `programs/`, `activity/`), shared `assets/js/admin/admin.js`
   + `assets/css/admin/admin.css`. API actions are split into `api/_lib/admin-content.js` (show, artwork, episodes),
   `admin-cohorts.js` and `admin-students.js` (students, CSV import, activity log).
 - "Access until" dates shown anywhere are the last listening day: access ends at 00:00 KST the day after.
@@ -150,8 +150,10 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   listing their shows (api/podcast-page.js, header/footer read from `site/nsmb` and `site/index.html` at runtime),
   `/f/<token>/<show slug>` one feed per show (`/f/<token>` still works for students with one show), `/a/<token>/<guid>.mp3`
   audio streamed from the private Vercel Blob store. `/podcast/help` is a static page. All are noindex and in robots.txt.
-- The admin's show switcher (top bar) scopes Episodes, Cohorts, Shows settings, imports and the AC sync; the Students page
-  covers all shows. A cohort's AC tag is unique across shows.
+- In the admin, a show is called a **program** (the data model and code say `show`). The program switcher (top bar) scopes
+  Episodes, Cohorts, the Programs page, imports and the AC sync; the Students page covers all programs. A cohort's AC tag
+  is unique across programs.
+- The AC sync names students from the contact's **First name** only: Ashley's team keeps the full Korean name (e.g. 김지연) there.
 
 ## Page configuration
 
