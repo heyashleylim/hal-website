@@ -105,3 +105,11 @@ audio.admin-player{width:100%;max-width:420px;margin-top:8px}
 .enrol-add label{font:600 13px/1.4 var(--font-body);color:var(--ink-2)}
 .enrol-add select{min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface)}
 .admin-table input[type=date]{min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-sm);font:400 13px/1.4 var(--font-body)}
+.check-ac{display:inline-flex;align-items:flex-start;gap:8px;font:600 13px/1.5 var(--font-body);color:var(--ink);cursor:pointer;flex-wrap:wrap}
+.check-ac input{margin-top:3px;width:16px;height:16px}
+.check-ac .hint{font-weight:400;color:var(--muted)}
+.hook-row{flex-wrap:nowrap;margin:6px 0 10px}
+.hook-row input{flex:1;min-width:0;font:12px/1.4 ui-monospace,Menlo,monospace}
+.check-ac{margin:4px 0 10px}
+.check-ac .hint{flex-basis:100%;padding-left:24px;margin-top:-4px}
+.admin-form label.check-ac{flex-direction:row;flex-wrap:wrap;font:600 13px/1.5 var(--font-body);color:var(--ink)}

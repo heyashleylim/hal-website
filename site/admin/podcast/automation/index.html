@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Automation · Podcast admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar">
+  <a class="admin-bar__title" href="/admin/podcast">Podcast admin</a>
+  <nav class="admin-nav" aria-label="Admin menu"></nav>
+  <a class="admin-bar__logout" href="/admin/logout">Log out</a>
+</header>
+<main id="main" class="admin-main admin-main--wide">
+  <h1>Automation <span class="admin-h1-show">ActiveCampaign</span></h1>
+  <p class="admin-form__result" id="out" role="status" aria-live="polite"></p>
+
+  <section class="admin-card" aria-labelledby="setup-title">
+    <h2 id="setup-title">Setup</h2>
+    <ul class="checklist" id="setup"><li class="muted">Loading…</li></ul>
+  </section>
+
+  <section class="admin-card" aria-labelledby="hook-title">
+    <h2 id="hook-title">Webhooks to add in ActiveCampaign</h2>
+    <div id="hooks"></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="tags-title">
+    <h2 id="tags-title">Tags the site adds · <span data-show-title></span></h2>
+    <p class="muted">Use them as triggers in your ActiveCampaign automations (“Tag is added”). Each tag is added once per student. Every program has its own prefix (Programs page → AC tag prefix).</p>
+    <div class="admin-scroll" id="tags"></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="queue-title">
+    <div class="admin-head">
+      <h2 id="queue-title">Updates sent to ActiveCampaign</h2>
+      <div class="admin-actions">
+        <button class="btn-ghost" type="button" id="process">Send pending now</button>
+        <button class="btn-ghost" type="button" id="retry">Retry failed</button>
+      </div>
+    </div>
+    <p class="muted" id="counts"></p>
+    <div class="admin-scroll" id="queue"></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="daily-title">
+    <div class="admin-head">
+      <h2 id="daily-title">Daily job</h2>
+      <button class="btn-ghost" type="button" id="daily-run">Run now</button>
+    </div>
+    <p class="muted">Every day around 09:10 (Seoul) on the live site: adds the date-based tags (new module released, not subscribed after 3/7 days, access ending or ended), retries failed updates, and deletes listening data older than 13 months. On preview links it only runs with “Run now”.</p>
+    <div id="daily"></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="log-title">
+    <h2 id="log-title">Webhook calls from ActiveCampaign</h2>
+    <div class="admin-scroll" id="webhooks"></div>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var out = $('out');
+
+  function row(ok, text) { return '<li><span class="status ' + (ok ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + text + '</span></li>'; }
+  function copyField(id, value) {
+    return '<div class="inline-edit hook-row"><input id="' + id + '" readonly value="' + Admin.esc(value) + '"><button class="btn-ghost" type="button" data-copy="' + id + '">Copy</button></div>';
+  }
+
+  function load() {
+    return Admin.get('automation').then(function (r) {
+      var rd = r.ready;
+      $('setup').innerHTML =
+        row(rd.ac, rd.ac ? 'ActiveCampaign connected (AC_API_URL, AC_API_KEY).' : 'Add <code>AC_API_URL</code> and <code>AC_API_KEY</code> to this environment in Vercel (Production and Preview).') +
+        row(rd.field.ok, rd.field.ok ? 'Contact field <code>' + Admin.esc(rd.field.name) + '</code> found in ActiveCampaign: it receives each student’s personal page.' :
+          'Create a contact field in ActiveCampaign with the personalization tag <code>' + Admin.esc(rd.field.name) + '</code> (Contacts → Fields, type text).' + (rd.field.error ? ' <span class="muted">(' + Admin.esc(rd.field.error) + ')</span>' : '')) +
+        row(rd.webhook, rd.webhook ? 'Webhook ready (key derived from PODCAST_SECRET).' : 'PODCAST_SECRET is missing.') +
+        row(rd.cron, rd.cron ? 'Daily job secured (CRON_SECRET).' : 'Add <code>CRON_SECRET</code> (any long random text) in Vercel so the daily job can run on the live site.') +
+        row(true, 'Students’ links start with <code>' + Admin.esc(rd.public_url) + '</code>' + (rd.public_url_set ? ' (PODCAST_PUBLIC_URL).' : '. Set <code>PODCAST_PUBLIC_URL</code> in Production when the domain is ready.'));
+
+      $('hooks').innerHTML = r.webhook ?
+        '<h3 class="admin-h3">1. Purchase → enrol</h3><p class="muted">In each purchase automation: start “Tag is added” with the cohort’s tag, then action <strong>Webhook</strong> with this address. The student is enrolled in every cohort whose tag they have, gets their link in <code>%' + Admin.esc(rd.field.name) + '%</code> and the tag <code>' + Admin.esc(r.tags[0].tag) + '</code>.</p>' +
+        copyField('hook-enroll', r.webhook.enroll) +
+        '<h3 class="admin-h3">2. Refund → revoke</h3><p class="muted">In a refund automation: action <strong>Webhook</strong> with this address followed by the cohort’s tag, e.g. <code>…&amp;tag=' + Admin.esc(r.cohorts[0] ? r.cohorts[0].ac_tag : 'nsmb-2기') + '</code>.</p>' +
+        copyField('hook-revoke', r.webhook.revoke + (r.cohorts[0] ? encodeURIComponent(r.cohorts[0].ac_tag) : '')) +
+        '<p class="muted">Cohort tags in <strong>' + Admin.esc(r.program.title) + '</strong>: ' + (r.cohorts.length ? r.cohorts.map(function (c) { return Admin.esc(c.name) + ' = <code>' + Admin.esc(c.ac_tag) + '</code>'; }).join(' · ') : 'none yet (Cohorts page)') + '.</p>' +
+        '<p class="muted">Keep these addresses private: anyone with them can enrol people.</p>'
+        : '<p class="is-error">Set PODCAST_SECRET first.</p>';
+
+      $('tags').innerHTML = '<table class="admin-table"><thead><tr><th>Tag</th><th>Added when</th></tr></thead><tbody>' +
+        r.tags.map(function (t) { return '<tr><td><code>' + Admin.esc(t.tag) + '</code></td><td>' + Admin.esc(t.when) + '</td></tr>'; }).join('') + '</tbody></table>';
+
+      var c = r.counts;
+      $('counts').textContent = c.pending + ' waiting · ' + c.failed + ' failed · ' + c.done + ' sent';
+      $('queue').innerHTML = r.outbox.length ? '<table class="admin-table"><thead><tr><th>Queued</th><th>Student</th><th>Update</th><th>Status</th><th>Error</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+        r.outbox.map(function (o) {
+          var what = o.op === 'fields' ? 'Field ' + Object.keys(o.payload.fields || {}).join(', ') : (o.op === 'tag_add' ? 'Add tag ' : o.op === 'tag_remove' ? 'Remove tag ' : 'Re-add tag ') + o.payload.tag;
+          var st = o.status === 'done' ? '<span class="badge badge--ok">Sent</span>' : o.status === 'failed' ? '<span class="badge badge--warn">Failed</span>' : '<span class="badge badge--info">Waiting' + (o.attempts ? ' (' + o.attempts + ' tries)' : '') + '</span>';
+          return '<tr><td class="num">' + Admin.kst(o.created_at) + '</td><td><a href="/admin/podcast/students#' + o.student_id + '">' + Admin.esc(o.email) + '</a></td><td>' + Admin.esc(what) + '</td><td>' + st + '</td>' +
+            '<td class="small is-error">' + Admin.esc(o.last_error || '') + '</td><td>' + (o.status !== 'done' ? '<button class="btn-ghost" type="button" data-retry="' + o.id + '">Retry</button>' : '') + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<p class="admin-empty">Nothing sent yet.</p>';
+
+      var d = r.daily;
+      $('daily').innerHTML = d ? '<p>Last run ' + Admin.kst(d.at) + ': checked ' + d.checked + ' student-programs, queued ' + d.queued + ' tag(s), sent ' + ((d.sent && d.sent.done) || 0) + ' update(s)' +
+        (d.sent && d.sent.failed ? ', ' + d.sent.failed + ' failed' : '') + (d.sent && d.sent.skipped ? ' (' + Admin.esc(d.sent.skipped) + ')' : '') + '.</p>' : '<p class="muted">Never run yet.</p>';
+
+      $('webhooks').innerHTML = r.webhooks.length ? '<table class="admin-table"><thead><tr><th>When</th><th>Action</th><th>Contact</th><th>Tags in the call</th><th>Result</th></tr></thead><tbody>' +
+        r.webhooks.map(function (w) {
+          var p = w.payload || {};
+          return '<tr><td class="num">' + Admin.kst(w.at) + '</td><td>' + Admin.esc(p.action || '') + '</td><td>' + Admin.esc(p.email || '') + '</td><td class="small">' + Admin.esc((p.tags || []).join(', ')) + '</td>' +
+            '<td' + (/^error/.test(w.result) ? ' class="is-error"' : '') + '>' + Admin.esc(w.result) + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<p class="admin-empty">No webhook call yet.</p>';
+    }).catch(function (err) { Admin.say(out, err.message, true); });
+  }
+
+  function run(action, data, busy) {
+    Admin.say(out, busy);
+    return Admin.post(action, data || {}).then(function (r) {
+      var parts = [];
+      if (r.requeued != null) parts.push(r.requeued + ' put back in the queue');
+      if (r.done != null) parts.push(r.done + ' sent');
+      if (r.failed) parts.push(r.failed + ' failed');
+      if (r.left) parts.push(r.left + ' still waiting');
+      if (r.queued != null) parts.push(r.queued + ' tag(s) queued');
+      if (r.skipped) parts.push(r.skipped);
+      if (r.sent && r.sent.done != null) parts.push(r.sent.done + ' sent');
+      Admin.say(out, parts.join(' · ') || 'Done.');
+      return load();
+    }).catch(function (err) { Admin.say(out, err.message, true); });
+  }
+
+  $('process').addEventListener('click', function () { run('outbox-process', null, 'Sending…'); });
+  $('retry').addEventListener('click', function () { run('outbox-retry', null, 'Retrying…'); });
+  $('daily-run').addEventListener('click', function () { run('daily-run', null, 'Running the daily job…'); });
+  document.addEventListener('click', function (ev) {
+    var c = ev.target.closest('[data-copy]');
+    if (c) navigator.clipboard.writeText($(c.dataset.copy).value).then(function () { c.textContent = 'Copied'; setTimeout(function () { c.textContent = 'Copy'; }, 1500); });
+    var r = ev.target.closest('[data-retry]');
+    if (r) run('outbox-retry', { ids: [r.dataset.retry] }, 'Retrying…');
+  });
+  load();
+})();
+</script>
+</body>
+</html>

@@ -33,6 +33,7 @@
   <section class="admin-panel" id="sync" hidden aria-labelledby="sync-title">
     <h2 id="sync-title">Sync from ActiveCampaign</h2>
     <p class="muted">For each cohort with an AC tag, everyone in ActiveCampaign with that tag becomes a student here and is enrolled in the cohort (students already here are matched by email). Nobody is removed: students enrolled here who don’t have the tag in AC are listed below for you to decide.</p>
+    <label class="check-ac"><input type="checkbox" id="sync-notify"> Tell ActiveCampaign <span class="hint">fills their link and adds the “enrolled” tag, which can send the welcome email</span></label>
     <div class="admin-form__actions">
       <button class="btn-sm" type="button" data-sync="show">Sync <span data-show-title></span></button>
       <button class="btn-ghost" type="button" data-sync="all">Sync all programs</button>
@@ -50,6 +51,7 @@
       <label>Email<input name="email" type="email" maxlength="254" required autocapitalize="none" spellcheck="false"></label>
       <label>Name<input name="name" maxlength="100"></label>
       <label data-new-only>Enrol in<select name="cohort_id" data-cohorts="none"></select></label>
+      <div class="admin-form__wide" data-new-only><label class="check-ac"><input type="checkbox" name="notify"> Tell ActiveCampaign <span class="hint">fills their link and adds the “enrolled” tag, which can send the welcome email</span></label></div>
       <label class="admin-form__wide">Notes <span class="hint">only visible here</span><textarea name="notes" maxlength="2000"></textarea></label>
       <div class="admin-form__actions">
         <button class="btn-sm" type="submit">Save</button>
@@ -66,6 +68,7 @@
     <form id="import-form" class="admin-form" novalidate>
       <label class="admin-form__wide">CSV file<input name="file" type="file" accept=".csv,text/csv,text/plain"></label>
       <label class="admin-form__wide">…or paste it<textarea name="csv" placeholder="email,name,cohort&#10;jiyeon@example.com,김지연,1기"></textarea></label>
+      <div class="admin-form__wide"><label class="check-ac"><input type="checkbox" name="notify"> Tell ActiveCampaign <span class="hint">fills their link and adds the “enrolled” tag, which can send the welcome email</span></label></div>
       <div class="admin-form__actions">
         <button class="btn-ghost" type="submit">Preview</button>
         <button class="btn-sm" type="button" id="import-run" hidden>Import</button>
@@ -100,6 +103,7 @@
       <label for="d-enrol-cohort">Enrol in</label>
       <select id="d-enrol-cohort" data-cohorts></select>
       <button class="btn-ghost" type="button" id="d-enrol">Enrol</button>
+      <label class="check-ac"><input type="checkbox" id="d-enrol-notify"> Tell ActiveCampaign <span class="hint">fills their link and adds the “enrolled” tag, which can send the welcome email</span></label>
     </div>
     <div class="cols-2">
       <div>
@@ -108,6 +112,7 @@
       </div>
       <div>
         <h3 class="admin-h3">ActiveCampaign</h3>
+        <div class="admin-actions" id="d-ac-actions"></div>
         <div id="d-ac"></div>
         <h3 class="admin-h3">Changes in the admin</h3>
         <ol class="timeline" id="d-history"></ol>
@@ -141,6 +146,7 @@
     <div class="bulk" id="bulk" hidden>
       <strong id="bulk-count"></strong>
       <label class="inline-edit">Enrol in<select id="bulk-cohort" data-cohorts></select><button class="btn-ghost" type="button" id="bulk-enrol">Enrol</button></label>
+      <label class="check-ac"><input type="checkbox" id="bulk-notify"> Tell ActiveCampaign</label>
       <button class="btn-ghost" type="button" id="bulk-revoke">Revoke all access</button>
       <button class="btn-ghost" type="button" id="bulk-restore">Restore</button>
       <button class="btn-ghost" type="button" id="bulk-clear">Clear selection</button>

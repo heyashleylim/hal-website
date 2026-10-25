@@ -7,6 +7,7 @@ window.Admin = (function () {
     ['/admin/podcast/cohorts', 'Cohorts'],
     ['/admin/podcast/students', 'Students'],
     ['/admin/podcast/programs', 'Programs'],
+    ['/admin/podcast/automation', 'Automation'],
     ['/admin/podcast/activity', 'Activity'],
   ];
 

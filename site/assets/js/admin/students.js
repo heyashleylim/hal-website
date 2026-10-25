@@ -11,6 +11,13 @@
   };
   var STATE_TEXT = { active: 'Active', 'not-enrolled': 'Not enrolled', revoked: 'Revoked', expired: 'Access ended' };
 
+  // What happened in ActiveCampaign after an action with "Tell ActiveCampaign".
+  function acNote(ac) {
+    if (!ac) return '';
+    if (ac.skipped) return ' ActiveCampaign: ' + ac.skipped + '.';
+    return ' ActiveCampaign: ' + (ac.done || 0) + ' update(s) sent' + (ac.failed ? ', ' + ac.failed + ' failed' : '') + (ac.left ? ', ' + ac.left + ' waiting (Automation page)' : '') + '.';
+  }
+
   function show(id) {
     ['sync', 'editor', 'importer', 'detail'].forEach(function (p) { $(p).hidden = p !== id; });
     if (id) $(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -117,14 +124,15 @@
     if (confirmText && !confirm(confirmText)) return;
     Admin.post(action, Object.assign({ ids: Array.from(selected) }, data || {})).then(function (r) {
       selected.clear();
-      if (r.skipped) alert(r.added + ' enrolled; ' + r.skipped + ' were already in that cohort.');
+      if (r.added != null) alert(r.added + ' enrolled' + (r.skipped ? '; ' + r.skipped + ' were already in that cohort' : '') + '.' + acNote(r.ac));
       return load();
     }).catch(function (err) { alert(err.message); });
   }
   $('bulk-enrol').addEventListener('click', function () {
     var c = $('bulk-cohort');
     if (!c.value) return;
-    bulk('students-enroll', { cohort_id: c.value }, 'Enrol ' + selected.size + ' student(s) in ' + c.options[c.selectedIndex].text + '?');
+    var notify = $('bulk-notify').checked;
+    bulk('students-enroll', { cohort_id: c.value, notify: notify }, 'Enrol ' + selected.size + ' student(s) in ' + c.options[c.selectedIndex].text + '?' + (notify ? ' ActiveCampaign gets their link and the “enrolled” tag (this can send the welcome email).' : ''));
   });
   $('bulk-revoke').addEventListener('click', function () { bulk('students-status', { status: 'revoked' }, 'Revoke all access (every program) for ' + selected.size + ' student(s)? Their podcasts stop working within 5 minutes.'); });
   $('bulk-restore').addEventListener('click', function () { bulk('students-status', { status: 'active' }); });
@@ -146,12 +154,12 @@
   $('add').addEventListener('click', function () { openEditor(null); });
   form.addEventListener('submit', function (ev) {
     ev.preventDefault();
-    var data = { id: form.id.value || undefined, email: form.email.value, name: form.name.value, notes: form.notes.value, cohort_id: form.id.value ? undefined : form.cohort_id.value };
+    var data = { id: form.id.value || undefined, email: form.email.value, name: form.name.value, notes: form.notes.value, cohort_id: form.id.value ? undefined : form.cohort_id.value, notify: !form.id.value && form.notify.checked };
     var btn = form.querySelector('[type=submit]');
     btn.disabled = true; Admin.say(fout, 'Saving…');
     Admin.post('student-save', data).then(function (r) {
       $('editor').hidden = true;
-      return load().then(function () { openDetail(r.student.id); });
+      return load().then(function () { return openDetail(r.student.id); }).then(function () { if (r.ac) Admin.say($('d-out'), 'Saved.' + acNote(r.ac)); });
     }).catch(function (err) { Admin.say(fout, err.message, true); }).then(function () { btn.disabled = false; });
   });
 
@@ -206,7 +214,9 @@
       $('d-events').innerHTML = r.events.length ? r.events.map(eventText).join('') : '<li class="muted">Nothing yet: the student hasn’t added a podcast to an app.</li>';
       $('d-ac').innerHTML = r.outbox.length ? '<ol class="timeline">' + r.outbox.map(function (o) {
         return '<li><span class="num">' + Admin.kst(o.created_at) + '</span> ' + Admin.esc(o.op) + ' ' + Admin.esc(JSON.stringify(o.payload)) + ' · ' + Admin.esc(o.status) + (o.last_error ? ' <span class="is-error">' + Admin.esc(o.last_error) + '</span>' : '') + '</li>';
-      }).join('') + '</ol>' : '<p class="muted">No automatic updates yet (phase 5).</p>';
+      }).join('') + '</ol>' : '<p class="muted">Nothing sent to ActiveCampaign yet.</p>';
+      $('d-ac-actions').innerHTML = '<button class="btn-ghost" type="button" data-ac-push>Send link to AC</button>' +
+        s.shows.map(function (x) { return '<button class="btn-ghost" type="button" data-ac-welcome="' + x.id + '">Resend welcome · ' + Admin.esc(x.title) + '</button>'; }).join('');
       $('d-history').innerHTML = r.history.length ? r.history.map(function (h) {
         return '<li><span class="num">' + Admin.kst(h.at) + '</span> ' + Admin.esc(h.action) + ' <span class="muted">by ' + Admin.esc(h.admin) + '</span></li>';
       }).join('') : '<li class="muted">No changes recorded.</li>';
@@ -238,14 +248,14 @@
   $('d-enrol').addEventListener('click', function () {
     var c = $('d-enrol-cohort');
     if (!current || !c.value) return;
-    Admin.post('enrollment-save', { student_id: current.id, cohort_id: c.value }).then(function () { return refreshDetail('Enrolled in ' + c.options[c.selectedIndex].text + '.'); })
+    Admin.post('enrollment-save', { student_id: current.id, cohort_id: c.value, notify: $('d-enrol-notify').checked }).then(function (r) { return refreshDetail('Enrolled in ' + c.options[c.selectedIndex].text + '.' + acNote(r.ac)); })
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
 
   $('d-edit').addEventListener('click', function () { if (current) openEditor(current); });
   $('d-reset').addEventListener('click', function () {
     if (!current || !confirm('Give ' + current.email + ' a new personal link? The old link and every podcast already added to their apps stop working; they must subscribe again with the new link.')) return;
-    Admin.post('student-reset-link', { id: current.id }).then(function () { return refreshDetail('New link created. Send it to the student (ActiveCampaign will do it automatically from phase 5).'); })
+    Admin.post('student-reset-link', { id: current.id }).then(function (r) { return refreshDetail('New link created.' + (r.ac ? acNote(r.ac) + ' Their AC field has the new link and the tag podcast-link-reset was added.' : ' ActiveCampaign isn’t connected: send the new link yourself.')); })
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
   $('d-revoke').addEventListener('click', function () {
@@ -269,8 +279,13 @@
       document.querySelectorAll('[data-sync]').forEach(function (x) { x.disabled = true; });
       Admin.say($('sync-out'), 'Syncing with ActiveCampaign… (this can take a minute with many students)');
       $('sync-report').innerHTML = '';
-      Admin.post('ac-sync', { scope: scope }).then(function (r) {
-        Admin.say($('sync-out'), r.new_students + ' new student' + (r.new_students === 1 ? '' : 's') + ', ' + r.new_enrolments + ' new enrolment' + (r.new_enrolments === 1 ? '' : 's') + ', ' + r.already + ' already here.');
+      var notify = $('sync-notify').checked;
+      if (notify && !confirm('ActiveCampaign will get the link and the “enrolled” tag for every NEW enrolment found by this sync. If your welcome automation listens to that tag, those students get the welcome email now. Continue?')) {
+        document.querySelectorAll('[data-sync]').forEach(function (x) { x.disabled = false; });
+        return Admin.say($('sync-out'), '');
+      }
+      Admin.post('ac-sync', { scope: scope, notify: notify }).then(function (r) {
+        Admin.say($('sync-out'), r.new_students + ' new student' + (r.new_students === 1 ? '' : 's') + ', ' + r.new_enrolments + ' new enrolment' + (r.new_enrolments === 1 ? '' : 's') + ', ' + r.already + ' already here.' + acNote(r.ac));
         var html = r.cohorts.length ? '<table class="admin-table"><thead><tr><th>Program</th><th>Cohort</th><th>AC tag</th><th>In AC</th><th>Added</th><th>Problem</th></tr></thead><tbody>' +
           r.cohorts.map(function (c) {
             return '<tr><td>' + Admin.esc(c.show) + '</td><td>' + Admin.esc(c.name) + '</td><td><code>' + Admin.esc(c.ac_tag) + '</code></td><td class="num">' + c.in_ac + '</td><td class="num">' + c.added + '</td><td' + (c.error ? ' class="is-error"' : '') + '>' + Admin.esc(c.error || '') + '</td></tr>';
@@ -329,8 +344,8 @@
   });
   $('import-run').addEventListener('click', function () {
     var btn = this; btn.disabled = true;
-    Admin.post('students-import', { csv: lastCsv }).then(function (r) {
-      Admin.say(iout, 'Imported: ' + r.summary.new + ' new students, ' + r.summary.enrolments + ' enrolments added.');
+    Admin.post('students-import', { csv: lastCsv, notify: iform.notify.checked }).then(function (r) {
+      Admin.say(iout, 'Imported: ' + r.summary.new + ' new students, ' + r.summary.enrolments + ' enrolments added.' + acNote(r.summary.ac));
       btn.hidden = true;
       return load();
     }).catch(function (err) { Admin.say(iout, err.message, true); }).then(function () { btn.disabled = false; });
@@ -354,5 +369,17 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   });
 
-  load();
+  // Links from the Automation page: /admin/podcast/students#<id>
+  load().then(function () { var m = /^#(\d+)$/.exec(location.hash); if (m) openDetail(Number(m[1])); });
+
+  $('d-ac-actions').addEventListener('click', function (ev) {
+    if (!current) return;
+    var w = ev.target.closest('[data-ac-welcome]');
+    if (ev.target.closest('[data-ac-push]')) {
+      Admin.post('student-ac-push', { id: current.id }).then(function (r) { return refreshDetail('Link sent.' + acNote(r)); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
+    } else if (w) {
+      if (!confirm('Send the welcome email again? This removes and re-adds the “enrolled” tag in ActiveCampaign, so the welcome automation runs again.')) return;
+      Admin.post('student-resend-welcome', { id: current.id, show_id: w.dataset.acWelcome }).then(function (r) { return refreshDetail('Welcome re-triggered.' + acNote(r)); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
+    }
+  });
 })();
