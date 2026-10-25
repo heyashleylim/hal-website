@@ -87,12 +87,12 @@ function notFoundPage() {
 }
 
 // One show's card on the personal page: status and subscribe options (or why it's not available).
-function showCard({ base, token, show, enrollments, access, query, studentName }) {
+function showCard({ base, token, show, enrollments, access, query, studentName, single }) {
   const feedUrl = `${base}/f/${token}/${show.slug}${query}`;
   const host = feedUrl.replace(/^https:\/\//, '');
   const id = `feed-${show.slug}`;
   const support = show.support_email || 'hello@ashleylim.com';
-  const head = `<p class="pod__eyebrow">비공개 팟캐스트</p>
+  const head = single ? '' : `<p class="pod__eyebrow">비공개 팟캐스트</p>
   <h2 class="pod__title">${esc(show.title)}</h2>`;
 
   if (access.state !== 'active') {
@@ -116,9 +116,9 @@ function showCard({ base, token, show, enrollments, access, query, studentName }
   if (access.expires) status.push(`<li><span>들을 수 있는 기간</span><strong>${esc(kstFullDate(lastDay(access.expires)))}까지</strong></li>`);
   const intro = show.page_intro ? `<p class="pod__intro">${esc(show.page_intro)}</p>` : '';
 
-  return `<section class="pod__card" aria-labelledby="t-${esc(show.slug)}">
-  <p class="pod__eyebrow">비공개 팟캐스트</p>
-  <h2 class="pod__title" id="t-${esc(show.slug)}">${esc(show.title)}</h2>
+  return `<section class="pod__card"${single ? ' aria-label="구독하기"' : ` aria-labelledby="t-${esc(show.slug)}"`}>
+  ${single ? '' : `<p class="pod__eyebrow">비공개 팟캐스트</p>
+  <h2 class="pod__title" id="t-${esc(show.slug)}">${esc(show.title)}</h2>`}
   ${intro}
   <ul class="pod__status">${status.join('')}</ul>
   <h3 class="pod__h3">휴대폰에서 구독하기</h3>
@@ -144,10 +144,11 @@ function personalPage({ base, token, student, shows, query = '' }) {
   const lead = !shows.length ? '아직 등록된 프로그램이 없어요. 등록되면 이 페이지에서 구독할 수 있어요.'
     : active.length ? `${name}평소 쓰는 팟캐스트 앱에서 바로 들을 수 있어요. 프로그램마다 아래에서 앱을 골라 구독해 주세요.`
       : `${name}지금은 들을 수 있는 프로그램이 없어요.`;
-  const cards = shows.map((x) => showCard({ base, token, show: x.show, enrollments: x.enrollments, access: x.access, query, studentName: student.name })).join('\n\n');
+  const cards = shows.map((x) => showCard({ base, token, show: x.show, enrollments: x.enrollments, access: x.access, query, studentName: student.name, single: shows.length === 1 })).join('\n\n');
   return layout({
     title: shows.length === 1 ? `${shows[0].show.title} · 구독하기` : '나의 팟캐스트',
     body: `<section class="pod__card pod__card--intro">
+  ${shows.length === 1 ? '<p class="pod__eyebrow">비공개 팟캐스트</p>' : ''}
   <h1 class="pod__title">${shows.length === 1 ? esc(shows[0].show.title) : '나의 팟캐스트'}</h1>
   <p class="pod__lead">${lead}</p>
   ${active.length ? '<p class="pod__hint">다른 팟캐스트 앱(Podcast Addict 등)을 쓰신다면 구독 주소를 복사해 앱의 ‘URL로 추가’ 메뉴에 붙여 넣어 주세요. 단계별 안내는 <a href="/podcast/help">구독 방법 안내</a>에 있어요.</p>' : ''}

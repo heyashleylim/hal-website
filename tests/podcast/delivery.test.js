@@ -73,3 +73,8 @@ test('preview deployments add the protection bypass to app links; production nev
   assert.match(xml, /\/a\/AAAAAAAAAAAAAAAAAAAAAA\/g\.mp3\?x-vercel-protection-bypass=s"/);
   assert.match(xml, /\/f\/AAAAAAAAAAAAAAAAAAAAAA\/nsmb\?x-vercel-protection-bypass=s" rel="self"/);
 });
+
+test('personal page with one program shows its title once', () => {
+  const html = page.personalPage({ base, token: listener.token, student: { name: '' }, shows: [{ show: showA, enrollments, access: activeAccess }] });
+  assert.equal((html.match(/내성만방 팟캐스트<\/h[12]>/g) || []).length, 1);
+});
