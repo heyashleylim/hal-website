@@ -11,6 +11,12 @@
       "includeFiles": "site/{index.html,nsmb/index.html}"
     }
   },
+  "crons": [
+    {
+      "path": "/api/podcast-admin?action=cron",
+      "schedule": "10 0 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/assets/fonts/(.*)",

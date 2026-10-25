@@ -11,6 +11,7 @@
 const crypto = require('node:crypto');
 const db = require('./_lib/db.js');
 const podcast = require('./_lib/podcast.js');
+const automation = require('./_lib/automation.js');
 const { buildFeed } = require('./_lib/rss.js');
 
 const LOG_EVERY_MS = 60 * 60 * 1000;
@@ -56,6 +57,7 @@ module.exports = async function handler(req, res) {
     try {
       const last = await db.one(`SELECT max(at) AS at FROM events WHERE student_id = $1 AND show_id = $2 AND kind = 'feed'`, [student.id, entry.show.id]);
       if (!last.at || now - new Date(last.at) > LOG_EVERY_MS) {
+        if (!last.at) await automation.onFirstFeed(student.id, entry.show); // queued for AC: <prefix>_subscribed
         await podcast.logEvent({ studentId: student.id, showId: entry.show.id, kind: 'feed', client });
         await db.query('UPDATE students SET first_seen_at = COALESCE(first_seen_at, now()), last_seen_at = now() WHERE id = $1', [student.id]);
       }

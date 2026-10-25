@@ -36,6 +36,12 @@ function ipHash(ip) {
   return crypto.createHmac('sha256', secret()).update('ip:' + ip).digest('hex').slice(0, 32);
 }
 
+// The secret in the ActiveCampaign webhook address (?key=…), derived from PODCAST_SECRET: no extra setting.
+// Changing PODCAST_SECRET changes it (update the webhook steps in AC then).
+function webhookKey() {
+  return crypto.createHmac('sha256', secret()).update('ac-webhook').digest('base64url').slice(0, 32);
+}
+
 function adminCredentials() {
   const user = (process.env.ADMIN_USER || '').trim().normalize('NFC');
   const pass = (process.env.ADMIN_PASSWORD || '').trim().normalize('NFC');
@@ -70,4 +76,4 @@ function sameOrigin(req) {
   }
 }
 
-module.exports = { ADMIN_COOKIE, newToken, isToken, safeEqual, ipHash, adminCredentials, adminSessionToken, adminFromRequest, sameOrigin };
+module.exports = { ADMIN_COOKIE, newToken, isToken, safeEqual, ipHash, webhookKey, adminCredentials, adminSessionToken, adminFromRequest, sameOrigin };

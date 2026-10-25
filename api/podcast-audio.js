@@ -13,6 +13,7 @@ const { Readable } = require('node:stream');
 const blob = require('@vercel/blob');
 const db = require('./_lib/db.js');
 const podcast = require('./_lib/podcast.js');
+const automation = require('./_lib/automation.js');
 const { extension } = require('./_lib/rss.js');
 
 const PROBE_BYTES = 64 * 1024;
@@ -115,7 +116,14 @@ module.exports = async function handler(req, res) {
     }
 
     const range = req.headers.range;
-    if (isDownloadStart(range)) await podcast.logEvent({ studentId: data.student.id, showId: episode.show_id, episodeId: episode.id, kind: 'download', client: podcast.clientInfo(req) });
+    if (isDownloadStart(range)) {
+      const client = podcast.clientInfo(req);
+      await podcast.logEvent({ studentId: data.student.id, showId: episode.show_id, episodeId: episode.id, kind: 'download', client });
+      if (client.app !== 'Bot' && !client.app.endsWith('(server)')) {
+        const entry = data.shows.find((x) => x.show.id === episode.show_id);
+        await automation.onDownload(data.student.id, entry.show, episode).catch((err) => console.error('automation', err.message)); // queued for AC
+      }
+    }
 
     let result;
     try {
