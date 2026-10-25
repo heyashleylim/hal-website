@@ -90,3 +90,42 @@ test('revoked and cohort-less students get nothing', () => {
   assert.equal(none.state, 'no-cohort');
   assert.equal(none.episodes.length, 0);
 });
+
+// ---- several enrolments in one show (showAccess) ----
+const enr = (cohort, extra = {}) => ({ cohort, enrollment: { status: 'active', start_override: null, expires_override: null, ...extra } });
+const cohortB = { id: 2, start_date: '2027-03-01' };
+
+test('two cohorts: earliest release wins, access until the later end', () => {
+  const now = new Date('2027-03-02T00:00:00Z');
+  const a = r.showAccess({ show, student: { status: 'active' }, enrollments: [enr(cohortA), enr(cohortB)], episodes, now });
+  assert.equal(a.state, 'active');
+  assert.equal(a.episodes.length, 12); // all from cohort A
+  assert.equal(iso(a.expires), '2028-02-28T15:00:00.000Z'); // 00:00 KST on 29 Feb 2028 = cohort B start + 365 days
+});
+
+test('returning student: old cohort expired, new cohort drips from module 1', () => {
+  const now = new Date('2027-11-10T00:00:00Z'); // cohort A ended 2027-11-02
+  const cohortC = { id: 3, start_date: '2027-11-08' };
+  const a = r.showAccess({ show, student: { status: 'active' }, enrollments: [enr(cohortA), enr(cohortC)], episodes, now });
+  assert.equal(a.state, 'active');
+  assert.deepEqual(a.episodes.map((e) => e.episode.number), [1]);
+  assert.equal(a.next.episode.number, 2);
+});
+
+test('states: expired, revoked enrolment, revoked student, not enrolled', () => {
+  const late = new Date('2028-01-01T00:00:00Z');
+  assert.equal(r.showAccess({ show, student: { status: 'active' }, enrollments: [enr(cohortA)], episodes, now: late }).state, 'expired');
+  assert.equal(r.showAccess({ show, student: { status: 'active' }, enrollments: [enr(cohortA, { status: 'revoked' })], episodes }).state, 'revoked');
+  const both = r.showAccess({ show, student: { status: 'active' }, enrollments: [enr(cohortA, { status: 'revoked' }), enr(cohortB)], episodes, now: new Date('2027-03-02T00:00:00Z') });
+  assert.equal(both.state, 'active');
+  assert.equal(both.episodes.length, 1); // revoked enrolment gives nothing
+  assert.equal(r.showAccess({ show, student: { status: 'revoked' }, enrollments: [enr(cohortA)], episodes }).state, 'revoked');
+  assert.equal(r.showAccess({ show, student: { status: 'active' }, enrollments: [], episodes }).state, 'not-enrolled');
+});
+
+test('own start date and extended access on one enrolment', () => {
+  const now = new Date('2027-12-01T00:00:00Z');
+  const a = r.showAccess({ show, student: { status: 'active' }, enrollments: [enr(cohortA, { expires_override: '2028-06-01T00:00:00Z' })], episodes, now });
+  assert.equal(a.state, 'active');
+  assert.equal(a.episodes.length, 12);
+});

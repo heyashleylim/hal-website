@@ -35,3 +35,5 @@
   .pod__title{font-size:25px}
 }
 .pod__apps .btn{min-height:52px;padding-top:12px;padding-bottom:12px}
+.pod__h3{font:600 16px/1.5 var(--font-body);margin:22px 0 10px}
+.pod__card--intro .pod__title{margin-bottom:10px}

@@ -185,6 +185,10 @@
   ],
   "rewrites": [
     {
+      "source": "/f/:token([A-Za-z0-9_-]+)/:show([a-z0-9-]+)",
+      "destination": "/api/podcast-feed?token=:token&show=:show"
+    },
+    {
       "source": "/f/:token([A-Za-z0-9_-]+)",
       "destination": "/api/podcast-feed?token=:token"
     },

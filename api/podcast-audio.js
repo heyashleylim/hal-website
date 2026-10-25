@@ -1,8 +1,8 @@
 /*
  * GET/HEAD /a/<token>/<episode guid>.<ext> → the episode's audio, streamed from the private Blob store
- * (rewrite in vercel.json).
+ * (rewrite in vercel.json). The guid identifies the episode and therefore the show.
  *
- * Access is checked on every request: the student must be active and the episode released for them,
+ * Access is checked on every request: the student must have access to that show and the episode be released for them,
  * otherwise 404. Byte ranges are passed through to Blob storage (Apple Podcasts requires them).
  * A download is logged when a request starts at byte 0 and isn't a tiny probe (apps first ask for
  * a couple of bytes to read the file size); counting rules are applied later in analytics.
@@ -82,20 +82,21 @@ module.exports = async function handler(req, res) {
   const m = /^([0-9a-f-]{36})\.([a-z0-9]{2,4})$/.exec(params.get('file') || '');
   if (!m) return notFound(res);
 
-  let ctx;
+  let data, episode;
   try {
-    ctx = await podcast.loadByToken(token);
+    data = await podcast.loadStudent(token);
+    if (!data) return notFound(res);
+    episode = await db.one(`SELECT * FROM episodes WHERE guid = $1`, [m[1]]);
+    const entry = episode && data.shows.find((x) => x.show.id === episode.show_id);
+    if (!entry) return notFound(res);
+    const access = await podcast.showAccess(data.student, entry);
+    if (access.state !== 'active' || !access.episodes.some((e) => e.episode.id === episode.id)) return notFound(res);
   } catch (err) {
     console.error('podcast-audio', err);
     res.statusCode = 503;
     res.setHeader('Retry-After', '60');
     return res.end();
   }
-  if (!ctx) return notFound(res);
-  const { state, episodes } = podcast.releasedFor(ctx);
-  const item = state === 'active' && episodes.find((e) => e.episode.guid === m[1]);
-  if (!item) return notFound(res);
-  const episode = item.episode;
   if (extension(episode.mime_type) !== m[2]) return notFound(res);
 
   const filename = episode.kind === 'module' && episode.number ? `module-${String(episode.number).padStart(2, '0')}.${m[2]}` : `episode.${m[2]}`;
@@ -114,7 +115,7 @@ module.exports = async function handler(req, res) {
     }
 
     const range = req.headers.range;
-    if (isDownloadStart(range)) await podcast.logEvent(ctx.listener.id, 'download', episode.id, podcast.clientInfo(req));
+    if (isDownloadStart(range)) await podcast.logEvent({ studentId: data.student.id, showId: episode.show_id, episodeId: episode.id, kind: 'download', client: podcast.clientInfo(req) });
 
     let result;
     try {

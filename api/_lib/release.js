@@ -97,4 +97,34 @@ function released({ show, cohort, listener, episodes, overrides, now = new Date(
   };
 }
 
-module.exports = { ymd, addDays, zonedTime, releaseAt, expiresAt, accessState, schedule, released };
+// One student in one show, through any number of enrolments (cohorts of that show).
+// enrollments: [{ enrollment: {status, start_override, expires_override}, cohort }], all of this show.
+// overridesFor(cohort) → Map(episodeId → Date). Rules (decision 2026-10-25):
+// - every enrolment that is not revoked and not expired counts; the student gets each episode at the
+//   earliest date any of them releases it;
+// - access lasts until the latest end among enrolments that aren't revoked;
+// - state: 'revoked' (student revoked, or every enrolment revoked), 'not-enrolled', 'expired', 'active'.
+function showAccess({ show, student, enrollments, episodes, overridesFor = () => new Map(), now = new Date() }) {
+  const live = enrollments.filter((x) => x.enrollment.status !== 'revoked');
+  const ends = live.map((x) => expiresAt({ show, cohort: x.cohort, listener: x.enrollment })).filter(Boolean);
+  const expires = ends.length ? new Date(Math.max(...ends.map(Number))) : null;
+  let state = 'active';
+  if (student && student.status === 'revoked') state = 'revoked';
+  else if (!enrollments.length) state = 'not-enrolled';
+  else if (!live.length) state = 'revoked';
+  const running = live.filter((x) => accessState({ show, cohort: x.cohort, listener: { ...x.enrollment, status: 'active' }, now }) === 'active');
+  if (state === 'active' && !running.length) state = 'expired';
+
+  const best = new Map(); // episode id → { episode, releaseAt } (earliest)
+  for (const x of running) {
+    for (const item of schedule({ show, cohort: x.cohort, listener: x.enrollment, episodes, overrides: overridesFor(x.cohort) })) {
+      const prev = best.get(item.episode.id);
+      if (!prev || item.releaseAt < prev.releaseAt) best.set(item.episode.id, item);
+    }
+  }
+  const all = [...best.values()].sort((a, b) => a.releaseAt - b.releaseAt || (a.episode.number || 0) - (b.episode.number || 0));
+  if (state !== 'active') return { state, episodes: [], next: null, expires, scheduled: all };
+  return { state, episodes: all.filter((e) => e.releaseAt <= now), next: all.find((e) => e.releaseAt > now) || null, expires, scheduled: all };
+}
+
+module.exports = { ymd, addDays, zonedTime, releaseAt, expiresAt, accessState, schedule, released, showAccess };
