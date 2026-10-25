@@ -9,7 +9,8 @@
  */
 
 const tagIds = new Map();   // lower(tag name) → id
-let fieldIds = null;        // upper(perstag) → id
+let fieldCache = null;      // [{ id, perstag, title }] contact custom fields, refreshed every 5 minutes
+let fieldCacheAt = 0;
 
 async function ac(path, options = {}) {
   if (!process.env.AC_API_URL || !process.env.AC_API_KEY) throw new Error('AC_API_URL / AC_API_KEY not set');
@@ -77,19 +78,32 @@ async function removeTag(contactId, name) {
   if (link) await ac('/contactTags/' + link.id, { method: 'DELETE' });
 }
 
-// Custom field id by personalization tag (e.g. PODCAST_NSMB_LINK, without the %).
-async function fieldId(perstag) {
-  if (!fieldIds) {
-    fieldIds = new Map();
+async function contactFields() {
+  if (!fieldCache || Date.now() - fieldCacheAt > 5 * 60 * 1000) {
+    const list = [];
     for (let offset = 0; ; offset += 100) {
       const body = await ac(`/fields?limit=100&offset=${offset}`);
-      for (const f of body.fields || []) fieldIds.set(String(f.perstag).toUpperCase(), f.id);
+      for (const f of body.fields || []) list.push({ id: f.id, perstag: String(f.perstag || ''), title: String(f.title || '') });
       if (!body.fields || body.fields.length < 100) break;
     }
+    fieldCache = list;
+    fieldCacheAt = Date.now();
   }
-  const id = fieldIds.get(perstag.replace(/%/g, '').toUpperCase());
-  if (!id) throw new Error(`AC custom field ${perstag} not found: create it in AC → Contacts → Fields`);
-  return id;
+  return fieldCache;
+}
+
+const norm = (s) => String(s).replace(/%/g, '').replace(/[\s_-]+/g, '').toUpperCase();
+
+// Contact custom field id by personalization tag (e.g. PODCAST_LINK, with or without %), or by the field's name.
+async function fieldId(perstag) {
+  const list = await contactFields();
+  const want = norm(perstag);
+  const hit = list.find((f) => norm(f.perstag) === want) || list.find((f) => norm(f.title) === want);
+  if (!hit) {
+    const known = list.map((f) => `%${f.perstag}%`).slice(0, 40).join(', ') || 'none';
+    throw new Error(`no contact field ${perstag} in ActiveCampaign (contact fields found: ${known})`);
+  }
+  return hit.id;
 }
 
 // Creates or updates the contact; `fields` maps perstag → value. Returns the contact id.
@@ -118,7 +132,7 @@ async function contactsWithTag(name) {
 
 function resetCaches() {
   tagIds.clear();
-  fieldIds = null;
+  fieldCache = null;
 }
 
 module.exports = { findContactByEmail, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, syncContact, resetCaches };

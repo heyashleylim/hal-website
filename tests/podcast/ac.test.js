@@ -35,7 +35,7 @@ test('syncContact maps perstags to field ids', async () => {
 
 test('syncContact explains a missing custom field', async () => {
   fakeAC({ 'GET /fields': () => [200, { fields: [] }] });
-  await assert.rejects(ac.syncContact({ email: 'a@b.kr', fields: { PODCAST_NSMB_LINK: 'x' } }), /PODCAST_NSMB_LINK not found/);
+  await assert.rejects(ac.syncContact({ email: 'a@b.kr', fields: { PODCAST_NSMB_LINK: 'x' } }), /no contact field PODCAST_NSMB_LINK.*found: none/);
 });
 
 test('addTag creates the tag once and tolerates "already tagged"', async () => {
@@ -78,4 +78,15 @@ test('contactsWithTag pages through every contact with the tag', async () => {
 test('contactsWithTag: unknown tag → null', async () => {
   fakeAC({ 'GET /tags': () => [200, { tags: [] }] });
   assert.equal(await ac.contactsWithTag('nope'), null);
+});
+
+test('fieldId matches the personalization tag loosely, or the field name, and lists what exists', async () => {
+  fakeAC({ 'GET /fields': () => [200, { fields: [{ id: '7', perstag: 'PODCAST_LINK', title: 'Podcast link' }, { id: '8', perstag: 'CITY', title: 'City' }] }] });
+  assert.equal(await ac.fieldId('%podcast_link%'), '7');
+  ac.resetCaches();
+  fakeAC({ 'GET /fields': () => [200, { fields: [{ id: '9', perstag: 'PODCASTLINK1', title: 'PODCAST_LINK' }, { id: '8', perstag: 'CITY', title: 'City' }] }] });
+  assert.equal(await ac.fieldId('PODCAST_LINK'), '9'); // matched by its name
+  ac.resetCaches();
+  fakeAC({ 'GET /fields': () => [200, { fields: [{ id: '8', perstag: 'CITY', title: 'City' }] }] });
+  await assert.rejects(ac.fieldId('PODCAST_LINK'), /found: %CITY%/);
 });
