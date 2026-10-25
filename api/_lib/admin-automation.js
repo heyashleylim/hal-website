@@ -18,11 +18,13 @@ const actions = {
     const show = await getShow(input.show);
     const t = automation.tags(show);
     const configured = automation.acConfigured();
-    let field = { name: automation.linkField(), ok: false, error: null };
+    let field = { name: automation.linkField(), ok: false, error: null, perstag: null };
     if (configured) {
       try {
-        await ac.fieldId(field.name);
+        const f = await ac.findField(field.name);
         field.ok = true;
+        field.perstag = f.perstag; // what to type in AC emails, e.g. %PODCASTLINK%
+        field.title = f.title;
       } catch (err) {
         field.error = err.message;
       }
@@ -57,7 +59,7 @@ const actions = {
       },
       cohorts,
       tags: [
-        { tag: t.enrolled, when: 'Enrolled in this program (purchase webhook, or added here with "Tell ActiveCampaign"). Use it to send the welcome email with %' + automation.linkField() + '%.' },
+        { tag: t.enrolled, when: 'Enrolled in this program (purchase webhook, or added here with "Tell ActiveCampaign"). Use it to send the welcome email with %' + (field.perstag || automation.linkField()) + '%.' },
         { tag: t.subscribed, when: 'Their podcast app fetched this program\'s feed for the first time.' },
         { tag: t.notSubscribed3, when: '3 days after enrolling (and after the first release) without subscribing. Reminder email.' },
         { tag: t.notSubscribed7, when: 'Same after 7 days.' },
@@ -67,7 +69,7 @@ const actions = {
         { tag: t.expiring, when: 'Their access ends within 30 days.' },
         { tag: t.expired, when: 'Their access ended (in the last 7 days).' },
         { tag: t.revoked, when: 'Access revoked by the refund webhook.' },
-        { tag: automation.LINK_RESET_TAG, when: 'Their personal link was reset in the admin (re-added each time). Email the new %' + automation.linkField() + '%.' },
+        { tag: automation.LINK_RESET_TAG, when: 'Their personal link was reset in the admin (re-added each time). Email the new %' + (field.perstag || automation.linkField()) + '%.' },
       ],
       counts, outbox, webhooks,
       daily: daily ? { ...daily.value, updated_at: daily.updated_at } : null,

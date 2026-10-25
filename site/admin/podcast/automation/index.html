@@ -83,7 +83,7 @@
       var rd = r.ready;
       $('setup').innerHTML =
         row(rd.ac, rd.ac ? 'ActiveCampaign connected (AC_API_URL, AC_API_KEY).' : 'Add <code>AC_API_URL</code> and <code>AC_API_KEY</code> to this environment in Vercel (Production and Preview).') +
-        row(rd.field.ok, rd.field.ok ? 'Contact field <code>' + Admin.esc(rd.field.name) + '</code> found in ActiveCampaign: it receives each student’s personal page.' :
+        row(rd.field.ok, rd.field.ok ? 'Contact field “' + Admin.esc(rd.field.title) + '” found: it receives each student’s personal page. In AC emails, type <code>%' + Admin.esc(rd.field.perstag) + '%</code>.' :
           'Create a contact field in ActiveCampaign with the personalization tag <code>' + Admin.esc(rd.field.name) + '</code> (Contacts → Fields, type text).' + (rd.field.error ? ' <span class="muted">(' + Admin.esc(rd.field.error) + ')</span>' : '')) +
         row(rd.webhook, rd.webhook ? 'Webhook ready (key derived from PODCAST_SECRET).' : 'PODCAST_SECRET is missing.') +
         (rd.production || rd.cron
@@ -92,7 +92,7 @@
         row(true, 'Students’ links start with <code>' + Admin.esc(rd.public_url) + '</code>' + (rd.public_url_set ? ' (PODCAST_PUBLIC_URL).' : '. Set <code>PODCAST_PUBLIC_URL</code> in Production when the domain is ready.'));
 
       $('hooks').innerHTML = r.webhook ?
-        '<h3 class="admin-h3">1. Purchase → enrol</h3><p class="muted">In each purchase automation: start “Tag is added” with the cohort’s tag, then action <strong>Webhook</strong> with this address. The student is enrolled in every cohort whose tag they have, gets their link in <code>%' + Admin.esc(rd.field.name) + '%</code> and the tag <code>' + Admin.esc(r.tags[0].tag) + '</code>.</p>' +
+        '<h3 class="admin-h3">1. Purchase → enrol</h3><p class="muted">In each purchase automation: start “Tag is added” with the cohort’s tag, then action <strong>Webhook</strong> with this address. The student is enrolled in every cohort whose tag they have, gets their link in <code>%' + Admin.esc(rd.field.perstag || rd.field.name) + '%</code> and the tag <code>' + Admin.esc(r.tags[0].tag) + '</code>.</p>' +
         copyField('hook-enroll', r.webhook.enroll) +
         '<h3 class="admin-h3">2. Refund → revoke</h3><p class="muted">In a refund automation: action <strong>Webhook</strong> with this address followed by the cohort’s tag, e.g. <code>…&amp;tag=' + Admin.esc(r.cohorts[0] ? r.cohorts[0].ac_tag : 'nsmb-2기') + '</code>.</p>' +
         copyField('hook-revoke', r.webhook.revoke + (r.cohorts[0] ? encodeURIComponent(r.cohorts[0].ac_tag) : '')) +

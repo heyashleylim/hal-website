@@ -94,8 +94,17 @@ async function contactFields() {
 
 const norm = (s) => String(s).replace(/%/g, '').replace(/[\s_-]+/g, '').toUpperCase();
 
-// Contact custom field id by personalization tag (e.g. PODCAST_LINK, with or without %), or by the field's name.
+// The contact custom field matching a personalization tag (e.g. PODCAST_LINK, with or without %) or a field name:
+// { id, perstag, title }. Spaces, dashes and underscores are ignored, so PODCAST_LINK finds %PODCASTLINK%.
+async function findField(perstag) {
+  return (await fieldOrThrow(perstag));
+}
+
 async function fieldId(perstag) {
+  return (await fieldOrThrow(perstag)).id;
+}
+
+async function fieldOrThrow(perstag) {
   const list = await contactFields();
   const want = norm(perstag);
   const hit = list.find((f) => norm(f.perstag) === want) || list.find((f) => norm(f.title) === want);
@@ -103,7 +112,7 @@ async function fieldId(perstag) {
     const known = list.map((f) => `%${f.perstag}%`).slice(0, 40).join(', ') || 'none';
     throw new Error(`no contact field ${perstag} in ActiveCampaign (contact fields found: ${known})`);
   }
-  return hit.id;
+  return hit;
 }
 
 // Creates or updates the contact; `fields` maps perstag → value. Returns the contact id.
@@ -135,4 +144,4 @@ function resetCaches() {
   fieldCache = null;
 }
 
-module.exports = { findContactByEmail, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, syncContact, resetCaches };
+module.exports = { findContactByEmail, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, findField, syncContact, resetCaches };
