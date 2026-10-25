@@ -6,6 +6,7 @@ const db = require('./db.js');
 const ac = require('./ac.js');
 const auth = require('./auth.js');
 const automation = require('./automation.js');
+const podcast = require('./podcast.js');
 const { userError, getShow, int } = require('./admin-util.js');
 
 function baseUrl(req) {
@@ -28,7 +29,9 @@ const actions = {
     }
     let key = null;
     try { key = auth.webhookKey(); } catch (_) { /* PODCAST_SECRET missing: shown as not ready */ }
-    const hook = key ? `${baseUrl(req)}/api/podcast-ac?key=${key}` : null;
+    // On preview deployments AC must pass Vercel's login too: add the bypass secret (never on production).
+    const bypass = podcast.linkQuery().replace(/^\?/, '&');
+    const hook = key ? `${baseUrl(req)}/api/podcast-ac?key=${key}${bypass}` : null;
     const cohorts = await db.query(`SELECT name, ac_tag FROM cohorts WHERE show_id = $1 ORDER BY start_date`, [show.id]);
     const modules = await db.query(`SELECT number FROM episodes WHERE show_id = $1 AND kind = 'module' AND number IS NOT NULL ORDER BY number`, [show.id]);
     const [counts, outbox, webhooks, daily] = await Promise.all([
