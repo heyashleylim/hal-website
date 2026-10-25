@@ -356,7 +356,8 @@ const actions = {
       line.in_ac = contacts.length;
       const tagged = new Set(contacts.map((x) => x.email));
       for (const contact of contacts) {
-        const name = [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim();
+        // The full name is kept in AC's First name (Korean order, e.g. 김지연); Last name only if First name is empty.
+        const name = (contact.firstName || contact.lastName || '').trim();
         let student = await db.one('SELECT id, name FROM students WHERE lower(email) = $1', [contact.email]);
         if (!student) {
           student = await db.one(`INSERT INTO students (email, name, token, ac_contact_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id, name`,
