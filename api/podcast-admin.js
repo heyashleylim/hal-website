@@ -15,6 +15,8 @@ const auth = require('./_lib/auth.js');
 const content = require('./_lib/admin-content.js');
 const cohorts = require('./_lib/admin-cohorts.js');
 const students = require('./_lib/admin-students.js');
+const automationAdmin = require('./_lib/admin-automation.js');
+const automation = require('./_lib/automation.js');
 const { userError } = require('./_lib/admin-util.js');
 
 const ENV = ['DATABASE_URL', 'PODCAST_SECRET', 'ADMIN_USER', 'ADMIN_PASSWORD', 'AC_API_URL', 'AC_API_KEY'];
@@ -42,10 +44,10 @@ const actions = {
   },
 };
 
-Object.assign(actions, content.actions, cohorts.actions, students.actions);
+Object.assign(actions, content.actions, cohorts.actions, students.actions, automationAdmin.actions);
 
 // Actions that change data: POST only, same-origin, recorded in admin_log.
-const WRITE = new Set([...content.writes, ...cohorts.writes, ...students.writes]);
+const WRITE = new Set([...content.writes, ...cohorts.writes, ...students.writes, ...automationAdmin.writes]);
 
 function send(res, status, body) {
   res.statusCode = status;
@@ -64,6 +66,20 @@ async function readJson(req) {
 }
 
 module.exports = async function handler(req, res) {
+  // The daily job (vercel.json "crons", production only): Vercel sends Authorization: Bearer <CRON_SECRET>.
+  if (new URL(req.url, 'http://local').searchParams.get('action') === 'cron') {
+    const secret = (process.env.CRON_SECRET || '').trim();
+    if (!secret || !auth.safeEqual(req.headers.authorization || '', `Bearer ${secret}`)) return send(res, 401, { error: 'cron only' });
+    try {
+      const result = await automation.dailyJob();
+      await db.query('INSERT INTO admin_log (admin, action, target, details) VALUES ($1, $2, $3, $4)', ['cron', 'daily-job', 'daily job', JSON.stringify(result)]);
+      return send(res, 200, result);
+    } catch (err) {
+      console.error('podcast cron', err);
+      return send(res, 500, { error: 'daily job failed' });
+    }
+  }
+
   const admin = auth.adminFromRequest(req);
   if (!admin) return send(res, 401, { error: 'login required' });
 

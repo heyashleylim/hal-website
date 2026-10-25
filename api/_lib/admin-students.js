@@ -9,9 +9,18 @@ const db = require('./db.js');
 const auth = require('./auth.js');
 const ac = require('./ac.js');
 const release = require('./release.js');
+const automation = require('./automation.js');
 const { userError, getShow, text, int, date, email, friendlyUnique } = require('./admin-util.js');
 
 const MAX_IDS = 1000;
+
+// "Tell ActiveCampaign" (input.notify): fill the link field and add <prefix>_enrolled for these new enrolments,
+// then send what fits in a few seconds (the rest goes with the next send or the daily job).
+async function notifyNew(pairs, input) {
+  if (!input.notify || !pairs.length) return null;
+  for (const [studentId, showId] of pairs) await automation.notifyEnrolled(studentId, showId);
+  return automation.acConfigured() ? automation.processOutbox({ budgetMs: 8000 }) : { skipped: 'ActiveCampaign is not configured: the updates wait in the queue' };
+}
 const NOT_A_PERSON = `e.app NOT IN ('Bot', 'Web browser', 'Unknown', 'Other') AND e.app NOT LIKE '%(server)'`;
 
 function baseUrl(req) {
@@ -190,8 +199,12 @@ const actions = {
         : db.one(`INSERT INTO students (token, ${keys.join(', ')}) VALUES ($1, ${keys.map((_, i) => `$${i + 2}`).join(', ')}) RETURNING id`, [auth.newToken(), ...values]),
       { students_email: `${fields.email} is already a student (search for them on this page)` },
     );
-    if (cohort) await db.query(`INSERT INTO enrollments (student_id, cohort_id, source) VALUES ($1, $2, 'manual') ON CONFLICT DO NOTHING`, [row.id, cohort.id]);
-    return { student: describe(await context(), await loadRow(row.id), req), target: `student ${row.id}` };
+    let ac = null;
+    if (cohort) {
+      const en = await db.one(`INSERT INTO enrollments (student_id, cohort_id, source) VALUES ($1, $2, 'manual') ON CONFLICT DO NOTHING RETURNING id`, [row.id, cohort.id]);
+      if (en) ac = await notifyNew([[row.id, cohort.show_id]], input);
+    }
+    return { student: describe(await context(), await loadRow(row.id), req), ac, target: `student ${row.id}` };
   },
 
   // Revoke or restore everything for these students (all shows).
@@ -213,8 +226,9 @@ const actions = {
     const cohort = await cohortById(input.cohort_id);
     const rows = await db.query(
       `INSERT INTO enrollments (student_id, cohort_id, source) SELECT id, $2, 'manual' FROM students WHERE id = ANY($1::int[])
-       ON CONFLICT (student_id, cohort_id) DO NOTHING RETURNING id`, [list, cohort.id]);
-    return { added: rows.length, skipped: list.length - rows.length, target: `${target('student', list)} → cohort ${cohort.id} (${cohort.name})` };
+       ON CONFLICT (student_id, cohort_id) DO NOTHING RETURNING id, student_id`, [list, cohort.id]);
+    const ac = await notifyNew(rows.map((r) => [r.student_id, cohort.show_id]), input);
+    return { added: rows.length, skipped: list.length - rows.length, ac, target: `${target('student', list)} → cohort ${cohort.id} (${cohort.name})` };
   },
 
   // Create ({student_id, cohort_id}) or update ({id}) one enrolment: own start date, last day of access.
@@ -234,10 +248,11 @@ const actions = {
     }
     const cohort = await cohortById(en.cohort_id);
     const show = await db.one('SELECT * FROM shows WHERE id = $1', [cohort.show_id]);
+    const ac = input.id ? null : await notifyNew([[en.student_id, show.id]], input);
     const start = input.start_override ? date(input.start_override, { label: 'Own start date' }) : null;
     const end = input.access_until ? accessEnd(show, input.access_until).toISOString() : null;
     await db.query('UPDATE enrollments SET start_override = $2, expires_override = $3, updated_at = now() WHERE id = $1', [en.id, start, end]);
-    return { enrollment: en.id, target: `student ${en.student_id}` };
+    return { enrollment: en.id, ac, target: `student ${en.student_id}` };
   },
 
   async 'enrollments-status'(input) {
@@ -265,7 +280,10 @@ const actions = {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     await loadRow(id);
     await db.query(`UPDATE students SET token = $2, first_seen_at = NULL, updated_at = now() WHERE id = $1`, [id, auth.newToken()]);
-    return { student: describe(await context(), await loadRow(id), req), target: `student ${id}` };
+    // AC gets the new link and podcast-link-reset (an automation can email it).
+    await automation.pushNewLink(id);
+    const ac = automation.acConfigured() ? await automation.processOutbox({ budgetMs: 8000 }) : null;
+    return { student: describe(await context(), await loadRow(id), req), ac, target: `student ${id}` };
   },
 
   async 'student-delete'(input) {
@@ -320,12 +338,17 @@ const actions = {
 
     if (!input.dry_run) {
       if (summary.errors) throw userError('fix the errors first (see the preview)');
+      const fresh = [];
       for (const r of report) {
         let id = r.id;
         if (!id) id = (await db.one(`INSERT INTO students (email, name, token) VALUES ($1, $2, $3) RETURNING id`, [r.email, r.name || '', auth.newToken()])).id;
         else if (r.name !== undefined && r.name !== '') await db.query('UPDATE students SET name = $2, updated_at = now() WHERE id = $1', [id, r.name]);
-        if (r.cohort_id) await db.query(`INSERT INTO enrollments (student_id, cohort_id, source) VALUES ($1, $2, 'import') ON CONFLICT DO NOTHING`, [id, r.cohort_id]);
+        if (r.cohort_id) {
+          const en = await db.one(`INSERT INTO enrollments (student_id, cohort_id, source) VALUES ($1, $2, 'import') ON CONFLICT DO NOTHING RETURNING id`, [id, r.cohort_id]);
+          if (en) fresh.push([id, cohorts.find((c) => c.id === r.cohort_id).show_id]);
+        }
       }
+      summary.ac = await notifyNew(fresh, input);
     }
     return {
       dry_run: Boolean(input.dry_run), summary, rows: report.slice(0, 2000).map(({ id, cohort_id, ...r }) => r),
@@ -339,9 +362,10 @@ const actions = {
   async 'ac-sync'(input) {
     const shows = input.scope === 'all' ? await db.query('SELECT * FROM shows ORDER BY id') : [await getShow(input.show)];
     const cohorts = await db.query(
-      `SELECT c.id, c.name, c.ac_tag, s.title AS show_title FROM cohorts c JOIN shows s ON s.id = c.show_id
+      `SELECT c.id, c.name, c.ac_tag, c.show_id, s.title AS show_title FROM cohorts c JOIN shows s ON s.id = c.show_id
         WHERE c.show_id = ANY($1::int[]) AND c.ac_tag <> '' ORDER BY s.id, c.start_date`, [shows.map((s) => s.id)]);
     const report = { cohorts: [], new_students: 0, new_enrolments: 0, already: 0, missing: [] };
+    const fresh = [];
     for (const c of cohorts) {
       const line = { id: c.id, name: c.name, show: c.show_title, ac_tag: c.ac_tag, in_ac: 0, added: 0, error: null };
       report.cohorts.push(line);
@@ -368,13 +392,14 @@ const actions = {
           await db.query(`UPDATE students SET ac_contact_id = $2, name = CASE WHEN name = '' THEN $3 ELSE name END WHERE id = $1`, [student.id, contact.id, name]);
         }
         const en = await db.one(`INSERT INTO enrollments (student_id, cohort_id, source) VALUES ($1, $2, 'ac-sync') ON CONFLICT DO NOTHING RETURNING id`, [student.id, c.id]);
-        if (en) { line.added++; report.new_enrolments++; } else report.already++;
+        if (en) { line.added++; report.new_enrolments++; fresh.push([student.id, c.show_id]); } else report.already++;
       }
       const enrolledHere = await db.query(
         `SELECT en.id AS enrollment_id, st.id AS student_id, st.email, st.name, en.source FROM enrollments en JOIN students st ON st.id = en.student_id
           WHERE en.cohort_id = $1 AND en.status = 'active' AND st.status = 'active'`, [c.id]);
       for (const x of enrolledHere) if (!tagged.has(x.email.toLowerCase())) report.missing.push({ ...x, cohort: c.name, show: c.show_title });
     }
+    report.ac = await notifyNew(fresh, input);
     return {
       ...report,
       target: `${input.scope === 'all' ? 'all shows' : shows[0].slug}: ${report.new_students} new students, ${report.new_enrolments} new enrolments`,

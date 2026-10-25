@@ -74,7 +74,7 @@ const actions = {
     const slug = text(input.slug, { max: 40, required: true, label: 'Short name' }).toLowerCase();
     if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(slug)) throw userError('Short name: lowercase letters, digits and dashes (e.g. eft or switch)');
     const row = await friendlyUnique(
-      db.one(`INSERT INTO shows (slug, title, ac_tag_prefix) VALUES ($1, $2, $3) RETURNING *`, [slug, title, `podcast-${slug}`]),
+      db.one(`INSERT INTO shows (slug, title, ac_tag_prefix) VALUES ($1, $2, $3) RETURNING *`, [slug, title, `podcast_${slug.replace(/-/g, '_')}`]),
       { shows_slug_key: `a program with the short name "${slug}" already exists` },
     );
     return { show: showOut(row), target: `show ${slug}` };
@@ -100,7 +100,7 @@ const actions = {
       page_intro: text(input.page_intro, { max: 1000, label: 'Subscribe page intro' }),
       ac_tag_prefix: text(input.ac_tag_prefix, { max: 60, required: true, label: 'AC tag prefix' }),
     };
-    if (!/^[a-z0-9-]+$/.test(v.ac_tag_prefix)) throw userError('AC tag prefix: lowercase letters, digits and dashes only');
+    if (!/^[a-z0-9_]+$/.test(v.ac_tag_prefix)) throw userError('AC tag prefix: lowercase letters, digits and underscores only (e.g. podcast_nsmb)');
     const keys = Object.keys(v);
     const row = await db.one(
       `UPDATE shows SET ${keys.map((k, i) => `${k} = $${i + 2}`).join(', ')}, updated_at = now() WHERE id = $1 RETURNING *`,
