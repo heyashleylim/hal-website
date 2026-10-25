@@ -41,7 +41,7 @@
     items.push([d.connected, d.connected ? 'Database connected' : 'Database: ' + Admin.esc(d.error || 'not connected')]);
     if (d.connected) {
       items.push([d.migrations.length > 0, 'Migrations applied: ' + (d.migrations.map(function (m) { return '<code>' + Admin.esc(m.name) + '</code>'; }).join(', ') || 'none')]);
-      items.push([d.shows.length > 0, 'Shows: ' + (d.shows.map(function (s) { return Admin.esc(s.title); }).join(', ') || 'none')]);
+      items.push([d.shows.length > 0, 'Programs: ' + (d.shows.map(function (s) { return Admin.esc(s.title); }).join(', ') || 'none')]);
     }
     document.getElementById('setup').innerHTML = items.map(function (i) {
       return '<li><span class="status ' + (i[0] ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + i[1] + '</span></li>';

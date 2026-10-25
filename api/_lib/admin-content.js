@@ -75,7 +75,7 @@ const actions = {
     if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(slug)) throw userError('Short name: lowercase letters, digits and dashes (e.g. eft or switch)');
     const row = await friendlyUnique(
       db.one(`INSERT INTO shows (slug, title, ac_tag_prefix) VALUES ($1, $2, $3) RETURNING *`, [slug, title, `podcast-${slug}`]),
-      { shows_slug_key: `a show with the short name "${slug}" already exists` },
+      { shows_slug_key: `a program with the short name "${slug}" already exists` },
     );
     return { show: showOut(row), target: `show ${slug}` };
   },

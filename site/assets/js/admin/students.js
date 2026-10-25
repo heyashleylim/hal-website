@@ -1,4 +1,4 @@
-/* Podcast admin: Students page — people across all shows, their enrolments, bulk actions, CSV import/export,
+/* Podcast admin: Students page — people across all programs, their enrolments, bulk actions, CSV import/export,
    and Sync from ActiveCampaign. */
 (function () {
   var $ = function (id) { return document.getElementById(id); };
@@ -126,7 +126,7 @@
     if (!c.value) return;
     bulk('students-enroll', { cohort_id: c.value }, 'Enrol ' + selected.size + ' student(s) in ' + c.options[c.selectedIndex].text + '?');
   });
-  $('bulk-revoke').addEventListener('click', function () { bulk('students-status', { status: 'revoked' }, 'Revoke all access (every show) for ' + selected.size + ' student(s)? Their podcasts stop working within 5 minutes.'); });
+  $('bulk-revoke').addEventListener('click', function () { bulk('students-status', { status: 'revoked' }, 'Revoke all access (every program) for ' + selected.size + ' student(s)? Their podcasts stop working within 5 minutes.'); });
   $('bulk-restore').addEventListener('click', function () { bulk('students-status', { status: 'active' }); });
   $('bulk-clear').addEventListener('click', function () { selected.clear(); render(); });
 
@@ -167,7 +167,7 @@
 
   function enrollmentRows(s) {
     if (!s.enrollments.length) return '<p class="muted">Not enrolled in any cohort: their page shows nothing to subscribe to.</p>';
-    return '<table class="admin-table"><thead><tr><th>Show</th><th>Cohort</th><th>Status</th><th>Own start date</th><th>Listen until</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+    return '<table class="admin-table"><thead><tr><th>Program</th><th>Cohort</th><th>Status</th><th>Own start date</th><th>Listen until</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       s.enrollments.map(function (e) {
         return '<tr data-enrollment="' + e.id + '"><td>' + Admin.esc(e.show.title) + '</td><td>' + Admin.esc(e.cohort.name) + '</td><td>' + STATE[e.state] + '</td>' +
           '<td><input type="date" data-start value="' + Admin.esc(e.start_override || '') + '" aria-label="Own start date"></td>' +
@@ -227,7 +227,7 @@
         .then(function () { return refreshDetail('Dates saved.'); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
     } else if (ev.target.closest('[data-en-status]')) {
       var status = ev.target.closest('[data-en-status]').dataset.enStatus;
-      if (status === 'revoked' && !confirm('Revoke this enrolment? If it was their only one in this show, the show stops working for them within 5 minutes.')) return;
+      if (status === 'revoked' && !confirm('Revoke this enrolment? If it was their only one in this program, its podcast stops working for them within 5 minutes.')) return;
       Admin.post('enrollments-status', { ids: [id], status: status }).then(function () { return refreshDetail(); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
     } else if (ev.target.closest('[data-en-delete]')) {
       if (!confirm('Remove this enrolment? To keep a record, use Revoke instead.')) return;
@@ -251,7 +251,7 @@
   $('d-revoke').addEventListener('click', function () {
     if (!current) return;
     var revoke = current.status !== 'revoked';
-    if (revoke && !confirm('Revoke all access (every show) for ' + current.email + '? Their podcasts stop working within 5 minutes.')) return;
+    if (revoke && !confirm('Revoke all access (every program) for ' + current.email + '? Their podcasts stop working within 5 minutes.')) return;
     Admin.post('students-status', { ids: [current.id], status: revoke ? 'revoked' : 'active' }).then(function () { return refreshDetail(); })
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
@@ -271,14 +271,14 @@
       $('sync-report').innerHTML = '';
       Admin.post('ac-sync', { scope: scope }).then(function (r) {
         Admin.say($('sync-out'), r.new_students + ' new student' + (r.new_students === 1 ? '' : 's') + ', ' + r.new_enrolments + ' new enrolment' + (r.new_enrolments === 1 ? '' : 's') + ', ' + r.already + ' already here.');
-        var html = r.cohorts.length ? '<table class="admin-table"><thead><tr><th>Show</th><th>Cohort</th><th>AC tag</th><th>In AC</th><th>Added</th><th>Problem</th></tr></thead><tbody>' +
+        var html = r.cohorts.length ? '<table class="admin-table"><thead><tr><th>Program</th><th>Cohort</th><th>AC tag</th><th>In AC</th><th>Added</th><th>Problem</th></tr></thead><tbody>' +
           r.cohorts.map(function (c) {
             return '<tr><td>' + Admin.esc(c.show) + '</td><td>' + Admin.esc(c.name) + '</td><td><code>' + Admin.esc(c.ac_tag) + '</code></td><td class="num">' + c.in_ac + '</td><td class="num">' + c.added + '</td><td' + (c.error ? ' class="is-error"' : '') + '>' + Admin.esc(c.error || '') + '</td></tr>';
           }).join('') + '</tbody></table>' : '<p class="muted">No cohort with an AC tag in this scope.</p>';
         if (r.missing.length) {
           html += '<h3 class="admin-h3">Enrolled here, but no longer tagged in ActiveCampaign (' + r.missing.length + ')</h3>' +
             '<p class="muted">Possibly refunds or tag changes. Tick the ones to revoke; the others stay as they are.</p>' +
-            '<table class="admin-table"><thead><tr><th><input type="checkbox" id="missing-all" aria-label="Select all"></th><th>Student</th><th>Show</th><th>Cohort</th><th>Added by</th></tr></thead><tbody>' +
+            '<table class="admin-table"><thead><tr><th><input type="checkbox" id="missing-all" aria-label="Select all"></th><th>Student</th><th>Program</th><th>Cohort</th><th>Added by</th></tr></thead><tbody>' +
             r.missing.map(function (m) {
               return '<tr><td><input type="checkbox" data-missing="' + m.enrollment_id + '" aria-label="Revoke ' + Admin.esc(m.email) + '"></td><td>' + Admin.esc(m.name || m.email) + (m.name ? '<div class="muted small">' + Admin.esc(m.email) + '</div>' : '') +
                 '</td><td>' + Admin.esc(m.show) + '</td><td>' + Admin.esc(m.cohort) + '</td><td>' + Admin.esc(m.source) + '</td></tr>';

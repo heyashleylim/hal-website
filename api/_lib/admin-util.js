@@ -16,7 +16,7 @@ async function getShow(slug) {
   const show = slug
     ? await db.one('SELECT * FROM shows WHERE slug = $1', [String(slug)])
     : await db.one('SELECT * FROM shows ORDER BY id LIMIT 1');
-  if (!show) throw userError(slug ? `show "${slug}" not found` : 'no show yet: create one on the Shows page', 404);
+  if (!show) throw userError(slug ? `program "${slug}" not found` : 'no program yet: create one on the Programs page', 404);
   return show;
 }
 

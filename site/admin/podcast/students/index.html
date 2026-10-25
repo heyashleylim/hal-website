@@ -20,7 +20,7 @@
 </header>
 <main id="main" class="admin-main admin-main--wide">
   <div class="admin-head">
-    <h1>Students <span class="admin-h1-show">all shows</span></h1>
+    <h1>Students <span class="admin-h1-show">all programs</span></h1>
     <div class="admin-actions">
       <button class="btn-sm" type="button" id="sync-open">Sync from ActiveCampaign</button>
       <button class="btn-ghost" type="button" id="add">Add student</button>
@@ -35,7 +35,7 @@
     <p class="muted">For each cohort with an AC tag, everyone in ActiveCampaign with that tag becomes a student here and is enrolled in the cohort (students already here are matched by email). Nobody is removed: students enrolled here who don’t have the tag in AC are listed below for you to decide.</p>
     <div class="admin-form__actions">
       <button class="btn-sm" type="button" data-sync="show">Sync <span data-show-title></span></button>
-      <button class="btn-ghost" type="button" data-sync="all">Sync all shows</button>
+      <button class="btn-ghost" type="button" data-sync="all">Sync all programs</button>
       <button class="btn-ghost" type="button" data-close="sync">Close</button>
     </div>
     <p class="admin-form__result" id="sync-out" role="status" aria-live="polite"></p>
@@ -91,7 +91,7 @@
     <p class="admin-form__result" id="d-out" role="status" aria-live="polite"></p>
     <dl class="facts" id="d-facts"></dl>
     <div class="link-row">
-      <label for="d-link">Personal page (send this to the student: it lists all their shows)</label>
+      <label for="d-link">Personal page (send this to the student: it lists all their programs)</label>
       <div class="inline-edit"><input id="d-link" readonly><button class="btn-ghost" type="button" data-copy="d-link">Copy</button></div>
     </div>
     <h3 class="admin-h3">Enrolments</h3>
@@ -118,7 +118,7 @@
   <section class="admin-card" aria-label="Students list">
     <div class="filters">
       <label>Search<input id="f-q" type="search" placeholder="Name or email"></label>
-      <label>Show<select id="f-show"></select></label>
+      <label>Program<select id="f-show"></select></label>
       <label>Cohort<select id="f-cohort" data-cohorts="filter"></select></label>
       <label>Access
         <select id="f-state">

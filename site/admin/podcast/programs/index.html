@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>Shows · Podcast admin</title>
+<title>Programs · Podcast admin</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/brand.css">
@@ -20,24 +20,24 @@
 </header>
 <main id="main" class="admin-main">
   <div class="admin-head">
-    <h1>Shows</h1>
-    <button class="btn-sm" type="button" id="new-show-open">New show</button>
+    <h1>Programs</h1>
+    <button class="btn-sm" type="button" id="new-show-open">New program</button>
   </div>
 
   <section class="admin-panel" id="new-show" hidden aria-labelledby="new-show-title">
-    <h2 id="new-show-title">New show</h2>
+    <h2 id="new-show-title">New program</h2>
     <form id="new-form" class="admin-form" novalidate>
       <label>Title <span class="hint">e.g. EFT 태핑 마스터클래스 팟캐스트</span><input name="title" maxlength="200" required></label>
       <label>Short name <span class="hint">lowercase, in feed addresses; can't be changed later</span><input name="slug" maxlength="40" required autocapitalize="none" spellcheck="false" pattern="[a-z0-9-]+" placeholder="eft"></label>
       <div class="admin-form__actions">
-        <button class="btn-sm" type="submit">Create show</button>
+        <button class="btn-sm" type="submit">Create program</button>
         <button class="btn-ghost" type="button" id="new-show-cancel">Cancel</button>
       </div>
       <p class="admin-form__result" role="status" aria-live="polite"></p>
     </form>
   </section>
 
-  <section class="admin-card" aria-label="All shows">
+  <section class="admin-card" aria-label="All programs">
     <div id="shows" class="admin-scroll"><p class="admin-empty">Loading…</p></div>
   </section>
 
@@ -58,16 +58,16 @@
   </section>
 
   <section class="admin-card" aria-labelledby="show-title">
-    <h2 id="show-title">Show</h2>
+    <h2 id="show-title">Podcast details</h2>
     <form id="form" class="admin-form" novalidate>
-      <label class="admin-form__wide">Title <span class="hint">shown in podcast apps and on the subscribe page</span><input name="title" maxlength="200" required></label>
+      <label class="admin-form__wide">Title <span class="hint">shown in podcast apps and on the student page</span><input name="title" maxlength="200" required></label>
       <label class="admin-form__wide">Description<textarea name="description" maxlength="4000"></textarea></label>
       <label>Author<input name="author" maxlength="200"></label>
       <label>Owner email <span class="hint">in the feed, for Apple</span><input name="owner_email" type="email" maxlength="254"></label>
       <label>Category<input name="category" maxlength="100"></label>
       <label>Copyright<input name="copyright" maxlength="200"></label>
       <h3 class="admin-h3 admin-form__wide">Schedule and access</h3>
-      <label>Release time <span class="hint">Seoul time, for every cohort</span><input name="release_time" type="time" required></label>
+      <label>Release time <span class="hint">Seoul time, for every cohort of this program</span><input name="release_time" type="time" required></label>
       <label>Days between modules <span class="hint">suggested release day for new modules</span><input name="drip_interval_days" type="number" min="0" max="60" required></label>
       <label>Access length (days) <span class="hint">from the cohort start; cohorts can override</span><input name="access_days" type="number" min="1" max="3650" required></label>
       <h3 class="admin-h3 admin-form__wide">Subscribe page and emails</h3>
@@ -82,16 +82,16 @@
 <script src="/assets/js/admin/admin.js"></script>
 <script>
 (function () {
-  // All shows + creating one
+  // All programs + creating one
   function loadShows() {
     Admin.get('shows').then(function (r) {
       var cur = Admin.currentShow() || (r.shows[0] && r.shows[0].slug);
-      document.getElementById('shows').innerHTML = r.shows.length ? '<table class="admin-table"><thead><tr><th>Show</th><th>Short name</th><th>Episodes</th><th>Cohorts</th><th>Students</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+      document.getElementById('shows').innerHTML = r.shows.length ? '<table class="admin-table"><thead><tr><th>Program</th><th>Short name</th><th>Episodes</th><th>Cohorts</th><th>Students</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
         r.shows.map(function (x) {
           return '<tr><td>' + Admin.esc(x.title) + (x.slug === cur ? ' <span class="badge badge--ok">editing</span>' : '') + '</td><td><code>' + Admin.esc(x.slug) + '</code></td>' +
             '<td class="num">' + x.episodes + '</td><td class="num">' + x.cohorts + '</td><td class="num">' + x.students + '</td>' +
-            '<td>' + (x.slug === cur ? '' : '<button class="btn-ghost" type="button" data-switch="' + Admin.esc(x.slug) + '">Edit this show</button>') + '</td></tr>';
-        }).join('') + '</tbody></table>' : '<p class="admin-empty">No show yet.</p>';
+            '<td>' + (x.slug === cur ? '' : '<button class="btn-ghost" type="button" data-switch="' + Admin.esc(x.slug) + '">Edit this program</button>') + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<p class="admin-empty">No program yet.</p>';
       var current = r.shows.find(function (x) { return x.slug === cur; });
       document.getElementById('settings-title').textContent = current ? 'Settings · ' + current.title : 'Settings';
     }).catch(function (err) { document.getElementById('shows').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });

@@ -6,7 +6,7 @@ window.Admin = (function () {
     ['/admin/podcast/episodes', 'Episodes'],
     ['/admin/podcast/cohorts', 'Cohorts'],
     ['/admin/podcast/students', 'Students'],
-    ['/admin/podcast/show', 'Shows'],
+    ['/admin/podcast/programs', 'Programs'],
     ['/admin/podcast/activity', 'Activity'],
   ];
 
@@ -48,13 +48,13 @@ window.Admin = (function () {
     if (!bar || document.getElementById('show-switch')) return;
     var label = document.createElement('label');
     label.className = 'show-switch';
-    label.innerHTML = '<span>Show</span><select id="show-switch" aria-label="Show you are working on"><option>…</option></select>';
+    label.innerHTML = '<span>Program</span><select id="show-switch" aria-label="Program you are working on"><option>…</option></select>';
     bar.insertBefore(label, el);
     api.get('shows').then(function (r) {
       var sel = document.getElementById('show-switch');
       var cur = currentShow();
       if (!r.shows.some(function (x) { return x.slug === cur; }) && r.shows.length) { cur = r.shows[0].slug; setShow(cur); }
-      sel.innerHTML = r.shows.map(function (x) { return '<option value="' + esc(x.slug) + '"' + (x.slug === cur ? ' selected' : '') + '>' + esc(x.title) + '</option>'; }).join('') || '<option value="">No show yet</option>';
+      sel.innerHTML = r.shows.map(function (x) { return '<option value="' + esc(x.slug) + '"' + (x.slug === cur ? ' selected' : '') + '>' + esc(x.title) + '</option>'; }).join('') || '<option value="">No program yet</option>';
       sel.addEventListener('change', function () { setShow(sel.value); location.reload(); });
       var curShow = r.shows.find(function (x) { return x.slug === cur; });
       document.querySelectorAll('[data-show-title]').forEach(function (n) { n.textContent = curShow ? curShow.title : ''; });

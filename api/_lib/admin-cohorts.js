@@ -55,7 +55,7 @@ const actions = {
       id
         ? db.one(`UPDATE cohorts SET name = $2, ac_tag = $3, start_date = $4, access_days = $5, updated_at = now() WHERE id = $1 RETURNING id`, [id, ...values])
         : db.one(`INSERT INTO cohorts (show_id, name, ac_tag, start_date, access_days) VALUES ($1, $2, $3, $4, $5) RETURNING id`, [show.id, ...values]),
-      { cohorts_show_id_name_key: `a cohort named "${name}" already exists`, cohorts_ac_tag: `another cohort (in this or another show) already uses the AC tag "${acTag}"` },
+      { cohorts_show_id_name_key: `a cohort named "${name}" already exists`, cohorts_ac_tag: `another cohort (in this or another program) already uses the AC tag "${acTag}"` },
     );
     return { cohort: await getCohort(show, row.id), target: `cohort ${row.id} (${name})` };
   },

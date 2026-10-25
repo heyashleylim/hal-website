@@ -72,7 +72,7 @@
   function load() {
     return Admin.get('episodes').then(function (r) {
       episodes = r.episodes; drip = r.drip_interval_days;
-      document.getElementById('drip-note').textContent = 'Default spacing between modules: ' + drip + ' days (Show settings). Release times follow the show\'s release time, in Seoul time.';
+      document.getElementById('drip-note').textContent = 'Default spacing between modules: ' + drip + ' days (Programs page). Release times follow the program\'s release time, in Seoul time.';
       render();
     }).catch(function (err) { document.getElementById('list').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
   }

@@ -31,7 +31,7 @@
       <label>Name <span class="hint">e.g. 2기</span><input name="name" maxlength="60" required></label>
       <label>ActiveCampaign tag <span class="hint">the tag that puts a buyer in this cohort (unique across shows)</span><input name="ac_tag" maxlength="100" required autocapitalize="none" spellcheck="false"></label>
       <label>Start date <span class="hint">module 1 is released this day</span><input name="start_date" type="date" required></label>
-      <label>Access length (days) <span class="hint" id="access-hint">empty = show default</span><input name="access_days" type="number" min="1" max="3650" inputmode="numeric"></label>
+      <label>Access length (days) <span class="hint" id="access-hint">empty = program default</span><input name="access_days" type="number" min="1" max="3650" inputmode="numeric"></label>
       <p class="admin-form__wide muted">Changing the start date moves this cohort's whole schedule and the end of access of its students (except enrolments whose dates were set by hand).</p>
       <div class="admin-form__actions">
         <button class="btn-sm" type="submit">Save</button>
@@ -66,7 +66,7 @@
   function load() {
     return Admin.get('cohorts').then(function (r) {
       cohorts = r.cohorts; defaultDays = r.default_access_days;
-      document.getElementById('access-hint').textContent = 'empty = show default (' + defaultDays + ')';
+      document.getElementById('access-hint').textContent = 'empty = program default (' + defaultDays + ')';
       render();
     }).catch(function (err) { document.getElementById('list').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
   }
