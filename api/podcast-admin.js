@@ -5,16 +5,16 @@
  * Writes (POST) must also come from this site's own pages (Origin check).
  * Each change is recorded in admin_log.
  *
- * Actions: `health` and `test-setup` here; show settings, artwork and episodes in _lib/admin-content.js;
- * cohorts and schedules in _lib/admin-cohorts.js. Students, analytics and the daily job come in later
- * phases (docs/podcast-plan.md).
+ * Actions: `health` here; show settings, artwork and episodes in _lib/admin-content.js; cohorts and schedules
+ * in _lib/admin-cohorts.js; students and the activity log in _lib/admin-students.js. Analytics and the daily
+ * job come in later phases (docs/podcast-plan.md).
  */
 const blob = require('@vercel/blob');
 const db = require('./_lib/db.js');
 const auth = require('./_lib/auth.js');
-const release = require('./_lib/release.js');
 const content = require('./_lib/admin-content.js');
 const cohorts = require('./_lib/admin-cohorts.js');
+const students = require('./_lib/admin-students.js');
 const { userError } = require('./_lib/admin-util.js');
 
 const ENV = ['DATABASE_URL', 'PODCAST_SECRET', 'ADMIN_USER', 'ADMIN_PASSWORD', 'AC_API_URL', 'AC_API_KEY'];
@@ -40,42 +40,12 @@ const actions = {
     out.ok = missing.length === 0 && out.database.connected === true && out.storage.connected === true;
     return out;
   },
-
-  // POST: creates (or updates) the "테스트" cohort and a test student; returns their subscribe link.
-  async 'test-setup'(input, { req }) {
-    const email = String(input.email || '').trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw userError('a valid email is required');
-    const startDate = String(input.start_date || '');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw userError('start_date must be YYYY-MM-DD');
-    const show = await db.one(`SELECT * FROM shows WHERE slug = 'nsmb'`);
-    const cohort = await db.one(
-      `INSERT INTO cohorts (show_id, name, ac_tag, start_date) VALUES ($1, '테스트', 'nsmb-test', $2)
-       ON CONFLICT (show_id, name) DO UPDATE SET start_date = EXCLUDED.start_date, updated_at = now()
-       RETURNING id, name, to_char(start_date, 'YYYY-MM-DD') AS start_date`,
-      [show.id, startDate],
-    );
-    const listener = await db.one(
-      `INSERT INTO listeners (show_id, cohort_id, email, name, token, source) VALUES ($1, $2, $3, $4, $5, 'manual')
-       ON CONFLICT (show_id, lower(email)) DO UPDATE SET cohort_id = EXCLUDED.cohort_id, name = EXCLUDED.name, status = 'active', updated_at = now()
-       RETURNING id, token, email`,
-      [show.id, cohort.id, email, String(input.name || '').trim(), auth.newToken()],
-    );
-    const base = `https://${req.headers['x-forwarded-host'] || req.headers.host}`;
-    return {
-      cohort,
-      listener: { id: listener.id, email: listener.email },
-      subscribeUrl: `${base}/podcast/${listener.token}`,
-      feedUrl: `${base}/f/${listener.token}`,
-      firstRelease: release.zonedTime(cohort.start_date, show.release_time, show.timezone),
-      target: `listener ${listener.id}`,
-    };
-  },
 };
 
-Object.assign(actions, content.actions, cohorts.actions);
+Object.assign(actions, content.actions, cohorts.actions, students.actions);
 
 // Actions that change data: POST only, same-origin, recorded in admin_log.
-const WRITE = new Set(['test-setup', ...content.writes, ...cohorts.writes]);
+const WRITE = new Set([...content.writes, ...cohorts.writes, ...students.writes]);
 
 function send(res, status, body) {
   res.statusCode = status;
@@ -111,8 +81,12 @@ module.exports = async function handler(req, res) {
     const input = isWrite ? await readJson(req) : Object.fromEntries(url.searchParams);
     const result = await action(input, { admin, req });
     if (isWrite) {
-      await db.query('INSERT INTO admin_log (admin, action, target, details) VALUES ($1, $2, $3, $4)', [admin, name, result && result.target ? String(result.target) : null, JSON.stringify(input)]);
-      if (result) delete result.target;
+      // An action can replace what's logged (result.log), or skip logging with log: null (e.g. a dry run).
+      const details = result && 'log' in result ? result.log : input;
+      if (details !== null) {
+        await db.query('INSERT INTO admin_log (admin, action, target, details) VALUES ($1, $2, $3, $4)', [admin, name, result && result.target ? String(result.target) : null, JSON.stringify(details)]);
+      }
+      if (result) { delete result.target; delete result.log; }
     }
     return send(res, 200, result);
   } catch (err) {

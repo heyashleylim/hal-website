@@ -62,3 +62,20 @@ test('errors carry the status for retries', async () => {
   fakeAC({ 'GET /contacts': () => [500, {}] });
   await assert.rejects(ac.findContactByEmail('a@b.kr'), (err) => err.status === 500);
 });
+
+test('contactsWithTag pages through every contact with the tag', async () => {
+  const many = Array.from({ length: 100 }, (_, i) => ({ id: String(i), email: `S${i}@x.kr`, firstName: 'A' }));
+  const calls = fakeAC({
+    'GET /tags': () => [200, { tags: [{ id: '9', tag: 'nsmb-1기' }] }],
+    'GET /contacts': (path) => [200, { contacts: /offset=0/.test(path) ? many : [{ id: '100', email: 'last@x.kr' }, { id: '101', email: '' }] }],
+  });
+  const list = await ac.contactsWithTag('nsmb-1기');
+  assert.equal(list.length, 101); // the contact without an email is dropped
+  assert.equal(list[0].email, 's0@x.kr');
+  assert.ok(calls.some((c) => /tagid=9&status=-1&limit=100&offset=100/.test(c.path)));
+});
+
+test('contactsWithTag: unknown tag → null', async () => {
+  fakeAC({ 'GET /tags': () => [200, { tags: [] }] });
+  assert.equal(await ac.contactsWithTag('nope'), null);
+});

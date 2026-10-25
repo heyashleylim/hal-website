@@ -102,9 +102,23 @@ async function syncContact({ email, firstName, fields = {} }) {
   return body.contact.id;
 }
 
+// Every contact that has the tag `name`: [{ id, email, firstName, lastName }]. Null if the tag doesn't exist in AC.
+async function contactsWithTag(name) {
+  const id = await tagId(name);
+  if (!id) return null;
+  const out = [];
+  for (let offset = 0; offset < 100000; offset += 100) {
+    const body = await ac(`/contacts?tagid=${encodeURIComponent(id)}&status=-1&limit=100&offset=${offset}`);
+    const page = body.contacts || [];
+    for (const c of page) out.push({ id: String(c.id), email: String(c.email || '').trim().toLowerCase(), firstName: c.firstName || '', lastName: c.lastName || '' });
+    if (page.length < 100) break;
+  }
+  return out.filter((c) => c.email);
+}
+
 function resetCaches() {
   tagIds.clear();
   fieldIds = null;
 }
 
-module.exports = { findContactByEmail, tagId, contactHasTags, addTag, removeTag, fieldId, syncContact, resetCaches };
+module.exports = { findContactByEmail, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, syncContact, resetCaches };

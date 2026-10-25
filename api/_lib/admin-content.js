@@ -18,7 +18,7 @@ const BLOB_API_VERSION = '12'; // matches @vercel/blob's x-api-version for the p
 
 function showOut(show) {
   return {
-    title: show.title, description: show.description, author: show.author, owner_email: show.owner_email,
+    slug: show.slug, title: show.title, description: show.description, author: show.author, owner_email: show.owner_email,
     category: show.category, copyright: show.copyright, release_time: show.release_time, timezone: show.timezone,
     drip_interval_days: show.drip_interval_days, access_days: show.access_days, support_email: show.support_email,
     page_intro: show.page_intro, ac_tag_prefix: show.ac_tag_prefix, artwork_url: show.artwork_url,
@@ -56,12 +56,36 @@ async function deleteQuietly(pathname) {
 }
 
 const actions = {
-  async show() {
-    return { show: showOut(await getShow()) };
+  // All shows, for the show switcher and the Shows page.
+  async shows() {
+    const rows = await db.query(
+      `SELECT s.id, s.slug, s.title, s.artwork_url,
+              (SELECT count(*)::int FROM episodes e WHERE e.show_id = s.id) AS episodes,
+              (SELECT count(*)::int FROM cohorts c WHERE c.show_id = s.id) AS cohorts,
+              (SELECT count(DISTINCT en.student_id)::int FROM enrollments en JOIN cohorts c ON c.id = en.cohort_id WHERE c.show_id = s.id) AS students
+         FROM shows s ORDER BY s.id`,
+    );
+    return { shows: rows };
+  },
+
+  // A new show with the default settings; its slug appears in students' feed addresses and can't change later.
+  async 'show-create'(input) {
+    const title = text(input.title, { max: 200, required: true, label: 'Title' });
+    const slug = text(input.slug, { max: 40, required: true, label: 'Short name' }).toLowerCase();
+    if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(slug)) throw userError('Short name: lowercase letters, digits and dashes (e.g. eft or switch)');
+    const row = await friendlyUnique(
+      db.one(`INSERT INTO shows (slug, title, ac_tag_prefix) VALUES ($1, $2, $3) RETURNING *`, [slug, title, `podcast-${slug}`]),
+      { shows_slug_key: `a show with the short name "${slug}" already exists` },
+    );
+    return { show: showOut(row), target: `show ${slug}` };
+  },
+
+  async show(input) {
+    return { show: showOut(await getShow(input.show)) };
   },
 
   async 'show-save'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const v = {
       title: text(input.title, { max: 200, required: true, label: 'Title' }),
       description: text(input.description, { max: 4000, label: 'Description' }),
@@ -87,7 +111,7 @@ const actions = {
 
   // A signed URL to PUT one new file into the private store (valid 30 minutes, this pathname only).
   async 'upload-url'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const purpose = input.purpose === 'artwork' ? 'artwork' : 'audio';
     const types = purpose === 'artwork' ? IMAGE_TYPES : AUDIO_TYPES;
     const contentType = String(input.content_type || '');
@@ -111,7 +135,7 @@ const actions = {
   },
 
   async 'show-artwork'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const file = await uploadedFile(show, input.pathname, 'art');
     if (!IMAGE_TYPES[file.contentType]) throw userError('artwork must be a JPEG or PNG image');
     const width = int(input.width, { min: 1, max: 10000, label: 'Width' });
@@ -125,15 +149,15 @@ const actions = {
     return { artwork_url: url, target: `show ${show.slug}` };
   },
 
-  async episodes() {
-    const show = await getShow();
+  async episodes(input) {
+    const show = await getShow(input.show);
     const rows = await db.query(`SELECT * FROM episodes WHERE show_id = $1 ORDER BY day_offset, number NULLS LAST, id`, [show.id]);
     return { episodes: rows.map(episodeOut), drip_interval_days: show.drip_interval_days };
   },
 
   // Creates or updates an episode. `pathname` (from upload-url) attaches new audio and replaces the old file.
   async 'episode-save'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const id = input.id ? int(input.id, { min: 1, max: 2147483647, label: 'id' }) : null;
     const existing = id ? await db.one('SELECT * FROM episodes WHERE id = $1 AND show_id = $2', [id, show.id]) : null;
     if (id && !existing) throw userError('episode not found', 404);
@@ -170,7 +194,7 @@ const actions = {
   },
 
   async 'episode-delete'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     const row = await db.one('DELETE FROM episodes WHERE id = $1 AND show_id = $2 RETURNING *', [id, show.id]);
     if (!row) throw userError('episode not found', 404);
@@ -180,7 +204,7 @@ const actions = {
 
   // A temporary (1 hour) link to listen to an episode in the admin, whatever its status.
   async 'episode-preview'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     const row = await db.one('SELECT blob_pathname FROM episodes WHERE id = $1 AND show_id = $2', [id, show.id]);
     if (!row || !row.blob_pathname) throw userError('no audio for this episode', 404);
@@ -191,6 +215,6 @@ const actions = {
   },
 };
 
-const writes = ['show-save', 'upload-url', 'show-artwork', 'episode-save', 'episode-delete'];
+const writes = ['show-create', 'show-save', 'upload-url', 'show-artwork', 'episode-save', 'episode-delete'];
 
 module.exports = { actions, writes, AUDIO_TYPES, IMAGE_TYPES };

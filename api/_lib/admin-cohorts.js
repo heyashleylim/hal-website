@@ -23,29 +23,27 @@ function cohortStatus(show, cohort, episodes, now = new Date()) {
 }
 
 const actions = {
-  async cohorts() {
-    const show = await getShow();
+  async cohorts(input) {
+    const show = await getShow(input.show);
     const rows = await db.query(
       `SELECT ${COHORT_COLUMNS},
-              count(l.id)::int AS students,
-              count(l.id) FILTER (WHERE l.first_seen_at IS NOT NULL)::int AS subscribed,
-              count(l.id) FILTER (WHERE l.status = 'revoked')::int AS revoked
-         FROM cohorts c LEFT JOIN listeners l ON l.cohort_id = c.id
+              count(en.id)::int AS students,
+              count(en.id) FILTER (WHERE st.first_seen_at IS NOT NULL)::int AS subscribed,
+              count(en.id) FILTER (WHERE en.status = 'revoked' OR st.status = 'revoked')::int AS revoked
+         FROM cohorts c LEFT JOIN enrollments en ON en.cohort_id = c.id LEFT JOIN students st ON st.id = en.student_id
         WHERE c.show_id = $1
         GROUP BY c.id ORDER BY c.start_date DESC, c.id DESC`,
       [show.id],
     );
-    const unassigned = await db.one(`SELECT count(*)::int AS n FROM listeners WHERE show_id = $1 AND cohort_id IS NULL`, [show.id]);
     const now = new Date();
     return {
       cohorts: rows.map((c) => ({ ...c, status: cohortStatus(show, c, null, now), expires_at: release.expiresAt({ show, cohort: c, listener: {} }) })),
-      unassigned: unassigned.n,
       default_access_days: show.access_days,
     };
   },
 
   async 'cohort-save'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const id = input.id ? int(input.id, { min: 1, max: 2147483647, label: 'id' }) : null;
     if (id) await getCohort(show, id);
     const name = text(input.name, { max: 60, required: true, label: 'Name' });
@@ -57,24 +55,24 @@ const actions = {
       id
         ? db.one(`UPDATE cohorts SET name = $2, ac_tag = $3, start_date = $4, access_days = $5, updated_at = now() WHERE id = $1 RETURNING id`, [id, ...values])
         : db.one(`INSERT INTO cohorts (show_id, name, ac_tag, start_date, access_days) VALUES ($1, $2, $3, $4, $5) RETURNING id`, [show.id, ...values]),
-      { cohorts_show_id_name_key: `a cohort named "${name}" already exists`, cohorts_ac_tag: `another cohort already uses the AC tag "${acTag}"` },
+      { cohorts_show_id_name_key: `a cohort named "${name}" already exists`, cohorts_ac_tag: `another cohort (in this or another show) already uses the AC tag "${acTag}"` },
     );
     return { cohort: await getCohort(show, row.id), target: `cohort ${row.id} (${name})` };
   },
 
   async 'cohort-delete'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     const cohort = await getCohort(show, id);
-    const { n } = await db.one('SELECT count(*)::int AS n FROM listeners WHERE cohort_id = $1', [id]);
-    if (n > 0) throw userError(`this cohort has ${n} student(s); move them to another cohort first`);
+    const { n } = await db.one('SELECT count(*)::int AS n FROM enrollments WHERE cohort_id = $1', [id]);
+    if (n > 0) throw userError(`this cohort has ${n} student(s); remove their enrolment first (Students page)`);
     await db.query('DELETE FROM cohorts WHERE id = $1', [id]);
     return { deleted: id, target: `cohort ${id} (${cohort.name})` };
   },
 
   // Every episode with its release date for this cohort, and whether it's already out.
   async 'cohort-schedule'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const cohort = await getCohort(show, int(input.id, { min: 1, max: 2147483647, label: 'id' }));
     const [episodes, overrideRows] = await Promise.all([
       db.query(`SELECT id, kind, number, title, day_offset, status, blob_pathname FROM episodes WHERE show_id = $1 ORDER BY day_offset, number NULLS LAST, id`, [show.id]),
@@ -96,7 +94,7 @@ const actions = {
 
   // Moves one episode for one cohort (date + time in the show's timezone), or clears the change.
   async 'cohort-override'(input) {
-    const show = await getShow();
+    const show = await getShow(input.show);
     const cohort = await getCohort(show, int(input.cohort_id, { min: 1, max: 2147483647, label: 'cohort' }));
     const episodeId = int(input.episode_id, { min: 1, max: 2147483647, label: 'episode' });
     const episode = await db.one('SELECT id, title FROM episodes WHERE id = $1 AND show_id = $2', [episodeId, show.id]);

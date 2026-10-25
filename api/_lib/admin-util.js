@@ -11,10 +11,12 @@ function userError(message, status = 400) {
   return err;
 }
 
-// The show managed by the admin. Only NSMB for now; the data model allows more.
-async function getShow(slug = 'nsmb') {
-  const show = await db.one('SELECT * FROM shows WHERE slug = $1', [slug]);
-  if (!show) throw userError(`show "${slug}" not found`, 404);
+// The show the admin is working on (the show switcher sends its slug); the first show if none is given.
+async function getShow(slug) {
+  const show = slug
+    ? await db.one('SELECT * FROM shows WHERE slug = $1', [String(slug)])
+    : await db.one('SELECT * FROM shows ORDER BY id LIMIT 1');
+  if (!show) throw userError(slug ? `show "${slug}" not found` : 'no show yet: create one on the Shows page', 404);
   return show;
 }
 
