@@ -154,6 +154,14 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   Episodes, Cohorts, the Programs page, imports and the AC sync; the Students page covers all programs. A cohort's AC tag
   is unique across programs.
 - The AC sync names students from the contact's **First name** only: Ashley's team keeps the full Korean name (e.g. 김지연) there.
+- ActiveCampaign automation (`api/_lib/automation.js`, page `/admin/podcast/automation`): the site never calls AC during a
+  student's request; it queues updates in `ac_outbox` (dedupe keys: each tag once per student and program) and sends them
+  right after admin actions/webhooks, on "Send pending now", or in the daily job (`vercel.json` crons, 09:10 KST,
+  production only, `CRON_SECRET`). Webhook `POST /api/podcast-ac?key=…` (key derived from PODCAST_SECRET) enrols on purchase
+  tags; `&action=revoke&tag=…` for refunds. Tags per program (underscores, like Ashley's other AC tags): `<prefix>_enrolled`,
+  `_subscribed`, `_not_subscribed_3d/7d`, `_epNN_released`, `_epNN_downloaded`, `_completed`, `_expiring_30d`, `_expired`,
+  `_revoked` (prefix e.g. `podcast_nsmb`), plus `podcast_link_reset`; field `PODCAST_LINK`.
+  Students added by hand only reach AC when "Tell ActiveCampaign" is ticked.
 
 ## Page configuration
 
