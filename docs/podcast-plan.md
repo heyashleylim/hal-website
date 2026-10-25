@@ -193,7 +193,7 @@ vercel.json           ← rewrites, cron, noindex headers
 | 1. Foundation ✅ code done 2026-10-23 | `package.json`, schema and migrations, `_lib` (db, ac, auth, release rule with tests), admin login, admin health page | 1 day |
 | 2. Delivery 🟡 code done 2026-10-24, needs the Blob store + app testing | Feed, audio streaming with ranges, subscribe page, help page, admin test tools (test upload ≤ 4 MB, test student). **Milestone:** a test student subscribes in Apple Podcasts, Pocket Casts and Overcast and receives a weekly drip on a compressed test schedule. QR code moved to phase 7. | 1.5–2 days |
 | 3. Admin: content 🟡 code done 2026-10-24, to test on preview | Show settings + cover art, episodes (direct upload to private Blob with signed URLs, any size up to 500 MB, preview player), cohorts with schedule preview and per-cohort date changes | 1.5–2 days |
-| 4. Admin: students | List, filters, detail, all actions, CSV import/export, activity log | 1.5 days |
+| 4. Admin: students 🟡 code done 2026-10-25 (reworked the same day for several shows), to test on preview | Students list with search and filters (cohort, access, never subscribed, behind), detail (subscribe link, listening history, download networks, admin history), add/edit (own start date, access until, notes), move/revoke/restore in bulk, reset link, delete, CSV import with preview and CSV export, Activity page. AC sync history, resend welcome and sending a reset link to AC come with phase 5 | 1.5 days |
 | 5. AC automation | Inbound webhooks, outbound fields/tags through the outbox, daily cron, automation log page | 1–1.5 days |
 | 6. Analytics | Event logging, IAB counting, rollups, dashboard and analytics pages, alerts | 1–1.5 days |
 | 7. QA and launch | 375/768/1024/1440px checks, accessibility, a second-cohort test, expiry and revocation tests, privacy policy, runbook in `docs/`, CLAUDE.md update, import cohort A | 1 day |
@@ -289,3 +289,16 @@ ffmpeg, whisper-cpp, Whisper large-v3-turbo q5 model), open, suggest chapters an
 for her. A browser UI served on 127.0.0.1: batch upload, waveform player, chapter editor, chapters suggested
 from pauses or by Claude in her Claude Code session (`podcast-studio transcript` / `set-chapters`, no API key),
 batch export: mono MP3 96 kbps, −16 LUFS, peaks ≤ −1 dB, ID3 chapters.
+
+## 10. Several shows, students and enrolments (2026-10-25)
+
+Asked by Alex after phase 4: several shows; a student can have several shows; a show has several cohorts; a student
+can be in several cohorts of the same show. Plus a "Sync from ActiveCampaign" button. Decisions (Alex):
+- **One personal page per student** (`/podcast/<token>`) listing every show, each with its own feed `/f/<token>/<show>`.
+  ActiveCampaign stores one link per student.
+- **Several cohorts of one show combine**: every episode released by any enrolment that isn't revoked or expired, at
+  the earliest date; access until the latest end (`release.showAccess`).
+- **AC sync lists, you decide**: the sync adds students and enrolments for every cohort's AC tag; students enrolled here
+  but no longer tagged are listed with a "Revoke selected" button; nothing is removed automatically.
+Data: migration `002_students_enrollments.sql` (students, enrollments; listeners removed; events/outbox point to
+students; AC tags unique across shows). Existing test data kept, including the test student's token.

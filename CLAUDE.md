@@ -131,19 +131,27 @@ Rules for the structure:
 
 ## Private podcast
 
-Per-student private podcast feeds for NSMB (cohorts, weekly drip, 1-year access, ActiveCampaign automation, admin pages).
+Private podcasts for Ashley's programs: several **shows**, each with cohorts (weekly drip, 1-year access). A **student**
+(one per email) has one personal page listing their shows and is **enrolled** in any number of cohorts, including several
+of the same show (they get every episode any running enrolment releases; access lasts until the latest end).
+ActiveCampaign automation and admin pages.
 Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branch.
 - Data lives in Neon Postgres (`DATABASE_URL`), never in the repo (it is public). All SQL goes through `api/_lib/db.js`.
 - Release and access rules are in `api/_lib/release.js` (pure, unit-tested). Change them there and in its tests only.
 - `/admin/*` is behind its own login (middleware); `/api/podcast-admin` checks the same cookie itself. Admin pages:
-  `site/admin/podcast/` (Dashboard, `episodes/`, `cohorts/`, `show/`), shared `assets/js/admin/admin.js` + `assets/css/admin/admin.css`.
-  API actions are split into `api/_lib/admin-content.js` (show, artwork, episodes) and `admin-cohorts.js`.
+  `site/admin/podcast/` (Dashboard, `episodes/`, `cohorts/`, `students/`, `show/`, `activity/`), shared `assets/js/admin/admin.js`
+  + `assets/css/admin/admin.css`. API actions are split into `api/_lib/admin-content.js` (show, artwork, episodes),
+  `admin-cohorts.js` and `admin-students.js` (students, CSV import, activity log).
+- "Access until" dates shown anywhere are the last listening day: access ends at 00:00 KST the day after.
 - Uploads go straight from the browser to the private Blob store through a short-lived signed URL (`upload-url`), so
   there's no 4.5 MB function limit. Cover art is served publicly at `/a/art/<show>.<ext>`.
 - The admin API only runs on Vercel deployments: the local `site` preview serves static files only.
-- Student URLs (rewrites in `vercel.json`, token = 22 random characters): `/podcast/<token>` subscribe page (api/podcast-page.js,
-  header/footer read from `site/nsmb` and `site/index.html` at runtime), `/f/<token>` feed, `/a/<token>/<guid>.mp3` audio streamed
-  from the private Vercel Blob store. `/podcast/help` is a static page. All are noindex and in robots.txt.
+- Student URLs (rewrites in `vercel.json`, token = the student's 22 random characters): `/podcast/<token>` personal page
+  listing their shows (api/podcast-page.js, header/footer read from `site/nsmb` and `site/index.html` at runtime),
+  `/f/<token>/<show slug>` one feed per show (`/f/<token>` still works for students with one show), `/a/<token>/<guid>.mp3`
+  audio streamed from the private Vercel Blob store. `/podcast/help` is a static page. All are noindex and in robots.txt.
+- The admin's show switcher (top bar) scopes Episodes, Cohorts, Shows settings, imports and the AC sync; the Students page
+  covers all shows. A cohort's AC tag is unique across shows.
 
 ## Page configuration
 
