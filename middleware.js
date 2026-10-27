@@ -3,8 +3,8 @@
  *
  *   /preview/*  private copies of ashleylim.com pages that include the elements hidden on the live site.
  *               PREVIEW_USER / PREVIEW_PASSWORD, cookie hal_preview (Path=/preview, 30 days).
- *   /admin/*    private podcast admin pages. ADMIN_USER / ADMIN_PASSWORD, cookie hal_admin
- *               (Path=/, 14 days, so the admin API at /api/podcast-admin receives it too; that function
+ *   /admin/*    the admin (every section: podcast, later e-commerce…). ADMIN_USER / ADMIN_PASSWORD, cookie hal_admin
+ *               (Path=/, 14 days, so the admin API at /api/admin receives it too; that function
  *               checks the cookie itself, see api/_lib/auth.js, and is not routed through here).
  *
  * Set in Vercel → Project → Settings → Environment Variables (all environments). Never commit them.
@@ -25,7 +25,7 @@ const AREAS = {
   },
   admin: {
     prefix: '/admin', userVar: 'ADMIN_USER', passVar: 'ADMIN_PASSWORD', cookie: 'hal_admin', cookiePath: '/',
-    maxAge: 60 * 60 * 24 * 14, scope: 'hal-admin:', home: '/admin/podcast', title: 'Podcast admin', basic: false,
+    maxAge: 60 * 60 * 24 * 14, scope: 'hal-admin:', home: '/admin', title: 'Admin', basic: false,
     lang: 'en', text: { login: 'Log in', user: 'Username', pass: 'Password', submit: 'Log in', wrong: 'Wrong username or password.' },
   },
 };

@@ -1,5 +1,5 @@
 /*
- * Podcast admin API: show settings, artwork and episodes (actions are routed by api/podcast-admin.js).
+ * Podcast admin API: show settings, artwork and episodes (Podcast section; actions are routed by api/admin.js).
  *
  * Uploads go straight from the browser to the private Blob store, so files of any size skip the
  * 4.5 MB function limit: `upload-url` returns a short-lived signed PUT URL for one new pathname, the
@@ -7,8 +7,8 @@
  */
 const crypto = require('node:crypto');
 const blob = require('@vercel/blob');
-const db = require('./db.js');
-const { userError, getShow, text, int, time, email, friendlyUnique } = require('./admin-util.js');
+const db = require('../db.js');
+const { userError, getShow, text, int, time, email, friendlyUnique } = require('./util.js');
 
 const AUDIO_TYPES = { 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'aac' };
 const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png' };
@@ -217,4 +217,4 @@ const actions = {
 
 const writes = ['show-create', 'show-save', 'upload-url', 'show-artwork', 'episode-save', 'episode-delete'];
 
-module.exports = { actions, writes, AUDIO_TYPES, IMAGE_TYPES };
+module.exports = { section: 'podcast', actions, writes, AUDIO_TYPES, IMAGE_TYPES };

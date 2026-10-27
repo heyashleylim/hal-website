@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const u = require('../../api/_lib/admin-util.js');
+const u = require('../../api/_lib/admin/util.js');
 
 test('input checks give readable errors', () => {
   assert.equal(u.text('  hi  ', { label: 'Title' }), 'hi');

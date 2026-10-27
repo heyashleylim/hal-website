@@ -1,13 +1,13 @@
 /*
  * Podcast admin API: the Automation page (ActiveCampaign) — setup status, webhook addresses, tag names, the queue
- * of pending AC updates, the webhook log, retries and the daily job. Actions are routed by api/podcast-admin.js.
+ * of pending AC updates, the webhook log, retries and the daily job. Podcast section; actions are routed by api/admin.js.
  */
-const db = require('./db.js');
-const ac = require('./ac.js');
-const auth = require('./auth.js');
-const automation = require('./automation.js');
-const podcast = require('./podcast.js');
-const { userError, getShow, int } = require('./admin-util.js');
+const db = require('../db.js');
+const ac = require('../ac.js');
+const auth = require('../auth.js');
+const automation = require('../automation.js');
+const podcast = require('../podcast.js');
+const { userError, getShow, int } = require('./util.js');
 
 function baseUrl(req) {
   return `https://${req.headers['x-forwarded-host'] || req.headers.host}`;
@@ -116,4 +116,4 @@ const actions = {
 
 const writes = ['outbox-process', 'outbox-retry', 'daily-run', 'student-ac-push', 'student-resend-welcome'];
 
-module.exports = { actions, writes };
+module.exports = { section: 'podcast', actions, writes };

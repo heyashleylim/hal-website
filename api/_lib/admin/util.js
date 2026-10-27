@@ -1,7 +1,7 @@
 /*
  * Small helpers shared by the podcast admin API modules (admin-content.js, admin-cohorts.js).
  */
-const db = require('./db.js');
+const db = require('../db.js');
 
 // An error whose message is shown to the admin (400 unless given).
 function userError(message, status = 400) {

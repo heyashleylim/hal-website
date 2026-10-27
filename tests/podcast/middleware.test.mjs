@@ -29,7 +29,7 @@ test('preview: unchanged behaviour', async () => {
 test('admin: login, cookie shared with the API, logout', async () => {
   let res = await mw(new Request(base + '/admin/podcast/students'));
   const html = await res.text();
-  assert.match(html, /<html lang="en">[\s\S]*Podcast admin[\s\S]*action="\/admin\/login"[\s\S]*value="\/admin\/podcast\/students"/);
+  assert.match(html, /<html lang="en">[\s\S]*<title>Admin · Log in<\/title>[\s\S]*action="\/admin\/login"[\s\S]*<h1>Admin<\/h1>[\s\S]*value="\/admin\/podcast\/students"/);
   res = await mw(post('/admin/login', { username: 'admin', password: 'wrong', next: '/admin/podcast' }));
   assert.match(await res.text(), /Wrong username or password/);
   res = await mw(post('/admin/login', { username: 'admin', password: 'ap', next: '/admin/podcast' }));

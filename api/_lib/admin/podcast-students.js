@@ -1,16 +1,16 @@
 /*
- * Podcast admin API: students (people), their enrolments (one per cohort, any show), CSV import,
- * Sync from ActiveCampaign, and the activity log. Actions are routed by api/podcast-admin.js.
+ * Admin API, Podcast section: students (people), their enrolments (one per cohort, any program), CSV import and
+ * Sync from ActiveCampaign. Actions are routed by api/admin.js.
  *
  * A student has one personal link (/podcast/<token>) listing every show they're enrolled in.
  * What they can hear in a show follows release.showAccess (all their running enrolments in that show combined).
  */
-const db = require('./db.js');
-const auth = require('./auth.js');
-const ac = require('./ac.js');
-const release = require('./release.js');
-const automation = require('./automation.js');
-const { userError, getShow, text, int, date, email, friendlyUnique } = require('./admin-util.js');
+const db = require('../db.js');
+const auth = require('../auth.js');
+const ac = require('../ac.js');
+const release = require('../release.js');
+const automation = require('../automation.js');
+const { userError, getShow, text, int, date, email, friendlyUnique } = require('./util.js');
 
 const MAX_IDS = 1000;
 
@@ -406,22 +406,25 @@ const actions = {
       log: { new_students: report.new_students, new_enrolments: report.new_enrolments, missing: report.missing.length, cohorts: report.cohorts.map((x) => ({ id: x.id, in_ac: x.in_ac, added: x.added, error: x.error })) },
     };
   },
+};
 
-  // Admin changes, newest first.
-  async activity(input) {
-    const limit = int(input.limit || 300, { min: 1, max: 1000, label: 'limit' });
-    const q = text(input.q, { max: 100 });
-    const rows = await db.query(
-      `SELECT at, admin, action, target, details FROM admin_log
-        WHERE $1 = '' OR action ILIKE '%' || $1 || '%' OR target ILIKE '%' || $1 || '%' OR details::text ILIKE '%' || $1 || '%'
-        ORDER BY at DESC LIMIT $2`,
-      [q, limit],
-    );
-    return { entries: rows };
-  },
+// Podcast overview numbers (section home and admin home).
+actions['podcast-overview'] = async function podcastOverview() {
+  const row = await db.one(
+    `SELECT (SELECT count(*)::int FROM shows) AS programs,
+            (SELECT count(*)::int FROM episodes WHERE status = 'published') AS episodes,
+            (SELECT count(*)::int FROM students) AS students,
+            (SELECT count(DISTINCT en.student_id)::int FROM enrollments en JOIN students s ON s.id = en.student_id
+              WHERE en.status = 'active' AND s.status = 'active') AS enrolled,
+            (SELECT count(*)::int FROM students WHERE first_seen_at IS NOT NULL) AS subscribed,
+            (SELECT count(*)::int FROM ac_outbox WHERE status = 'pending') AS ac_pending,
+            (SELECT count(*)::int FROM ac_outbox WHERE status = 'failed') AS ac_failed,
+            (SELECT max(at) FROM webhook_log) AS last_webhook,
+            (SELECT max(at) FROM events WHERE kind = 'download') AS last_download`);
+  return { overview: row };
 };
 
 const writes = ['student-save', 'students-status', 'students-enroll', 'enrollment-save', 'enrollments-status', 'enrollment-delete',
   'student-reset-link', 'student-delete', 'students-import', 'ac-sync'];
 
-module.exports = { actions, writes, parseCsv };
+module.exports = { section: 'podcast', actions, writes, parseCsv };

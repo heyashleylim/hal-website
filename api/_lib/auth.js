@@ -1,5 +1,5 @@
 /*
- * Secrets and sessions for the private podcast.
+ * Secrets and sessions for the private podcast and the admin.
  *
  * - Student tokens: 128-bit random, URL-safe (22 characters). They are the only key to a feed.
  * - Admin session: the same scheme as the /preview login in middleware.js, with its own credentials

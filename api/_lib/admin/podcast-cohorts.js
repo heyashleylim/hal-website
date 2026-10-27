@@ -1,10 +1,10 @@
 /*
  * Podcast admin API: cohorts, their release schedule and per-cohort date changes
- * (actions are routed by api/podcast-admin.js). Release rules live in release.js.
+ * (Podcast section; actions are routed by api/admin.js). Release rules live in release.js.
  */
-const db = require('./db.js');
-const release = require('./release.js');
-const { userError, getShow, text, int, date, time, friendlyUnique } = require('./admin-util.js');
+const db = require('../db.js');
+const release = require('../release.js');
+const { userError, getShow, text, int, date, time, friendlyUnique } = require('./util.js');
 
 const COHORT_COLUMNS = `c.id, c.name, c.ac_tag, to_char(c.start_date, 'YYYY-MM-DD') AS start_date, c.access_days, c.created_at`;
 
@@ -115,4 +115,4 @@ const actions = {
 
 const writes = ['cohort-save', 'cohort-delete', 'cohort-override'];
 
-module.exports = { actions, writes };
+module.exports = { section: 'podcast', actions, writes };

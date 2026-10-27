@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const auth = require('../../api/_lib/auth.js');
-const handler = require('../../api/podcast-admin.js');
+const handler = require('../../api/admin.js');
 
 function call({ url, method = 'GET', cookie = '' }) {
   return new Promise((resolve) => {
@@ -23,18 +23,18 @@ test.before(() => {
 const cookie = () => 'hal_admin=' + auth.adminSessionToken('admin', 'pw');
 
 test('refuses without the admin cookie', async () => {
-  const r = await call({ url: '/api/podcast-admin?action=health' });
+  const r = await call({ url: '/api/admin?action=health' });
   assert.equal(r.status, 401);
   assert.equal(r.headers['cache-control'], 'no-store');
 });
 
 test('unknown action and wrong method', async () => {
-  assert.equal((await call({ url: '/api/podcast-admin?action=toString', cookie: cookie() })).status, 404);
-  assert.equal((await call({ url: '/api/podcast-admin?action=health', method: 'POST', cookie: cookie() })).status, 405);
+  assert.equal((await call({ url: '/api/admin?action=toString', cookie: cookie() })).status, 404);
+  assert.equal((await call({ url: '/api/admin?action=health', method: 'POST', cookie: cookie() })).status, 405);
 });
 
 test('health reports missing configuration by name only', async () => {
-  const r = await call({ url: '/api/podcast-admin?action=health', cookie: cookie() });
+  const r = await call({ url: '/api/admin?action=health', cookie: cookie() });
   assert.equal(r.status, 200);
   assert.equal(r.body.ok, false);
   assert.ok(r.body.missingEnv.includes('DATABASE_URL'));

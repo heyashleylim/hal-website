@@ -13,7 +13,7 @@
   },
   "crons": [
     {
-      "path": "/api/podcast-admin?action=cron",
+      "path": "/api/admin?action=cron",
       "schedule": "10 0 * * *"
     }
   ],
