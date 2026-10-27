@@ -1,17 +1,22 @@
-/* Shared helpers for the private podcast admin pages: API calls (scoped to the selected show), navigation and
-   show switcher, uploads, formatting. */
-window.Admin = (function () {
-  var NAV = [
-    ['/admin/podcast', 'Dashboard'],
-    ['/admin/podcast/episodes', 'Episodes'],
-    ['/admin/podcast/cohorts', 'Cohorts'],
-    ['/admin/podcast/students', 'Students'],
-    ['/admin/podcast/programs', 'Programs'],
-    ['/admin/podcast/automation', 'Automation'],
-    ['/admin/podcast/activity', 'Activity'],
-  ];
+/* Shared code for every admin page (/admin): the header (sections, section menu, program switcher), API calls to
+   /api/admin, uploads and formatting.
 
-  // The show being edited (Episodes, Cohorts, Shows pages and the AC sync), remembered on this browser.
+   Adding a section (e.g. e-commerce): add it to SECTIONS with its pages; its pages use
+   <body class="admin" data-section="<key>"> and an empty <header class="admin-bar"></header>. */
+window.Admin = (function () {
+  var SECTIONS = [
+    { key: 'podcast', label: 'Podcast', home: '/admin/podcast', pages: [
+      ['/admin/podcast', 'Overview'],
+      ['/admin/podcast/episodes', 'Episodes'],
+      ['/admin/podcast/cohorts', 'Cohorts'],
+      ['/admin/podcast/students', 'Students'],
+      ['/admin/podcast/programs', 'Programs'],
+      ['/admin/podcast/automation', 'Automation'],
+    ] },
+  ];
+  var GLOBAL = [['/admin/activity', 'Activity']];
+
+  // The podcast program being edited (Episodes, Cohorts, Programs pages, imports, the AC sync), remembered on this browser.
   var SHOW_KEY = 'podcast-admin-show';
   function currentShow() {
     try { return localStorage.getItem(SHOW_KEY) || ''; } catch (e) { return ''; }
@@ -37,20 +42,35 @@ window.Admin = (function () {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
   }
 
-  // Fills <nav class="admin-nav"> (current page marked) and adds the show switcher to the bar.
+  // Draws the header: brand + sections + Activity + Log out, then the current section's menu (+ program switcher).
   function nav() {
-    var el = document.querySelector('.admin-nav');
-    if (!el) return;
-    var here = location.pathname.replace(/\/$/, '');
-    el.innerHTML = NAV.map(function (n) {
-      return '<a href="' + n[0] + '"' + (here === n[0] ? ' aria-current="page"' : '') + '>' + n[1] + '</a>';
-    }).join('');
     var bar = document.querySelector('.admin-bar');
-    if (!bar || document.getElementById('show-switch')) return;
+    if (!bar || bar.dataset.ready) return;
+    bar.dataset.ready = '1';
+    var here = location.pathname.replace(/\/$/, '') || '/admin';
+    var key = document.body.dataset.section || '';
+    var section = SECTIONS.find(function (x) { return x.key === key; });
+    var link = function (href, label, current) { return '<a href="' + href + '"' + (current ? ' aria-current="page"' : '') + '>' + label + '</a>'; };
+    bar.innerHTML =
+      '<div class="admin-bar__top">' +
+        '<a class="admin-bar__title" href="/admin"' + (here === '/admin' ? ' aria-current="page"' : '') + '>Ashley Lim <span>Admin</span></a>' +
+        '<nav class="admin-sections" aria-label="Admin sections">' +
+          SECTIONS.map(function (x) { return link(x.home, x.label, x === section); }).join('') +
+          GLOBAL.map(function (g) { return link(g[0], g[1], here === g[0]); }).join('') +
+        '</nav>' +
+        '<a class="admin-bar__logout" href="/admin/logout">Log out</a>' +
+      '</div>' +
+      (section ? '<div class="admin-bar__sub"><nav class="admin-nav" aria-label="' + esc(section.label) + ' menu">' +
+        section.pages.map(function (p) { return link(p[0], p[1], here === p[0]); }).join('') + '</nav></div>' : '');
+    if (key === 'podcast') programSwitcher(bar.querySelector('.admin-bar__sub'));
+  }
+
+  // Podcast pages: which program they work on.
+  function programSwitcher(row) {
     var label = document.createElement('label');
     label.className = 'show-switch';
     label.innerHTML = '<span>Program</span><select id="show-switch" aria-label="Program you are working on"><option>…</option></select>';
-    bar.insertBefore(label, el);
+    row.appendChild(label);
     api.get('shows').then(function (r) {
       var sel = document.getElementById('show-switch');
       var cur = currentShow();
@@ -124,10 +144,10 @@ window.Admin = (function () {
     esc: esc, kst: kst, kstParts: kstParts, lastDay: lastDay, size: size, duration: duration, audioDuration: audioDuration, imageSize: imageSize,
     get: function (action, params) {
       var q = new URLSearchParams(Object.assign({ action: action, show: currentShow() }, params || {}));
-      return fetch('/api/podcast-admin?' + q, { credentials: 'same-origin' }).then(handle);
+      return fetch('/api/admin?' + q, { credentials: 'same-origin' }).then(handle);
     },
     post: function (action, data) {
-      return fetch('/api/podcast-admin?action=' + encodeURIComponent(action), {
+      return fetch('/api/admin?action=' + encodeURIComponent(action), {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ show: currentShow() }, data || {})),
       }).then(handle);

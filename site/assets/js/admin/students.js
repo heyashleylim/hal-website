@@ -1,4 +1,4 @@
-/* Podcast admin: Students page — people across all programs, their enrolments, bulk actions, CSV import/export,
+/* Admin · Podcast section: Students page — people across all programs, their enrolments, bulk actions, CSV import/export,
    and Sync from ActiveCampaign. */
 (function () {
   var $ = function (id) { return document.getElementById(id); };
