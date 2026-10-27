@@ -142,8 +142,10 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
 - **One admin for the whole site** at `/admin` (its own login in middleware; `/api/admin` checks the same cookie itself).
   Home `/admin` (sections + system status), global `/admin/activity`, and one folder per section: `/admin/podcast/`
   (Overview, `episodes/`, `cohorts/`, `students/`, `programs/`, `automation/`). Later sections (e-commerce…) get their own
-  folder. The header is drawn by `site/assets/js/admin/admin.js` (SECTIONS list; pages use `<body data-section="…">` and an
-  empty `<header class="admin-bar">`); styles in `assets/css/admin/admin.css`. API: `api/admin.js` routes actions from
+  folder. Navigation is on the left, like ActiveCampaign's admin: a dark teal icon rail (always visible: Home, sections,
+  Activity, Log out) and the current section's collapsible menu (grouped links; Podcast adds the program switcher). Content is on
+  white. Drawn by `site/assets/js/admin/admin.js` (SECTIONS and ICONS; pages use `<body data-section="…">` and an empty
+  `<header class="admin-bar">`); styles in `assets/css/admin/admin.css`. API: `api/admin.js` routes actions from
   `api/_lib/admin/system.js` (health, activity) and `api/_lib/admin/podcast-*.js` (content, cohorts, students, automation);
   a new section adds its module there (unique action names). `admin_log` records each action's section.
 - "Access until" dates shown anywhere are the last listening day: access ends at 00:00 KST the day after.
