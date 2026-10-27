@@ -17,7 +17,8 @@ hal-website/
 ├── README.md              ← human quick-start (preview, deploy)
 ├── vercel.json            ← outputDirectory: "site", clean URLs, cache headers
 ├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
-├── api/podcast-*.js       ← private podcast functions (docs/podcast-plan.md); shared code in api/_lib/ (not endpoints)
+├── api/admin.js           ← the admin API for every section (/api/admin?action=…); sections' code in api/_lib/admin/
+├── api/podcast-*.js       ← private podcast functions for students and AC (docs/podcast-plan.md); shared code in api/_lib/ (not endpoints)
 ├── db/migrations/         ← private podcast database schema (Neon Postgres), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
@@ -138,10 +139,13 @@ ActiveCampaign automation and admin pages.
 Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branch.
 - Data lives in Neon Postgres (`DATABASE_URL`), never in the repo (it is public). All SQL goes through `api/_lib/db.js`.
 - Release and access rules are in `api/_lib/release.js` (pure, unit-tested). Change them there and in its tests only.
-- `/admin/*` is behind its own login (middleware); `/api/podcast-admin` checks the same cookie itself. Admin pages:
-  `site/admin/podcast/` (Dashboard, `episodes/`, `cohorts/`, `students/`, `programs/`, `activity/`), shared `assets/js/admin/admin.js`
-  + `assets/css/admin/admin.css`. API actions are split into `api/_lib/admin-content.js` (show, artwork, episodes),
-  `admin-cohorts.js` and `admin-students.js` (students, CSV import, activity log).
+- **One admin for the whole site** at `/admin` (its own login in middleware; `/api/admin` checks the same cookie itself).
+  Home `/admin` (sections + system status), global `/admin/activity`, and one folder per section: `/admin/podcast/`
+  (Overview, `episodes/`, `cohorts/`, `students/`, `programs/`, `automation/`). Later sections (e-commerce…) get their own
+  folder. The header is drawn by `site/assets/js/admin/admin.js` (SECTIONS list; pages use `<body data-section="…">` and an
+  empty `<header class="admin-bar">`); styles in `assets/css/admin/admin.css`. API: `api/admin.js` routes actions from
+  `api/_lib/admin/system.js` (health, activity) and `api/_lib/admin/podcast-*.js` (content, cohorts, students, automation);
+  a new section adds its module there (unique action names). `admin_log` records each action's section.
 - "Access until" dates shown anywhere are the last listening day: access ends at 00:00 KST the day after.
 - Uploads go straight from the browser to the private Blob store through a short-lived signed URL (`upload-url`), so
   there's no 4.5 MB function limit. Cover art is served publicly at `/a/art/<show>.<ext>`.

@@ -302,3 +302,9 @@ can be in several cohorts of the same show. Plus a "Sync from ActiveCampaign" bu
   but no longer tagged are listed with a "Revoke selected" button; nothing is removed automatically.
 Data: migration `002_students_enrollments.sql` (students, enrollments; listeners removed; events/outbox point to
 students; AC tags unique across shows). Existing test data kept, including the test student's token.
+
+## 11. Central admin (2026-10-27)
+
+Asked by Alex: one admin for the whole site, with Podcast as one section, ready for e-commerce (replacing the
+WooCommerce checkout) and more. `/admin` home, `/admin/podcast/…` section, `/admin/activity` for all sections;
+one API `/api/admin` with modules per section (`api/_lib/admin/`); the daily job moved to `/api/admin?action=cron`.
