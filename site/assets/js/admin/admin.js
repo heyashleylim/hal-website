@@ -1,20 +1,31 @@
-/* Shared code for every admin page (/admin): the header (sections, section menu, program switcher), API calls to
-   /api/admin, uploads and formatting.
+/* Shared code for every admin page (/admin): the left navigation (icon rail + collapsible section menu + program
+   switcher), API calls to /api/admin, uploads and formatting.
 
-   Adding a section (e.g. e-commerce): add it to SECTIONS with its pages; its pages use
+   Adding a section (e.g. e-commerce): add it to SECTIONS (icon, groups of pages; add its icon to ICONS); its pages use
    <body class="admin" data-section="<key>"> and an empty <header class="admin-bar"></header>. */
 window.Admin = (function () {
+  // Left navigation: an icon rail (always visible) + the current section's menu (collapsible).
+  // A page belongs to a section with <body class="admin" data-section="podcast">.
+  var ICONS = {
+    menu: '<path d="M4 5h16v14H4z" fill="none" stroke="currentColor" stroke-width="1.8" rx="2"/><path d="M9 5v14" stroke="currentColor" stroke-width="1.8"/>',
+    home: '<path d="M4 11l8-7 8 7v9h-5v-6h-6v6H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    podcast: '<rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    activity: '<path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    logout: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  };
   var SECTIONS = [
-    { key: 'podcast', label: 'Podcast', home: '/admin/podcast', pages: [
-      ['/admin/podcast', 'Overview'],
-      ['/admin/podcast/episodes', 'Episodes'],
-      ['/admin/podcast/cohorts', 'Cohorts'],
-      ['/admin/podcast/students', 'Students'],
-      ['/admin/podcast/programs', 'Programs'],
-      ['/admin/podcast/automation', 'Automation'],
+    { key: 'podcast', label: 'Podcast', icon: 'podcast', home: '/admin/podcast', groups: [
+      { items: [['/admin/podcast', 'Overview']] },
+      { title: 'Manage', items: [
+        ['/admin/podcast/episodes', 'Episodes'],
+        ['/admin/podcast/cohorts', 'Cohorts'],
+        ['/admin/podcast/students', 'Students'],
+        ['/admin/podcast/programs', 'Programs'],
+      ] },
+      { title: 'Automation', items: [['/admin/podcast/automation', 'ActiveCampaign']] },
     ] },
   ];
-  var GLOBAL = [['/admin/activity', 'Activity']];
+  var COLLAPSE_KEY = 'admin-menu-collapsed';
 
   // The podcast program being edited (Episodes, Cohorts, Programs pages, imports, the AC sync), remembered on this browser.
   var SHOW_KEY = 'podcast-admin-show';
@@ -42,7 +53,14 @@ window.Admin = (function () {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
   }
 
-  // Draws the header: brand + sections + Activity + Log out, then the current section's menu (+ program switcher).
+  function icon(name) {
+    return '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">' + ICONS[name] + '</svg>';
+  }
+
+  function stored(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function store(key, v) { try { localStorage.setItem(key, v); } catch (e) { /* private mode */ } }
+
+  // Draws the left navigation into <header class="admin-bar">.
   function nav() {
     var bar = document.querySelector('.admin-bar');
     if (!bar || bar.dataset.ready) return;
@@ -50,19 +68,49 @@ window.Admin = (function () {
     var here = location.pathname.replace(/\/$/, '') || '/admin';
     var key = document.body.dataset.section || '';
     var section = SECTIONS.find(function (x) { return x.key === key; });
-    var link = function (href, label, current) { return '<a href="' + href + '"' + (current ? ' aria-current="page"' : '') + '>' + label + '</a>'; };
+    var small = window.matchMedia('(max-width: 720px)').matches;
+    var collapsed = small || stored(COLLAPSE_KEY) === '1';
+
+    function rail(href, label, name, current) {
+      return '<a class="rail__item" href="' + href + '" data-label="' + esc(label) + '"' + (current ? ' aria-current="page"' : '') + '>' + icon(name) + '<span class="sr-only">' + esc(label) + '</span></a>';
+    }
+    var menu = section ? '<nav class="subnav" id="subnav" aria-label="' + esc(section.label) + '">' +
+      '<div class="subnav__head"><p class="subnav__title">' + esc(section.label) + '</p></div>' +
+      '<div class="subnav__slot"></div>' +
+      section.groups.map(function (g) {
+        return (g.title ? '<p class="subnav__group">' + esc(g.title) + '</p>' : '') + '<ul>' +
+          g.items.map(function (it) { return '<li><a href="' + it[0] + '"' + (here === it[0] ? ' aria-current="page"' : '') + '>' + esc(it[1]) + '</a></li>'; }).join('') + '</ul>';
+      }).join('') + '</nav>' : '';
+
     bar.innerHTML =
-      '<div class="admin-bar__top">' +
-        '<a class="admin-bar__title" href="/admin"' + (here === '/admin' ? ' aria-current="page"' : '') + '>Ashley Lim <span>Admin</span></a>' +
-        '<nav class="admin-sections" aria-label="Admin sections">' +
-          SECTIONS.map(function (x) { return link(x.home, x.label, x === section); }).join('') +
-          GLOBAL.map(function (g) { return link(g[0], g[1], here === g[0]); }).join('') +
-        '</nav>' +
-        '<a class="admin-bar__logout" href="/admin/logout">Log out</a>' +
-      '</div>' +
-      (section ? '<div class="admin-bar__sub"><nav class="admin-nav" aria-label="' + esc(section.label) + ' menu">' +
-        section.pages.map(function (p) { return link(p[0], p[1], here === p[0]); }).join('') + '</nav></div>' : '');
-    if (key === 'podcast') programSwitcher(bar.querySelector('.admin-bar__sub'));
+      '<div class="rail">' +
+        (section ? '<button class="rail__item rail__toggle" type="button" data-label="' + (collapsed ? 'Show menu' : 'Hide menu') + '" aria-controls="subnav" aria-expanded="' + String(!collapsed) + '">' + icon('menu') + '<span class="sr-only">Menu</span></button>' : '') +
+        rail('/admin', 'Home', 'home', here === '/admin') +
+        SECTIONS.map(function (x) { return rail(x.home, x.label, x.icon, x === section); }).join('') +
+        '<span class="rail__spacer"></span>' +
+        rail('/admin/activity', 'Activity', 'activity', here === '/admin/activity') +
+        rail('/admin/logout', 'Log out', 'logout', false) +
+      '</div>' + menu;
+    document.body.classList.toggle('has-subnav', Boolean(section));
+    document.body.classList.toggle('subnav-collapsed', Boolean(section) && collapsed);
+
+    var toggle = bar.querySelector('.rail__toggle');
+    if (toggle) toggle.addEventListener('click', function () {
+      var nowCollapsed = !document.body.classList.contains('subnav-collapsed');
+      document.body.classList.toggle('subnav-collapsed', nowCollapsed);
+      toggle.setAttribute('aria-expanded', String(!nowCollapsed));
+      toggle.dataset.label = nowCollapsed ? 'Show menu' : 'Hide menu';
+      if (!window.matchMedia('(max-width: 720px)').matches) store(COLLAPSE_KEY, nowCollapsed ? '1' : '0');
+    });
+    // Phones: the menu is a drawer over the page; tapping outside it or Escape closes it.
+    function closeDrawer() {
+      if (!toggle || !window.matchMedia('(max-width: 720px)').matches || document.body.classList.contains('subnav-collapsed')) return;
+      document.body.classList.add('subnav-collapsed');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+    document.addEventListener('click', function (ev) { if (!ev.target.closest('.admin-bar')) closeDrawer(); });
+    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeDrawer(); });
+    if (key === 'podcast') programSwitcher(bar.querySelector('.subnav__slot'));
   }
 
   // Podcast pages: which program they work on.
