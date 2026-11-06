@@ -1,6 +1,6 @@
 /*
  * GET /f/<token>/<show slug> → a student's private feed for one show (rewrite in vercel.json).
- * GET /f/<token> (older links): the student's only show; 404 if they have several.
+ * GET /f/<token> (older links): the program the student was enrolled in first (see firstProgram).
  *
  * Unknown token or show the student isn't enrolled in: 404. Revoked or expired: a valid feed with no episodes
  * and a notice. The CDN keeps each feed for 5 minutes (the URL contains the secret token, so only its owner
@@ -15,6 +15,13 @@ const automation = require('./_lib/automation.js');
 const { buildFeed } = require('./_lib/rss.js');
 
 const LOG_EVERY_MS = 60 * 60 * 1000;
+
+// Older links (/f/<token>, from before a student could have several programs) always mean the program they were
+// enrolled in first: that's the one the link was made for, even after they join other programs.
+function firstProgram(shows) {
+  const first = (entry) => Math.min(...entry.enrollments.map((x) => new Date(x.enrollment.created_at).getTime()));
+  return shows.length ? shows.reduce((a, b) => (first(b) < first(a) ? b : a)) : null;
+}
 
 function notFound(res) {
   res.statusCode = 404;
@@ -39,7 +46,7 @@ module.exports = async function handler(req, res) {
   try {
     data = await podcast.loadStudent(token);
     if (!data) return notFound(res);
-    entry = slug ? data.shows.find((x) => x.show.slug === slug) : data.shows.length === 1 ? data.shows[0] : null;
+    entry = slug ? data.shows.find((x) => x.show.slug === slug) : firstProgram(data.shows);
     if (!entry) return notFound(res);
     access = await podcast.showAccess(data.student, entry, now);
   } catch (err) {
@@ -77,3 +84,5 @@ module.exports = async function handler(req, res) {
   res.statusCode = 200;
   return res.end(req.method === 'HEAD' ? undefined : xml);
 };
+
+module.exports.firstProgram = firstProgram;

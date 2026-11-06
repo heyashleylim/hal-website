@@ -78,3 +78,13 @@ test('personal page with one program shows its title once', () => {
   const html = page.personalPage({ base, token: listener.token, student: { name: '' }, shows: [{ show: showA, enrollments, access: activeAccess }] });
   assert.equal((html.match(/내성만방 팟캐스트<\/h[12]>/g) || []).length, 1);
 });
+
+test('older feed links (/f/<token>) keep serving the program the student had first', () => {
+  const { firstProgram } = require('../../api/podcast-feed.js');
+  const en = (at) => ({ enrollment: { created_at: at }, cohort: {} });
+  const nsmb = { show: { slug: 'nsmb' }, enrollments: [en('2026-10-24T08:09:03Z')] };
+  const eft = { show: { slug: 'eft-test' }, enrollments: [en('2026-10-25T10:00:00Z')] };
+  assert.equal(firstProgram([eft, nsmb]).show.slug, 'nsmb');
+  assert.equal(firstProgram([nsmb]).show.slug, 'nsmb');
+  assert.equal(firstProgram([]), null);
+});
