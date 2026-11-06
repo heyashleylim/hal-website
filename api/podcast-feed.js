@@ -6,7 +6,7 @@
  * and a notice. The CDN keeps each feed for 5 minutes (the URL contains the secret token, so only its owner
  * gets it), which keeps database reads low while podcast apps poll; releases and revocations show up within
  * 5 minutes. The first request from a podcast app marks the student as subscribed; feed checks are logged at
- * most once an hour per student and show.
+ * most once an hour per student, show and app.
  */
 const crypto = require('node:crypto');
 const db = require('./_lib/db.js');
@@ -62,8 +62,13 @@ module.exports = async function handler(req, res) {
   const { student } = data;
   if (client.app !== 'Bot' && client.app !== 'Web browser') {
     try {
-      const last = await db.one(`SELECT max(at) AS at FROM events WHERE student_id = $1 AND show_id = $2 AND kind = 'feed'`, [student.id, entry.show.id]);
-      if (!last.at || now - new Date(last.at) > LOG_EVERY_MS) {
+      // One 'feed' event per app an hour, so each app the student uses shows up (Apple, Pocket Casts' servers…).
+      const last = await db.one(
+        `SELECT max(at) AS at, max(at) FILTER (WHERE app IS NOT DISTINCT FROM $3) AS app_at
+           FROM events WHERE student_id = $1 AND show_id = $2 AND kind = 'feed'`,
+        [student.id, entry.show.id, client.app]
+      );
+      if (!last.app_at || now - new Date(last.app_at) > LOG_EVERY_MS) {
         if (!last.at) await automation.onFirstFeed(student.id, entry.show); // queued for AC: <prefix>_subscribed
         await podcast.logEvent({ studentId: student.id, showId: entry.show.id, kind: 'feed', client });
         await db.query('UPDATE students SET first_seen_at = COALESCE(first_seen_at, now()), last_seen_at = now() WHERE id = $1', [student.id]);
