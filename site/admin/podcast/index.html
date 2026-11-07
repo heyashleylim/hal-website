@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Overview · Podcast · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="podcast">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main">
+  <h1>Podcast</h1>
+
+  <section class="admin-card" aria-labelledby="numbers-title">
+    <h2 id="numbers-title">At a glance <span class="muted small">(all programs)</span></h2>
+    <dl class="stats" id="stats"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
+    <ul class="checklist" id="attention" aria-live="polite"></ul>
+  </section>
+
+  <div class="home-grid">
+    <a class="home-card" href="/admin/podcast/episodes"><h2>Episodes</h2><p class="muted">Upload and schedule each program’s modules.</p></a>
+    <a class="home-card" href="/admin/podcast/cohorts"><h2>Cohorts</h2><p class="muted">Start dates, AC tags and each cohort’s release schedule.</p></a>
+    <a class="home-card" href="/admin/podcast/students"><h2>Students</h2><p class="muted">Enrolments, links, listening, import and Sync from ActiveCampaign.</p></a>
+    <a class="home-card" href="/admin/podcast/programs"><h2>Programs</h2><p class="muted">Create programs; cover art, release time, access length.</p></a>
+    <a class="home-card" href="/admin/podcast/automation"><h2>Automation</h2><p class="muted">ActiveCampaign webhooks, tags, queue and daily job.</p></a>
+  </div>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  Admin.get('podcast-overview').then(function (r) {
+    var o = r.overview;
+    document.getElementById('stats').innerHTML =
+      '<div><dt>Programs</dt><dd>' + o.programs + '</dd></div>' +
+      '<div><dt>Published episodes</dt><dd>' + o.episodes + '</dd></div>' +
+      '<div><dt>Students</dt><dd>' + o.students + '</dd></div>' +
+      '<div><dt>Enrolled now</dt><dd>' + o.enrolled + '</dd></div>' +
+      '<div><dt>Subscribed</dt><dd>' + o.subscribed + '</dd></div>' +
+      '<div><dt>Last download</dt><dd class="small">' + (o.last_download ? Admin.kst(o.last_download) : '–') + '</dd></div>';
+    var items = [];
+    if (o.ac_failed) items.push('<li><span class="status status--bad">Check</span><span>' + o.ac_failed + ' ActiveCampaign update(s) failed: <a href="/admin/podcast/automation">Automation</a> → Retry failed.</span></li>');
+    if (o.ac_pending) items.push('<li><span class="status status--info">Info</span><span>' + o.ac_pending + ' ActiveCampaign update(s) waiting to be sent.</span></li>');
+    document.getElementById('attention').innerHTML = items.join('');
+  }).catch(function (err) { document.getElementById('stats').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+})();
+</script>
+</body>
+</html>

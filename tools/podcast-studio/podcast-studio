@@ -1,0 +1,9 @@
+#!/bin/bash
+# Podcast Studio command. Run from this folder: ./podcast-studio <command>
+#   podcast-studio start [--no-open] [--out DIR]   start the app (browser UI at http://127.0.0.1:8792)
+#   podcast-studio status | list
+#   podcast-studio transcript <file>               transcript, long pauses and chapters, for suggesting chapters
+#   podcast-studio set-chapters <file> <json|->    replace a file's chapters
+#   podcast-studio export <file>|--all [--bitrate 96]
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 "$ROOT/app/studio.py" "$@"

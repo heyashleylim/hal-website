@@ -5,8 +5,9 @@ Korean-first copy, long-form sales pages, deployed on Vercel from GitHub.
 
 - Repo: https://github.com/heyashleylim/hal-website (`main` = production)
 - Hosting: Vercel. Push to `main` → production deploy. Any other branch → preview URL.
-- Stack: static HTML + CSS + vanilla JS. No framework, no build step, no npm.
-  Do not introduce one without asking first.
+- Stack: static HTML + CSS + vanilla JS. No framework, no build step.
+  npm is used **only for the API functions** (`package.json`: the Neon database driver and `@vercel/blob`, approved 2026-10-23 for the private podcast).
+  Pages in `site/` never import npm packages. Do not add a framework, a build step or another dependency without asking first.
 
 ## Folder structure
 
@@ -16,8 +17,15 @@ hal-website/
 ├── README.md              ← human quick-start (preview, deploy)
 ├── vercel.json            ← outputDirectory: "site", clean URLs, cache headers
 ├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
-├── middleware.js          ← password-protects /preview/* (login page + cookie: PREVIEW_USER / PREVIEW_PASSWORD)
+├── api/admin.js           ← the admin API for every section (/api/admin?action=…); sections' code in api/_lib/admin/
+├── api/podcast-*.js       ← private podcast functions for students and AC (docs/podcast-plan.md); shared code in api/_lib/ (not endpoints)
+├── db/migrations/         ← private podcast database schema (Neon Postgres), applied with `npm run db:migrate`
+├── tests/                 ← `npm test` (node:test, no extra packages)
+├── package.json           ← API function dependencies only
+├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
+├── tools/podcast/         ← podcast database migration script (npm run db:migrate)
+├── tools/podcast-studio/  ← source of Podcast Studio, a standalone Mac app shared as a zip (bash tools/build-podcast-studio-zip.sh → ~/Downloads/Podcast-Studio.zip). Not deployed; not part of the site
 ├── .env.example           ← names of the env vars the function needs (values live in Vercel only)
 ├── .gitignore
 ├── .claude/
@@ -107,8 +115,8 @@ Rules for the structure:
 - **Accessibility**: one `h1` per page, sequential headings, visible focus rings, labels on every input, 44px touch targets, text contrast ≥ 4.5:1, skip link.
 - **Responsive**: check 375px, 768px, 1024px and 1440px. There must be no horizontal scroll at 375px.
 - **Third parties**: no new trackers, pixels, chat widgets or CDNs without asking. Fonts may come from Google Fonts or jsDelivr only until self-hosted.
-- **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`: head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
-- **Vercel Web Analytics** is enabled in the Vercel project and loaded on the same public pages as GTM (never `/preview/*`): `window.va` queue + `<script defer src="/_vercel/insights/script.js">` right before `</head>`. `tools/rebuild/gtm.py` adds both (gen.py runs it). Locally the script 404s; that's expected.
+- **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`, `/admin/*` or the private podcast pages (`/podcast/*`, feeds, audio: a student's secret token is in those URLs): head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
+- **Vercel Web Analytics** is enabled in the Vercel project and loaded on the same public pages as GTM (never `/preview/*`, `/admin/*` or the private podcast pages): `window.va` queue + `<script defer src="/_vercel/insights/script.js">` right before `</head>`. `tools/rebuild/gtm.py` adds both (gen.py runs it). Locally the script 404s; that's expected.
 
 ## Generated pages and private previews
 
@@ -121,6 +129,46 @@ Rules for the structure:
 - Every page uses the same footer: the `<footer class="site-footer">` markup from `site/index.html` plus `footer.css`. The generator copies that markup from the home page each time it runs, so change the footer in `site/index.html` (and `/nsmb`), then regenerate the generated pages.
 - Every link to an ashleylim.com page is a site path (`/eft`, `/refund-policy`, `/` for the logo; `/lifeartist2026` → `/lifeartist`) and opens in the same tab, so links follow whatever domain serves the site (www.ashleylim.com). Only payment links keep `https://ashleylim.com/?product=…`: add-to-cart links into the WooCommerce / cafe24 checkout, which stays on WordPress at ashleylim.com. `tools/rebuild/sitelinks.py` does this (gen.py runs it; run it on hand-built pages after pasting live links).
 - Public pages carry `<link rel="canonical">` naming the page on `https://www.ashleylim.com` (this site, once the domain moves to Vercel).
+
+## Private podcast
+
+Private podcasts for Ashley's programs: several **shows**, each with cohorts (weekly drip, 1-year access). A **student**
+(one per email) has one personal page listing their shows and is **enrolled** in any number of cohorts, including several
+of the same show (they get every episode any running enrolment releases; access lasts until the latest end).
+ActiveCampaign automation and admin pages.
+Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branch.
+- Data lives in Neon Postgres (`DATABASE_URL`), never in the repo (it is public). All SQL goes through `api/_lib/db.js`.
+- Release and access rules are in `api/_lib/release.js` (pure, unit-tested). Change them there and in its tests only.
+- **One admin for the whole site** at `/admin` (its own login in middleware; `/api/admin` checks the same cookie itself).
+  Home `/admin` (sections + system status), global `/admin/activity`, and one folder per section: `/admin/podcast/`
+  (Overview, `episodes/`, `cohorts/`, `students/`, `programs/`, `automation/`). Later sections (e-commerce…) get their own
+  folder. Navigation is on the left, like ActiveCampaign's admin: a dark teal icon rail (always visible: Home, sections,
+  Activity, Log out) and the current section's collapsible menu (grouped links; Podcast adds the program switcher). Content is on
+  white. Drawn by `site/assets/js/admin/admin.js` (SECTIONS and ICONS; pages use `<body data-section="…">` and an empty
+  `<header class="admin-bar">`); styles in `assets/css/admin/admin.css`.
+  Every admin button has a `data-tip` saying what it does (shown as a tooltip by admin.js; `npm test` fails without it). API: `api/admin.js` routes actions from
+  `api/_lib/admin/system.js` (health, activity) and `api/_lib/admin/podcast-*.js` (content, cohorts, students, automation);
+  a new section adds its module there (unique action names). `admin_log` records each action's section.
+- "Access until" dates shown anywhere are the last listening day: access ends at 00:00 KST the day after.
+- Uploads go straight from the browser to the private Blob store through a short-lived signed URL (`upload-url`), so
+  there's no 4.5 MB function limit. Cover art is served publicly at `/a/art/<show>.<ext>`.
+- The admin API only runs on Vercel deployments: the local `site` preview serves static files only.
+- Student URLs (rewrites in `vercel.json`, token = the student's 22 random characters): `/podcast/<token>` personal page
+  listing their shows (api/podcast-page.js, header/footer read from `site/nsmb` and `site/index.html` at runtime),
+  `/f/<token>/<show slug>` one feed per show (`/f/<token>` still works for students with one show), `/a/<token>/<guid>.mp3`
+  audio streamed from the private Vercel Blob store. `/podcast/help` is a static page. All are noindex and in robots.txt.
+- In the admin, a show is called a **program** (the data model and code say `show`). The program switcher (left menu) scopes
+  Episodes, Cohorts, the Programs page, imports and the AC sync; the Students page covers all programs. A cohort's AC tag
+  is unique across programs.
+- The AC sync names students from the contact's **First name** only: Ashley's team keeps the full Korean name (e.g. 김지연) there.
+- ActiveCampaign automation (`api/_lib/automation.js`, page `/admin/podcast/automation`): the site never calls AC during a
+  student's request; it queues updates in `ac_outbox` (dedupe keys: each tag once per student and program) and sends them
+  right after admin actions/webhooks, on "Send pending now", or in the daily job (`vercel.json` crons, 09:10 KST,
+  production only, `CRON_SECRET`). Webhook `POST /api/podcast-ac?key=…` (key derived from PODCAST_SECRET) enrols on purchase
+  tags; `&action=revoke&tag=…` for refunds. Tags per program (underscores, like Ashley's other AC tags): `<prefix>_enrolled`,
+  `_subscribed`, `_not_subscribed_3d/7d`, `_epNN_released`, `_epNN_downloaded`, `_completed`, `_expiring_30d`, `_expired`,
+  `_revoked` (prefix e.g. `podcast_nsmb`), plus `podcast_link_reset`; field `PODCAST_LINK`.
+  Students added by hand only reach AC when "Tell ActiveCampaign" is ticked.
 
 ## Page configuration
 

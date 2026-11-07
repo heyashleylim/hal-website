@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="studio-token" content="__STUDIO_TOKEN__">
+<title>Podcast Studio</title>
+<link rel="stylesheet" href="/ui/studio.css">
+</head>
+<body>
+<header class="top">
+  <h1>Podcast Studio</h1>
+  <p class="top__spec">Export: MP3 · mono · <span id="bitrate-label">96</span> kbps · −16 LUFS · peaks ≤ −1 dB · chapters</p>
+  <p class="top__out" id="out-dir"></p>
+</header>
+
+<div class="layout">
+  <aside class="files" aria-label="Files">
+    <div class="drop" id="drop">
+      <p><strong>Drop audio files here</strong><br>MP3, M4A, WAV, AIFF or video (MP4, MOV)</p>
+      <label class="btn">Choose files…<input type="file" id="pick" multiple accept="audio/*,video/mp4,video/quicktime,.mp3,.m4a,.wav,.aif,.aiff,.mp4,.mov" hidden></label>
+    </div>
+    <ul class="file-list" id="list" aria-live="polite"></ul>
+    <div class="export-bar">
+      <label class="check"><input type="checkbox" id="all"> Select all</label>
+      <button class="btn btn--primary" type="button" id="export" disabled>Export selected</button>
+    </div>
+    <p class="tools" id="tools"></p>
+  </aside>
+
+  <main class="editor" id="editor" aria-live="polite">
+    <div class="empty" id="empty">
+      <h2>Add a file to start</h2>
+      <p>Each file is analysed, transcribed on this Mac, and gets suggested chapters. Click a file to edit its chapters while listening, then export.</p>
+    </div>
+
+    <div id="work" hidden>
+      <div class="work-head">
+        <div>
+          <h2 id="title"></h2>
+          <p class="muted" id="meta"></p>
+        </div>
+        <div class="row">
+          <button class="btn" type="button" id="transcribe">Transcribe</button>
+          <button class="btn" type="button" id="ask-claude" aria-expanded="false" aria-controls="claude-box">Suggest with Claude…</button>
+          <button class="btn" type="button" id="suggest">Suggest from pauses</button>
+          <button class="btn btn--primary" type="button" id="export-one">Export this file</button>
+        </div>
+      </div>
+      <div class="claude-box" id="claude-box" hidden>
+        <p><strong>Ask Claude for chapters.</strong> In Claude Code, send:</p>
+        <div class="claude-box__row"><code id="claude-prompt"></code><button class="btn btn--sm" type="button" id="copy-prompt">Copy</button></div>
+        <p class="muted">Claude reads the transcript, chooses chapters by topic with short titles, and they appear here by themselves. To do several files, name them all or say “all files”.</p>
+      </div>
+      <p class="status" id="status" role="status"></p>
+
+      <section class="player" aria-label="Player">
+        <div class="wave-wrap">
+          <canvas id="wave" height="140" aria-label="Waveform. Click to move the playhead."></canvas>
+          <div class="wave-tip" id="tip" hidden></div>
+        </div>
+        <div class="transport">
+          <button class="btn btn--icon" type="button" id="play" aria-label="Play">▶</button>
+          <button class="btn" type="button" data-skip="-10">−10s</button>
+          <button class="btn" type="button" data-skip="-2">−2s</button>
+          <button class="btn" type="button" data-skip="2">+2s</button>
+          <button class="btn" type="button" data-skip="10">+10s</button>
+          <span class="clock"><span id="now">0:00.0</span> / <span id="total">0:00</span></span>
+          <label class="inline">Zoom
+            <select id="zoom">
+              <option value="0">Whole file</option>
+              <option value="600">10 min</option>
+              <option value="120">2 min</option>
+              <option value="30">30 s</option>
+            </select>
+          </label>
+          <label class="inline">Speed
+            <select id="speed">
+              <option value="1">1×</option>
+              <option value="1.25">1.25×</option>
+              <option value="1.5">1.5×</option>
+              <option value="2">2×</option>
+            </select>
+          </label>
+        </div>
+        <audio id="audio" preload="auto"></audio>
+        <p class="keys">Keys: <kbd>Space</kbd> play/pause · <kbd>M</kbd> add chapter at playhead · <kbd>←</kbd> <kbd>→</kbd> ±2 s</p>
+      </section>
+
+      <div class="cols">
+        <section class="chapters" aria-labelledby="ch-title">
+          <div class="sec-head">
+            <h3 id="ch-title">Chapters</h3>
+            <button class="btn" type="button" id="add-chapter">+ Add at playhead</button>
+          </div>
+          <p class="muted" id="ch-note"></p>
+          <ol class="ch-list" id="chapters"></ol>
+          <p class="saved" id="saved" role="status"></p>
+        </section>
+
+        <section class="transcript" aria-labelledby="tr-title">
+          <div class="sec-head">
+            <h3 id="tr-title">Transcript</h3>
+            <label class="check"><input type="checkbox" id="follow" checked> Follow playback</label>
+          </div>
+          <div class="tr-list" id="transcript"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="/ui/studio.js"></script>
+</body>
+</html>

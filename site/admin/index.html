@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main">
+  <h1>Admin</h1>
+
+  <div class="home-grid">
+    <a class="home-card" href="/admin/podcast">
+      <h2>Podcast</h2>
+      <p class="muted">Private podcasts: programs, episodes, cohorts, students and ActiveCampaign automation.</p>
+      <dl class="stats" id="podcast-stats"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
+    </a>
+    <div class="home-card home-card--soon" aria-label="Coming later">
+      <h2>E-commerce</h2>
+      <p>Coming later: checkout and orders, to replace WooCommerce.</p>
+    </div>
+  </div>
+
+  <section class="admin-card" aria-labelledby="setup-title">
+    <h2 id="setup-title">System status</h2>
+    <ul class="checklist" id="setup" aria-live="polite"><li class="muted">Checking…</li></ul>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  Admin.get('podcast-overview').then(function (r) {
+    var o = r.overview;
+    document.getElementById('podcast-stats').innerHTML =
+      '<div><dt>Programs</dt><dd>' + o.programs + '</dd></div>' +
+      '<div><dt>Students enrolled</dt><dd>' + o.enrolled + '</dd></div>' +
+      '<div><dt>Subscribed</dt><dd>' + o.subscribed + '</dd></div>' +
+      (o.ac_failed ? '<div><dt>AC updates failed</dt><dd class="is-error">' + o.ac_failed + '</dd></div>' : '');
+  }).catch(function () { document.getElementById('podcast-stats').innerHTML = ''; });
+
+  Admin.get('health').then(function (h) {
+    var items = [];
+    ['DATABASE_URL', 'PODCAST_SECRET', 'ADMIN_USER', 'ADMIN_PASSWORD', 'AC_API_URL', 'AC_API_KEY'].forEach(function (name) {
+      var ok = h.missingEnv.indexOf(name) < 0;
+      items.push([ok, 'Environment variable <code>' + name + '</code>' + (ok ? '' : ' is missing in Vercel (' + Admin.esc(h.environment) + ')')]);
+    });
+    var st = h.storage || {};
+    items.push([st.connected, st.connected ? 'File storage (Vercel Blob) connected' : 'File storage (Vercel Blob): ' + Admin.esc(st.error || 'not connected')]);
+    var d = h.database || {};
+    items.push([d.connected, d.connected ? 'Database connected' : 'Database: ' + Admin.esc(d.error || 'not connected')]);
+    if (d.connected) items.push([d.migrations.length > 0, 'Database structure: ' + (d.migrations.map(function (m) { return '<code>' + Admin.esc(m.name) + '</code>'; }).join(', ') || 'none')]);
+    document.getElementById('setup').innerHTML = items.map(function (i) {
+      return '<li><span class="status ' + (i[0] ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + i[1] + '</span></li>';
+    }).join('');
+  }).catch(function (err) {
+    document.getElementById('setup').innerHTML = '<li><span class="status status--bad">Error</span><span>' + Admin.esc(err.message) + '</span></li>';
+  });
+})();
+</script>
+</body>
+</html>
