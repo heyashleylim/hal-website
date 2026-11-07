@@ -14,7 +14,7 @@ const actions = {
     const out = { ok: false, missingEnv: missing, database: null, environment: process.env.VERCEL_ENV || 'local' };
     try {
       const migrations = await db.query('SELECT name, applied_at FROM schema_migrations ORDER BY name');
-      out.database = { connected: true, migrations };
+      out.database = { connected: true, migrations, separate: db.separateFromProduction(), own: Boolean((process.env.PODCAST_DATABASE_URL || '').trim()) };
     } catch (err) {
       out.database = { connected: false, error: /schema_migrations/.test(err.message) ? 'connected, but migrations have not run (npm run db:migrate)' : err.message };
     }

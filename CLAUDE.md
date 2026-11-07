@@ -138,6 +138,9 @@ of the same show (they get every episode any running enrolment releases; access 
 ActiveCampaign automation and admin pages.
 Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branch.
 - Data lives in Neon Postgres (`DATABASE_URL`), never in the repo (it is public). All SQL goes through `api/_lib/db.js`.
+- Previews use their own Neon branch (`PODCAST_DATABASE_URL`, set for Preview only; without it the preview admin refuses
+  changes). Run `npm run db:migrate` and `npm run db:migrate:preview` after adding a migration. Both share one Blob store:
+  previews upload under `preview/` and can't delete production's files.
 - Release and access rules are in `api/_lib/release.js` (pure, unit-tested). Change them there and in its tests only.
 - **One admin for the whole site** at `/admin` (its own login in middleware; `/api/admin` checks the same cookie itself).
   Home `/admin` (sections + system status), global `/admin/activity`, and one folder per section: `/admin/podcast/`

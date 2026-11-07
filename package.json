@@ -7,7 +7,8 @@
   },
   "scripts": {
     "test": "node --test \"tests/**/*.test.{js,mjs}\"",
-    "db:migrate": "node --env-file-if-exists=.env.local tools/podcast/migrate.js"
+    "db:migrate": "node --env-file-if-exists=.env.local tools/podcast/migrate.js",
+    "db:migrate:preview": "node --env-file-if-exists=.env.local tools/podcast/migrate.js --preview"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.2.0",

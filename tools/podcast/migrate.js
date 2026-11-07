@@ -1,7 +1,9 @@
 /*
  * Applies the SQL files in db/migrations/ that haven't run yet, in name order, each in a transaction.
  *
- *   npm run db:migrate          (reads DATABASE_URL from .env.local or the environment)
+ *   npm run db:migrate          (production: DATABASE_URL from .env.local or the environment)
+ *   npm run db:migrate:preview  (the previews' Neon branch: PODCAST_DATABASE_URL from .env.local)
+ * Run both after adding a migration.
  *
  * Get the connection string from Vercel → Storage → the Neon database → .env.local tab,
  * or with `vercel env pull .env.local`. Run it once against each database (preview and production).
@@ -13,8 +15,10 @@ const { Pool } = require('@neondatabase/serverless');
 const dir = path.join(__dirname, '..', '..', 'db', 'migrations');
 
 async function main() {
-  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-  if (!url) throw new Error('DATABASE_URL is not set (add it to .env.local)');
+  const preview = process.argv.includes('--preview');
+  const url = preview ? process.env.PODCAST_DATABASE_URL : process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!url) throw new Error(preview ? 'PODCAST_DATABASE_URL is not set (add the preview branch address to .env.local)' : 'DATABASE_URL is not set (add it to .env.local)');
+  console.log(preview ? 'Migrating the preview database' : 'Migrating the production database');
   const pool = new Pool({ connectionString: url });
   const db = await pool.connect();
   try {
