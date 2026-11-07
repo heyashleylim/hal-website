@@ -80,6 +80,39 @@ const actions = {
     return { show: showOut(row), target: `show ${slug}` };
   },
 
+  // Deletes a program with everything in it: episodes and their audio, cover art, cohorts, enrolments, release dates,
+  // listening history and pending AC updates (the database cascades from shows). Students stay (their other programs
+  // are untouched). Asks for the short name as confirmation; the last program can't be deleted.
+  async 'show-delete'(input) {
+    const show = await getShow(input.show);
+    if (String(input.confirm || '').trim().toLowerCase() !== show.slug) throw userError(`type the short name "${show.slug}" to confirm`);
+    const { n } = await db.one('SELECT count(*)::int AS n FROM shows');
+    if (n <= 1) throw userError('this is the only program; create another one before deleting it');
+    const counts = await db.one(
+      `SELECT (SELECT count(*)::int FROM episodes WHERE show_id = $1) AS episodes,
+              (SELECT count(*)::int FROM cohorts WHERE show_id = $1) AS cohorts,
+              (SELECT count(*)::int FROM enrollments en JOIN cohorts c ON c.id = en.cohort_id WHERE c.show_id = $1) AS enrollments`,
+      [show.id],
+    );
+    await db.query('DELETE FROM shows WHERE id = $1', [show.id]);
+    // Files last: if this fails, the program is already gone and only orphan files remain (logged).
+    let files = 0;
+    try {
+      let cursor;
+      do {
+        const page = await blob.list({ prefix: `podcast/${show.slug}/`, cursor, limit: 1000 });
+        if (page.blobs.length) {
+          await blob.del(page.blobs.map((b) => b.pathname));
+          files += page.blobs.length;
+        }
+        cursor = page.hasMore ? page.cursor : undefined;
+      } while (cursor);
+    } catch (err) {
+      console.error('podcast show files delete failed', show.slug, err.message);
+    }
+    return { deleted: show.slug, counts: { ...counts, files }, target: `show ${show.slug} (${show.title})` };
+  },
+
   async show(input) {
     return { show: showOut(await getShow(input.show)) };
   },
@@ -215,6 +248,6 @@ const actions = {
   },
 };
 
-const writes = ['show-create', 'show-save', 'upload-url', 'show-artwork', 'episode-save', 'episode-delete'];
+const writes = ['show-create', 'show-save', 'show-delete', 'upload-url', 'show-artwork', 'episode-save', 'episode-delete'];
 
 module.exports = { section: 'podcast', actions, writes, AUDIO_TYPES, IMAGE_TYPES };

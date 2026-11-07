@@ -74,6 +74,17 @@
       <p class="admin-form__result" role="status" aria-live="polite"></p>
     </form>
   </section>
+
+  <section class="admin-card admin-card--danger" aria-labelledby="delete-title">
+    <h2 id="delete-title">Delete this program</h2>
+    <p class="muted">Deletes the program with all its episodes and audio files, cover art, cohorts, enrolments and listening history. Students stay, with their other programs. Their feed for this program stops working at once. This cannot be undone. Tags already in ActiveCampaign are not removed.</p>
+    <p id="delete-counts" class="delete-counts"></p>
+    <form id="delete-form" class="admin-form" novalidate>
+      <label>Type the short name <code id="delete-slug"></code> to confirm<input name="confirm" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+      <div class="admin-form__actions"><button data-tip="Delete this program and everything in it. This cannot be undone" class="btn-danger" type="submit" disabled>Delete program</button></div>
+      <p class="admin-form__result" role="status" aria-live="polite"></p>
+    </form>
+  </section>
 </main>
 <script src="/assets/js/admin/admin.js"></script>
 <script>
@@ -90,8 +101,36 @@
         }).join('') + '</tbody></table>' : '<p class="admin-empty">No program yet.</p>';
       var current = r.shows.find(function (x) { return x.slug === cur; });
       document.getElementById('settings-title').textContent = current ? 'Settings · ' + current.title : 'Settings';
+      deleteSetup(current, r.shows.length);
     }).catch(function (err) { document.getElementById('shows').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
   }
+  // Deleting the selected program: type its short name, then confirm once more.
+  var df = document.getElementById('delete-form'), dout = df.querySelector('.admin-form__result'), dbtn = df.querySelector('[type=submit]');
+  var toDelete = null;
+  function deleteSetup(current, total) {
+    toDelete = current || null;
+    document.getElementById('delete-slug').textContent = current ? current.slug : '';
+    document.getElementById('delete-counts').textContent = current ?
+      current.title + ': ' + current.episodes + ' episode(s), ' + current.cohorts + ' cohort(s), ' + current.students + ' student(s) enrolled.' : '';
+    df.confirm.disabled = !current || total <= 1;
+    if (current && total <= 1) Admin.say(dout, 'This is the only program: create another one before deleting it.');
+    check();
+  }
+  function check() { dbtn.disabled = !toDelete || df.confirm.disabled || df.confirm.value.trim().toLowerCase() !== toDelete.slug; }
+  df.confirm.addEventListener('input', check);
+  df.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (dbtn.disabled || !toDelete) return;
+    if (!confirm('Delete “' + toDelete.title + '” and everything in it? This cannot be undone.')) return;
+    dbtn.disabled = true;
+    Admin.say(dout, 'Deleting…');
+    Admin.post('show-delete', { confirm: df.confirm.value.trim() }).then(function (r) {
+      Admin.setShow('');
+      Admin.say(dout, 'Deleted: ' + r.counts.episodes + ' episode(s), ' + r.counts.cohorts + ' cohort(s), ' + r.counts.enrollments + ' enrolment(s), ' + r.counts.files + ' file(s).');
+      setTimeout(function () { location.reload(); }, 1200);
+    }).catch(function (err) { Admin.say(dout, err.message, true); check(); });
+  });
+
   loadShows();
   document.getElementById('shows').addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-switch]');
