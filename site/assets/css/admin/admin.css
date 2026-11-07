@@ -116,7 +116,8 @@ a.home-card:hover{border-color:var(--ink)}
 .admin-bar{position:fixed;inset:0 auto 0 0;z-index:20;display:flex}
 .admin .admin-main{margin-left:var(--rail);margin-right:0;max-width:none;padding-left:clamp(20px,4vw,48px);padding-right:clamp(20px,4vw,48px)}
 .admin.has-subnav:not(.subnav-collapsed) .admin-main{margin-left:calc(var(--rail) + var(--subnav))}
-.admin-main>*,.admin-main--wide>*{max-width:1600px}
+.admin-main>*{max-width:var(--w-wide)}
+.admin-main--wide>*{max-width:1240px}
 .rail{width:var(--rail);height:100vh;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;background:var(--rail-bg)}
 .rail__spacer{flex:1}
 .rail__item{position:relative;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:12px;background:none;color:rgba(255,255,255,.72);cursor:pointer;text-decoration:none;transition:background-color .15s ease,color .15s ease}
@@ -164,3 +165,35 @@ a.home-card:hover{border-color:var(--ink)}
 .date-default{display:block;margin-top:4px}
 .admin-table td{vertical-align:top}
 .admin-table td .admin-actions{flex-wrap:nowrap}
+
+/* ---------- breathing room: same widths, more space between and inside blocks ---------- */
+.admin .admin-main{padding-top:48px;padding-bottom:96px}
+.admin-main h1,.admin-head{margin-bottom:32px}
+.admin-head{gap:20px}
+.admin-card,.admin-panel{padding:32px;margin-bottom:32px}
+.admin-panel{margin-top:16px}
+.admin-card h2,.admin-panel h2{margin-bottom:16px}
+.admin-h3{margin:40px 0 16px}
+.admin-section-title{margin:48px 0 20px}
+.admin-table{font-size:14px;line-height:1.5}
+.admin-table th,.admin-table td{padding:14px 14px}
+.admin-table th{padding-top:10px;padding-bottom:10px}
+.admin-actions{gap:10px}
+.admin-form{gap:20px 24px;padding:24px;margin-top:20px}
+.admin-form__actions{gap:12px;margin-top:4px}
+.facts{gap:24px 32px;margin:24px 0 32px}
+.facts dd{margin-top:6px;line-height:1.6}
+.link-row{margin-bottom:32px}
+.link-row label{margin-bottom:10px}
+.enrol-add{margin:24px 0 8px;gap:10px}
+.cols-2{gap:48px;margin-top:8px}
+.timeline{gap:12px;line-height:1.6}
+.filters{gap:16px 20px;margin-bottom:24px}
+.bulk{gap:12px;padding:14px 16px;margin-bottom:20px}
+.checklist{gap:14px}
+.home-grid{gap:24px;margin-bottom:32px}
+.home-card{padding:28px;gap:14px}
+.stats{gap:12px}
+.stats div{padding:14px 16px}
+.check-ac,.admin-form label.check-ac{margin:8px 0 12px}
+.admin-empty{padding:24px 0}
