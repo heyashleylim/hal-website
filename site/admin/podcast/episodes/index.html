@@ -17,7 +17,7 @@
 <main id="main" class="admin-main">
   <div class="admin-head">
     <h1>Episodes <span class="admin-h1-show" data-show-title></span></h1>
-    <button class="btn-sm" type="button" id="add">Add episode</button>
+    <button data-tip="Add a new episode to this program: audio file, title and release week" class="btn-sm" type="button" id="add">Add episode</button>
   </div>
 
   <section class="admin-panel" id="editor" hidden aria-labelledby="editor-title">
@@ -44,9 +44,9 @@
       <p class="admin-form__wide muted" id="current-audio" hidden></p>
       <div class="progress" hidden><span></span></div>
       <div class="admin-form__actions">
-        <button class="btn-sm" type="submit">Save</button>
-        <button class="btn-ghost" type="button" id="cancel">Cancel</button>
-        <button class="btn-danger" type="button" id="delete" hidden>Delete episode</button>
+        <button data-tip="Save this episode. Published episodes appear in students’ feeds on their release day" class="btn-sm" type="submit">Save</button>
+        <button data-tip="Close this form without saving anything" class="btn-ghost" type="button" id="cancel">Cancel</button>
+        <button data-tip="Delete this episode and its audio file. It disappears from every student’s feed" class="btn-danger" type="button" id="delete" hidden>Delete episode</button>
       </div>
       <p class="admin-form__result" role="status" aria-live="polite"></p>
     </form>
@@ -84,8 +84,8 @@
         return '<tr data-id="' + e.id + '"><td class="num">' + label + '</td><td>' + Admin.esc(e.title) + '<div class="player-slot"></div></td>' +
           '<td class="num">Day ' + e.day_offset + (drip ? ' <span class="muted">(week ' + (Math.floor(e.day_offset / 7) + 1) + ')</span>' : '') + '</td>' +
           '<td class="num">' + audio + '</td><td>' + status + '</td><td><div class="admin-actions">' +
-          (e.has_audio ? '<button class="btn-ghost" type="button" data-play="' + e.id + '">Listen</button>' : '') +
-          '<button class="btn-ghost" type="button" data-edit="' + e.id + '">Edit</button></div></td></tr>';
+          (e.has_audio ? '<button data-tip="Play this episode here, in the admin" class="btn-ghost" type="button" data-play="' + e.id + '">Listen</button>' : '') +
+          '<button data-tip="Change this episode: title, audio file, release week or status" class="btn-ghost" type="button" data-edit="' + e.id + '">Edit</button></div></td></tr>';
       }).join('') + '</tbody></table>';
   }
 

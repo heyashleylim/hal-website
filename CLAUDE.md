@@ -145,7 +145,8 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   folder. Navigation is on the left, like ActiveCampaign's admin: a dark teal icon rail (always visible: Home, sections,
   Activity, Log out) and the current section's collapsible menu (grouped links; Podcast adds the program switcher). Content is on
   white. Drawn by `site/assets/js/admin/admin.js` (SECTIONS and ICONS; pages use `<body data-section="…">` and an empty
-  `<header class="admin-bar">`); styles in `assets/css/admin/admin.css`. API: `api/admin.js` routes actions from
+  `<header class="admin-bar">`); styles in `assets/css/admin/admin.css`.
+  Every admin button has a `data-tip` saying what it does (shown as a tooltip by admin.js; `npm test` fails without it). API: `api/admin.js` routes actions from
   `api/_lib/admin/system.js` (health, activity) and `api/_lib/admin/podcast-*.js` (content, cohorts, students, automation);
   a new section adds its module there (unique action names). `admin_log` records each action's section.
 - "Access until" dates shown anywhere are the last listening day: access ends at 00:00 KST the day after.
@@ -156,7 +157,7 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   listing their shows (api/podcast-page.js, header/footer read from `site/nsmb` and `site/index.html` at runtime),
   `/f/<token>/<show slug>` one feed per show (`/f/<token>` still works for students with one show), `/a/<token>/<guid>.mp3`
   audio streamed from the private Vercel Blob store. `/podcast/help` is a static page. All are noindex and in robots.txt.
-- In the admin, a show is called a **program** (the data model and code say `show`). The program switcher (top bar) scopes
+- In the admin, a show is called a **program** (the data model and code say `show`). The program switcher (left menu) scopes
   Episodes, Cohorts, the Programs page, imports and the AC sync; the Students page covers all programs. A cohort's AC tag
   is unique across programs.
 - The AC sync names students from the contact's **First name** only: Ashley's team keeps the full Korean name (e.g. 김지연) there.

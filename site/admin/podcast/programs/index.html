@@ -17,7 +17,7 @@
 <main id="main" class="admin-main">
   <div class="admin-head">
     <h1>Programs</h1>
-    <button class="btn-sm" type="button" id="new-show-open">New program</button>
+    <button data-tip="Create a new program, with its own episodes, cohorts and cover art" class="btn-sm" type="button" id="new-show-open">New program</button>
   </div>
 
   <section class="admin-panel" id="new-show" hidden aria-labelledby="new-show-title">
@@ -26,8 +26,8 @@
       <label>Title <span class="hint">e.g. EFT 태핑 마스터클래스 팟캐스트</span><input name="title" maxlength="200" required></label>
       <label>Short name <span class="hint">lowercase, in feed addresses; can't be changed later</span><input name="slug" maxlength="40" required autocapitalize="none" spellcheck="false" pattern="[a-z0-9-]+" placeholder="eft"></label>
       <div class="admin-form__actions">
-        <button class="btn-sm" type="submit">Create program</button>
-        <button class="btn-ghost" type="button" id="new-show-cancel">Cancel</button>
+        <button data-tip="Create this program" class="btn-sm" type="submit">Create program</button>
+        <button data-tip="Close this form without saving anything" class="btn-ghost" type="button" id="new-show-cancel">Cancel</button>
       </div>
       <p class="admin-form__result" role="status" aria-live="polite"></p>
     </form>
@@ -47,7 +47,7 @@
         <p class="muted">Square JPEG or PNG, 1400–3000 pixels wide (Apple Podcasts requirement), under 5 MB.</p>
         <label class="admin-form__wide">Image file<input name="file" type="file" accept="image/jpeg,image/png" required></label>
         <div class="progress" hidden><span></span></div>
-        <div class="admin-form__actions"><button class="btn-sm" type="submit">Upload cover art</button></div>
+        <div class="admin-form__actions"><button data-tip="Upload the cover shown in podcast apps: a square JPEG or PNG, 1400 to 3000 px, ideally under 1 MB" class="btn-sm" type="submit">Upload cover art</button></div>
         <p class="admin-form__result" role="status" aria-live="polite"></p>
       </form>
     </div>
@@ -70,7 +70,7 @@
       <label>Support email <span class="hint">shown to students</span><input name="support_email" type="email" maxlength="254"></label>
       <label>AC tag prefix <span class="hint">tags the site adds, e.g. podcast_nsmb_subscribed</span><input name="ac_tag_prefix" maxlength="60" required autocapitalize="none" spellcheck="false"></label>
       <label class="admin-form__wide">Subscribe page intro <span class="hint">optional, Korean, shown under the title</span><textarea name="page_intro" maxlength="1000"></textarea></label>
-      <div class="admin-form__actions"><button class="btn-sm" type="submit">Save settings</button></div>
+      <div class="admin-form__actions"><button data-tip="Save this program’s settings" class="btn-sm" type="submit">Save settings</button></div>
       <p class="admin-form__result" role="status" aria-live="polite"></p>
     </form>
   </section>
@@ -86,7 +86,7 @@
         r.shows.map(function (x) {
           return '<tr><td>' + Admin.esc(x.title) + (x.slug === cur ? ' <span class="badge badge--ok">editing</span>' : '') + '</td><td><code>' + Admin.esc(x.slug) + '</code></td>' +
             '<td class="num">' + x.episodes + '</td><td class="num">' + x.cohorts + '</td><td class="num">' + x.students + '</td>' +
-            '<td>' + (x.slug === cur ? '' : '<button class="btn-ghost" type="button" data-switch="' + Admin.esc(x.slug) + '">Edit this program</button>') + '</td></tr>';
+            '<td>' + (x.slug === cur ? '' : '<button data-tip="Open this program’s settings and make it the selected program" class="btn-ghost" type="button" data-switch="' + Admin.esc(x.slug) + '">Edit this program</button>') + '</td></tr>';
         }).join('') + '</tbody></table>' : '<p class="admin-empty">No program yet.</p>';
       var current = r.shows.find(function (x) { return x.slug === cur; });
       document.getElementById('settings-title').textContent = current ? 'Settings · ' + current.title : 'Settings';

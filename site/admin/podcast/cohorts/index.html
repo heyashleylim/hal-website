@@ -17,7 +17,7 @@
 <main id="main" class="admin-main">
   <div class="admin-head">
     <h1>Cohorts <span class="admin-h1-show" data-show-title></span></h1>
-    <button class="btn-sm" type="button" id="add">Add cohort</button>
+    <button data-tip="Create a new cohort: name, start date and the ActiveCampaign tag that enrols its students" class="btn-sm" type="button" id="add">Add cohort</button>
   </div>
 
   <section class="admin-panel" id="editor" hidden aria-labelledby="editor-title">
@@ -30,9 +30,9 @@
       <label>Access length (days) <span class="hint" id="access-hint">empty = program default</span><input name="access_days" type="number" min="1" max="3650" inputmode="numeric"></label>
       <p class="admin-form__wide muted">Changing the start date moves this cohort's whole schedule and the end of access of its students (except enrolments whose dates were set by hand).</p>
       <div class="admin-form__actions">
-        <button class="btn-sm" type="submit">Save</button>
-        <button class="btn-ghost" type="button" id="cancel">Cancel</button>
-        <button class="btn-danger" type="button" id="delete" hidden>Delete cohort</button>
+        <button data-tip="Save this cohort" class="btn-sm" type="submit">Save</button>
+        <button data-tip="Close this form without saving anything" class="btn-ghost" type="button" id="cancel">Cancel</button>
+        <button data-tip="Delete this cohort and its release schedule. Only possible once no student is enrolled in it" class="btn-danger" type="button" id="delete" hidden>Delete cohort</button>
       </div>
       <p class="admin-form__result" role="status" aria-live="polite"></p>
     </form>
@@ -45,7 +45,7 @@
   <section class="admin-card" id="schedule" hidden aria-labelledby="schedule-title">
     <div class="admin-head">
       <h2 id="schedule-title">Schedule</h2>
-      <button class="btn-ghost" type="button" id="close-schedule">Close</button>
+      <button data-tip="Close the release schedule" class="btn-ghost" type="button" id="close-schedule">Close</button>
     </div>
     <p class="muted" id="schedule-note"></p>
     <div id="schedule-list" class="admin-scroll" aria-live="polite"></div>
@@ -75,7 +75,7 @@
         return '<tr><td>' + Admin.esc(c.name) + '</td><td><code>' + Admin.esc(c.ac_tag) + '</code></td><td class="num">' + Admin.kst(c.start_date + 'T00:00:00+09:00', false) + '</td>' +
           '<td>' + STATUS[c.status] + '</td><td class="num">' + c.subscribed + ' / ' + c.students + ' subscribed' + (c.revoked ? ' <span class="muted">(' + c.revoked + ' revoked)</span>' : '') + '</td>' +
           '<td class="num">' + Admin.lastDay(c.expires_at) + (c.access_days ? ' <span class="muted">(' + c.access_days + ' days)</span>' : '') + '</td>' +
-          '<td><div class="admin-actions"><button class="btn-ghost" type="button" data-schedule="' + c.id + '">Schedule</button><button class="btn-ghost" type="button" data-edit="' + c.id + '">Edit</button></div></td></tr>';
+          '<td><div class="admin-actions"><button data-tip="See when each episode is released for this cohort, and change a date for this cohort only" class="btn-ghost" type="button" data-schedule="' + c.id + '">Schedule</button><button data-tip="Change this cohort: name, start date or ActiveCampaign tag" class="btn-ghost" type="button" data-edit="' + c.id + '">Edit</button></div></td></tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -153,7 +153,7 @@
             '<td class="num">' + Admin.kst(e.release_at) + (e.overridden ? ' <span class="badge badge--info">changed</span>' : '') + '</td><td>' + state(e) + '</td>' +
             '<td><div class="inline-edit"><label class="sr-only" for="d' + e.id + '">Date</label><input id="d' + e.id + '" type="date" value="' + p.date + '">' +
             '<label class="sr-only" for="t' + e.id + '">Time</label><input id="t' + e.id + '" type="time" value="' + p.time + '">' +
-            '<button class="btn-ghost" type="button" data-save>Change</button>' + (e.overridden ? '<button class="btn-ghost" type="button" data-clear>Reset</button>' : '') + '</div></td></tr>';
+            '<button data-tip="Use the date on the left for this episode, in this cohort only" class="btn-ghost" type="button" data-save>Change</button>' + (e.overridden ? '<button data-tip="Go back to the program’s normal release date for this episode" class="btn-ghost" type="button" data-clear>Reset</button>' : '') + '</div></td></tr>';
         }).join('') + '</tbody></table>';
     }).catch(function (err) { Admin.say(sout, err.message, true); });
   }

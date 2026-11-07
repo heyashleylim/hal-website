@@ -116,8 +116,7 @@ a.home-card:hover{border-color:var(--ink)}
 .admin-bar{position:fixed;inset:0 auto 0 0;z-index:20;display:flex}
 .admin .admin-main{margin-left:var(--rail);margin-right:0;max-width:none;padding-left:clamp(20px,4vw,48px);padding-right:clamp(20px,4vw,48px)}
 .admin.has-subnav:not(.subnav-collapsed) .admin-main{margin-left:calc(var(--rail) + var(--subnav))}
-.admin-main>*{max-width:var(--w-wide)}
-.admin-main--wide>*{max-width:1240px}
+.admin-main>*,.admin-main--wide>*{max-width:1600px}
 .rail{width:var(--rail);height:100vh;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;background:var(--rail-bg)}
 .rail__spacer{flex:1}
 .rail__item{position:relative;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:12px;background:none;color:rgba(255,255,255,.72);cursor:pointer;text-decoration:none;transition:background-color .15s ease,color .15s ease}
@@ -152,3 +151,16 @@ a.home-card:hover{border-color:var(--ink)}
 @media (prefers-reduced-motion:reduce){.rail__item,.rail__item::after{transition:none}}
 .filters label{min-width:0;max-width:100%}
 .filters input,.filters select{max-width:100%}
+
+/* tooltips (data-tip on every button; drawn by admin.js) */
+.tip{position:fixed;z-index:50;max-width:280px;padding:8px 12px;border-radius:8px;background:var(--ink);color:var(--surface);font:500 13px/1.5 var(--font-body);word-break:keep-all;overflow-wrap:break-word;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none}
+.tip::after{content:"";position:absolute;left:var(--arrow,50%);top:100%;margin-left:-6px;border:6px solid transparent;border-top-color:var(--ink)}
+.tip--below::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:var(--ink)}
+/* "Tell ActiveCampaign": checkbox in its own column, label and explanation aligned beside it */
+.check-ac,.admin-form label.check-ac{display:inline-grid;grid-template-columns:16px auto;column-gap:8px;row-gap:2px;align-items:start;margin:4px 0 10px}
+.check-ac input,.inline-edit .check-ac input{margin:3px 0 0;width:16px;height:16px;min-height:0;padding:0;flex:none}
+.check-ac .hint{grid-column:2;flex-basis:auto;padding-left:0;margin-top:0;font-size:12px;line-height:1.5}
+.enrol-add .check-ac{flex-basis:100%;margin-top:6px}
+.date-default{display:block;margin-top:4px}
+.admin-table td{vertical-align:top}
+.admin-table td .admin-actions{flex-wrap:nowrap}

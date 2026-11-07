@@ -38,8 +38,8 @@
     <div class="admin-head">
       <h2 id="queue-title">Updates sent to ActiveCampaign</h2>
       <div class="admin-actions">
-        <button class="btn-ghost" type="button" id="process">Send pending now</button>
-        <button class="btn-ghost" type="button" id="retry">Retry failed</button>
+        <button data-tip="Send the waiting ActiveCampaign updates now, instead of with the next admin action or the daily job" class="btn-ghost" type="button" id="process">Send pending now</button>
+        <button data-tip="Try the failed ActiveCampaign updates again" class="btn-ghost" type="button" id="retry">Retry failed</button>
       </div>
     </div>
     <p class="muted" id="counts"></p>
@@ -49,7 +49,7 @@
   <section class="admin-card" aria-labelledby="daily-title">
     <div class="admin-head">
       <h2 id="daily-title">Daily job</h2>
-      <button class="btn-ghost" type="button" id="daily-run">Run now</button>
+      <button data-tip="Run the daily job now: release, reminder and expiry tags for every student" class="btn-ghost" type="button" id="daily-run">Run now</button>
     </div>
     <p class="muted">Every day around 09:10 (Seoul) on the live site: adds the date-based tags (new module released, not subscribed after 3/7 days, access ending or ended), retries failed updates, and deletes listening data older than 13 months. On preview links it only runs with “Run now”.</p>
     <div id="daily"></div>
@@ -71,7 +71,7 @@
     return '<li><span class="status ' + badge + '</span><span>' + text + '</span></li>';
   }
   function copyField(id, value) {
-    return '<div class="inline-edit hook-row"><input id="' + id + '" readonly value="' + Admin.esc(value) + '"><button class="btn-ghost" type="button" data-copy="' + id + '">Copy</button></div>';
+    return '<div class="inline-edit hook-row"><input id="' + id + '" readonly value="' + Admin.esc(value) + '"><button data-tip="Copy this address" class="btn-ghost" type="button" data-copy="' + id + '">Copy</button></div>';
   }
 
   function load() {
@@ -106,7 +106,7 @@
           var what = o.op === 'fields' ? 'Field ' + Object.keys(o.payload.fields || {}).join(', ') : (o.op === 'tag_add' ? 'Add tag ' : o.op === 'tag_remove' ? 'Remove tag ' : 'Re-add tag ') + o.payload.tag;
           var st = o.status === 'done' ? '<span class="badge badge--ok">Sent</span>' : o.status === 'failed' ? '<span class="badge badge--warn">Failed</span>' : '<span class="badge badge--info">Waiting' + (o.attempts ? ' (' + o.attempts + ' tries)' : '') + '</span>';
           return '<tr><td class="num">' + Admin.kst(o.created_at) + '</td><td><a href="/admin/podcast/students#' + o.student_id + '">' + Admin.esc(o.email) + '</a></td><td>' + Admin.esc(what) + '</td><td>' + st + '</td>' +
-            '<td class="small is-error">' + Admin.esc(o.last_error || '') + '</td><td>' + (o.status !== 'done' ? '<button class="btn-ghost" type="button" data-retry="' + o.id + '">Retry</button>' : '') + '</td></tr>';
+            '<td class="small is-error">' + Admin.esc(o.last_error || '') + '</td><td>' + (o.status !== 'done' ? '<button data-tip="Try this update again" class="btn-ghost" type="button" data-retry="' + o.id + '">Retry</button>' : '') + '</td></tr>';
         }).join('') + '</tbody></table>' : '<p class="admin-empty">Nothing sent yet.</p>';
 
       var d = r.daily;

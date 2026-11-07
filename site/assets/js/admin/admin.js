@@ -228,7 +228,56 @@ window.Admin = (function () {
     },
   };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', nav);
-  else nav();
+  // Tooltips: every button says what it does in data-tip (a test checks this). Shown on hover (after a short pause)
+  // and on keyboard focus, above the button (below when there is no room), kept inside the window.
+  function tooltips() {
+    var box = document.createElement('div');
+    box.className = 'tip';
+    box.id = 'admin-tip';
+    box.setAttribute('role', 'tooltip');
+    box.hidden = true;
+    document.body.appendChild(box);
+    var current = null, pending = null, timer = null;
+    function hide() {
+      clearTimeout(timer);
+      if (current) current.removeAttribute('aria-describedby');
+      current = pending = null;
+      box.hidden = true;
+    }
+    function show(el) {
+      current = el;
+      box.textContent = el.getAttribute('data-tip');
+      box.hidden = false;
+      el.setAttribute('aria-describedby', box.id);
+      var r = el.getBoundingClientRect(), b = box.getBoundingClientRect(), gap = 8;
+      var top = r.top - b.height - gap;
+      box.classList.toggle('tip--below', top < gap);
+      if (top < gap) top = r.bottom + gap;
+      var left = Math.max(gap, Math.min(r.left + r.width / 2 - b.width / 2, window.innerWidth - b.width - gap));
+      box.style.top = Math.round(top) + 'px';
+      box.style.left = Math.round(left) + 'px';
+      box.style.setProperty('--arrow', Math.round(r.left + r.width / 2 - left) + 'px');
+    }
+    function target(e) { return e.target.closest ? e.target.closest('[data-tip]') : null; }
+    document.addEventListener('mouseover', function (e) {
+      var el = target(e);
+      if (el && (el === current || el === pending)) return;
+      hide();
+      if (el) { pending = el; timer = setTimeout(function () { show(el); }, 250); }
+    });
+    document.addEventListener('mouseout', function (e) {
+      var el = target(e);
+      if (el && !(e.relatedTarget && el.contains(e.relatedTarget))) hide();
+    });
+    document.addEventListener('focusin', function (e) { var el = target(e); hide(); if (el && el.matches(':focus-visible')) show(el); });
+    document.addEventListener('focusout', hide);
+    document.addEventListener('click', hide);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
+    window.addEventListener('scroll', hide, true);
+  }
+
+  function start() { nav(); tooltips(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
   return api;
 })();

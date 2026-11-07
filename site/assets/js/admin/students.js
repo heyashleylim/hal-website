@@ -92,7 +92,7 @@
         '<th>Student</th><th>Enrolments</th><th>Access</th><th>Subscribed</th><th>Downloaded</th><th>Apps</th><th>Until</th></tr></thead><tbody>' +
         rows.map(function (s) {
           return '<tr data-id="' + s.id + '"><td><input type="checkbox" data-check aria-label="Select ' + Admin.esc(s.email) + '"' + (selected.has(s.id) ? ' checked' : '') + '></td>' +
-            '<td><button class="linkish" type="button" data-open>' + Admin.esc(s.name || s.email) + '</button>' + (s.name ? '<div class="muted small">' + Admin.esc(s.email) + '</div>' : '') + '</td>' +
+            '<td><button data-tip="Open this student" class="linkish" type="button" data-open>' + Admin.esc(s.name || s.email) + '</button>' + (s.name ? '<div class="muted small">' + Admin.esc(s.email) + '</div>' : '') + '</td>' +
             '<td class="chips">' + enrolChips(s) + '</td><td>' + STATE[s.state] + '</td>' +
             '<td class="num">' + (s.first_seen_at ? Admin.kst(s.first_seen_at, false) : '<span class="muted">Not yet</span>') + '</td>' +
             '<td class="num">' + s.downloaded + ' / ' + s.released + (behind(s) ? ' <span class="badge badge--warn">behind</span>' : '') + '</td>' +
@@ -178,13 +178,14 @@
     return '<table class="admin-table"><thead><tr><th>Program</th><th>Cohort</th><th>Status</th><th>Own start date</th><th>Listen until</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       s.enrollments.map(function (e) {
         return '<tr data-enrollment="' + e.id + '"><td>' + Admin.esc(e.show.title) + '</td><td>' + Admin.esc(e.cohort.name) + '</td><td>' + STATE[e.state] + '</td>' +
-          '<td><input type="date" data-start value="' + Admin.esc(e.start_override || '') + '" aria-label="Own start date"></td>' +
+          '<td><input type="date" data-start value="' + Admin.esc(e.start_override || '') + '" aria-label="Own start date (empty: cohort start)">' +
+          (e.start_override || !e.cohort.start_date ? '' : '<span class="muted small date-default">Cohort: ' + Admin.kst(e.cohort.start_date + 'T00:00:00+09:00', false) + '</span>') + '</td>' +
           '<td><input type="date" data-until value="' + (e.expires_override ? Admin.kstParts(new Date(new Date(e.expires_override).getTime() - 1)).date : '') + '" aria-label="Last day of access (empty: cohort rule)">' +
-          (e.expires_override ? '' : ' <span class="muted small">' + Admin.lastDay(e.expires_at) + '</span>') + '</td>' +
+          (e.expires_override ? '' : '<span class="muted small date-default">Cohort rule: ' + Admin.lastDay(e.expires_at) + '</span>') + '</td>' +
           '<td class="small">' + Admin.kst(e.created_at, false) + ' · ' + Admin.esc(e.source) + '</td>' +
-          '<td><div class="admin-actions"><button class="btn-ghost" type="button" data-en-save>Save dates</button>' +
-          '<button class="btn-ghost" type="button" data-en-status="' + (e.status === 'revoked' ? 'active' : 'revoked') + '">' + (e.status === 'revoked' ? 'Restore' : 'Revoke') + '</button>' +
-          '<button class="btn-danger" type="button" data-en-delete>Remove</button></div></td></tr>';
+          '<td><div class="admin-actions"><button data-tip="Save this enrolment’s own start date and last day. Leave a date empty to use the cohort’s" class="btn-ghost" type="button" data-en-save>Save dates</button>' +
+          '<button data-tip="' + (e.status === 'revoked' ? 'Give this student access to this cohort again' : 'Stop this student’s access to this cohort. You can restore it later') + '" class="btn-ghost" type="button" data-en-status="' + (e.status === 'revoked' ? 'active' : 'revoked') + '">' + (e.status === 'revoked' ? 'Restore' : 'Revoke') + '</button>' +
+          '<button data-tip="Remove this enrolment, as if the student had never been in this cohort" class="btn-danger" type="button" data-en-delete>Remove</button></div></td></tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -215,8 +216,8 @@
       $('d-ac').innerHTML = r.outbox.length ? '<ol class="timeline">' + r.outbox.map(function (o) {
         return '<li><span class="num">' + Admin.kst(o.created_at) + '</span> ' + Admin.esc(o.op) + ' ' + Admin.esc(JSON.stringify(o.payload)) + ' · ' + Admin.esc(o.status) + (o.last_error ? ' <span class="is-error">' + Admin.esc(o.last_error) + '</span>' : '') + '</li>';
       }).join('') + '</ol>' : '<p class="muted">Nothing sent to ActiveCampaign yet.</p>';
-      $('d-ac-actions').innerHTML = '<button class="btn-ghost" type="button" data-ac-push>Send link to AC</button>' +
-        s.shows.map(function (x) { return '<button class="btn-ghost" type="button" data-ac-welcome="' + x.id + '">Resend welcome · ' + Admin.esc(x.title) + '</button>'; }).join('');
+      $('d-ac-actions').innerHTML = '<button data-tip="Put this student’s personal link in their PODCAST_LINK field in ActiveCampaign" class="btn-ghost" type="button" data-ac-push>Send link to AC</button>' +
+        s.shows.map(function (x) { return '<button data-tip="Remove and add the ‘enrolled’ tag again in ActiveCampaign, so your welcome automation can send the email again" class="btn-ghost" type="button" data-ac-welcome="' + x.id + '">Resend welcome · ' + Admin.esc(x.title) + '</button>'; }).join('');
       $('d-history').innerHTML = r.history.length ? r.history.map(function (h) {
         return '<li><span class="num">' + Admin.kst(h.at) + '</span> ' + Admin.esc(h.action) + ' <span class="muted">by ' + Admin.esc(h.admin) + '</span></li>';
       }).join('') : '<li class="muted">No changes recorded.</li>';
@@ -297,7 +298,7 @@
             r.missing.map(function (m) {
               return '<tr><td><input type="checkbox" data-missing="' + m.enrollment_id + '" aria-label="Revoke ' + Admin.esc(m.email) + '"></td><td>' + Admin.esc(m.name || m.email) + (m.name ? '<div class="muted small">' + Admin.esc(m.email) + '</div>' : '') +
                 '</td><td>' + Admin.esc(m.show) + '</td><td>' + Admin.esc(m.cohort) + '</td><td>' + Admin.esc(m.source) + '</td></tr>';
-            }).join('') + '</tbody></table><div class="admin-form__actions"><button class="btn-danger" type="button" id="missing-revoke">Revoke selected enrolments</button></div>';
+            }).join('') + '</tbody></table><div class="admin-form__actions"><button data-tip="Stop access for the selected students, who are no longer tagged in ActiveCampaign" class="btn-danger" type="button" id="missing-revoke">Revoke selected enrolments</button></div>';
         } else if (r.cohorts.length) {
           html += '<p class="muted">Everyone enrolled here still has their tag in ActiveCampaign.</p>';
         }
