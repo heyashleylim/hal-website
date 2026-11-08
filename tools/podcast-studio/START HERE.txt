@@ -36,5 +36,15 @@ lets you check the chapters while listening, and exports the final MP3
    Upload those to the podcast admin (Episodes page).
 
 
+
+3. UPDATE
+
+   In Claude Code, type:
+
+     /update-podcast-studio
+
+   (or send "Update Podcast Studio"). Claude installs the latest version.
+   Your files, chapters and exports are kept.
+
 Without Claude Code: double-click "Podcast Studio.command" in the
 Podcast-Studio folder, and use "Suggest from pauses" for chapters.
