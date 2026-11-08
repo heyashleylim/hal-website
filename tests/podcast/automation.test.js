@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const automation = require('../../api/_lib/automation.js');
-const { contactFrom } = require('../../api/podcast-ac.js');
+const { contactFrom, addedTagFrom } = require('../../api/podcast-ac.js');
 
 const show = { slug: 'nsmb', ac_tag_prefix: 'podcast_nsmb' };
 const ep = (n, releaseAt) => ({ episode: { id: n, kind: 'module', number: n }, releaseAt: new Date(releaseAt) });
@@ -54,4 +54,11 @@ test('webhook body: AC form fields and JSON', () => {
   assert.deepEqual(contactFrom(form), { id: '42', email: 'ji@ex.kr', firstName: '김지연', tags: ['nsmb-2기', 'newsletter'] });
   assert.deepEqual(contactFrom({ contact: { email: 'a@b.kr', tags: ['x'] } }), { id: null, email: 'a@b.kr', firstName: '', tags: ['x'] });
   assert.equal(contactFrom({ 'contact[email]': 'a@b.kr' }).tags, null); // no tags: AC is asked instead
+});
+
+test('the account-level "Contact Tag Added" webhook names the added tag', () => {
+  assert.equal(addedTagFrom({ type: 'contact_tag_added', tag: ' purchased_nsmb_12_202612 ', 'contact[email]': 'a@b.kr' }), 'purchased_nsmb_12_202612');
+  assert.equal(addedTagFrom({ tag: { name: 'x' } }), 'x');
+  assert.equal(addedTagFrom({ 'contact[email]': 'a@b.kr', 'contact[tags]': 'a, b' }), null); // automation webhook: no single tag
+  assert.equal(addedTagFrom({ tag: '' }), null);
 });

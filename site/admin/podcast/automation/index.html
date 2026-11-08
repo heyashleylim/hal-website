@@ -88,7 +88,7 @@
         row(true, 'Students’ links start with <code>' + Admin.esc(rd.public_url) + '</code>' + (rd.public_url_set ? ' (PODCAST_PUBLIC_URL).' : '. Set <code>PODCAST_PUBLIC_URL</code> in Production when the domain is ready.'));
 
       $('hooks').innerHTML = r.webhook ?
-        '<h3 class="admin-h3">1. Purchase → enrol</h3><p class="muted">In each purchase automation: start “Tag is added” with the cohort’s tag, then action <strong>Webhook</strong> with this address. The student is enrolled in every cohort whose tag they have, gets their link in <code>%' + Admin.esc(rd.field.perstag || rd.field.name) + '%</code> and the tag <code>' + Admin.esc(r.tags[0].tag) + '</code>.</p>' +
+        '<h3 class="admin-h3">1. Purchase → enrol</h3><p class="muted">Set it up once for all programs and cohorts: in ActiveCampaign, <strong>Settings → Developer → Manage Webhooks → Add</strong>, list “All Lists”, event <strong>Contact Tag Added</strong>, every source ticked, and this address. Tags that aren’t a cohort tag are ignored. (On plans with the automation <strong>Webhook</strong> action, that works too.) The student is enrolled in every cohort whose tag they have, gets their link in <code>%' + Admin.esc(rd.field.perstag || rd.field.name) + '%</code> and the tag <code>' + Admin.esc(r.tags[0].tag) + '</code>.</p>' +
         copyField('hook-enroll', r.webhook.enroll) +
         '<h3 class="admin-h3">2. Refund → revoke</h3><p class="muted">In a refund automation: action <strong>Webhook</strong> with this address followed by the cohort’s tag, e.g. <code>…&amp;tag=' + Admin.esc(r.cohorts[0] ? r.cohorts[0].ac_tag : 'nsmb-2기') + '</code>.</p>' +
         copyField('hook-revoke', r.webhook.revoke + (r.cohorts[0] ? encodeURIComponent(r.cohorts[0].ac_tag) : '')) +

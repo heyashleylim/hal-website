@@ -5,6 +5,8 @@
  * action=enroll (default): use in AC automations started by "Tag is added: <cohort tag>". The contact's tags are
  *   read from the webhook (or from AC if missing); the student is created if needed and enrolled in every cohort
  *   whose AC tag the contact has. New enrolments fill their link field and add <prefix>_enrolled (→ welcome email).
+ *   Or as an account webhook (Settings → Developer → Manage Webhooks, event "Contact Tag Added"): AC then calls it
+ *   for every tag added in the account; only cohort tags are acted on, other tags are answered "ignored" and not logged.
  * action=revoke&tag=<cohort tag>[,<tag>…]: use for refunds. Revokes their enrolment in those cohorts.
  *
  * Always answers 200 with a short JSON result once the key is valid (AC doesn't need to retry a logical "no-op");
@@ -49,15 +51,25 @@ function contactFrom(body) {
   return { id: get('id') ? String(get('id')) : null, email, firstName: String(get('first_name') || get('firstName') || '').trim(), tags };
 }
 
+// The tag named by an account-level "Contact Tag Added" webhook (form field "tag", or JSON tag / tag.name).
+function addedTagFrom(body) {
+  const t = body.tag ?? body['tag[name]'];
+  const name = t && typeof t === 'object' ? t.name || t.tag : t;
+  return name ? String(name).trim() || null : null;
+}
+
 async function log(payload, result, studentId) {
   await db.query('INSERT INTO webhook_log (source, payload, result, student_id) VALUES ($1, $2, $3, $4)', ['ac', JSON.stringify(payload), result, studentId || null])
     .catch((err) => console.error('webhook log failed', err.message));
 }
 
-async function enroll(contact) {
+async function enroll(contact, addedTag = null) {
   const cohorts = await db.query(`SELECT id, show_id, name, ac_tag FROM cohorts WHERE ac_tag <> ''`);
   let has;
-  if (contact.tags) {
+  if (addedTag) {
+    // Account webhook ("Contact Tag Added"): only the tag that was just added counts.
+    has = cohorts.filter((c) => c.ac_tag.toLowerCase() === addedTag.toLowerCase());
+  } else if (contact.tags) {
     const set = new Set(contact.tags.map((t) => t.toLowerCase()));
     has = cohorts.filter((c) => set.has(c.ac_tag.toLowerCase()));
   } else {
@@ -132,7 +144,14 @@ module.exports = async function handler(req, res) {
     await log({ action, error: 'unreadable body' }, 'error: unreadable body');
     return send(res, 400, { ok: false, error: 'unreadable body' });
   }
-  const summary = { action, email: contact.email, contact_id: contact.id, tags: contact.tags };
+  // The account-level webhook (Settings → Developer → Webhooks, "Contact Tag Added") fires for every tag in the
+  // account and names the added tag in "tag". Anything that isn't a cohort's purchase tag is ignored quietly.
+  const addedTag = action === 'enroll' ? addedTagFrom(body) : null;
+  if (addedTag) {
+    const known = await db.one(`SELECT 1 AS ok FROM cohorts WHERE ac_tag <> '' AND lower(ac_tag) = lower($1)`, [addedTag]);
+    if (!known) return send(res, 200, { ok: true, result: `ignored: "${addedTag}" is not a cohort tag` });
+  }
+  const summary = { action, email: contact.email, contact_id: contact.id, tags: addedTag ? [addedTag] : contact.tags };
   if (!contact.email) {
     await log(summary, 'error: no contact email');
     return send(res, 200, { ok: false, result: 'no contact email in the webhook' });
@@ -143,7 +162,7 @@ module.exports = async function handler(req, res) {
       const tagList = (url.searchParams.get('tag') || '').split(',').map((t) => t.trim()).filter(Boolean);
       out = tagList.length ? await revoke(contact, tagList) : { result: 'error: add &tag=<cohort AC tag> to the address', studentId: null };
     } else if (action === 'enroll') {
-      out = await enroll(contact);
+      out = await enroll(contact, addedTag);
     } else {
       out = { result: `error: unknown action "${action}"`, studentId: null };
     }
@@ -157,3 +176,4 @@ module.exports = async function handler(req, res) {
 };
 
 module.exports.contactFrom = contactFrom;
+module.exports.addedTagFrom = addedTagFrom;
