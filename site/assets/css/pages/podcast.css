@@ -28,7 +28,11 @@
 /* Help page */
 .pod__steps{margin:0;padding-left:1.4em;display:grid;gap:10px}
 .pod__card h3{font:600 17px/1.5 var(--font-body);margin:22px 0 10px}
-.pod__card h3:first-of-type{margin-top:0}
+.pod__h2+h3{margin-top:0}
+.pod__h2 .pod__muted{margin-left:6px;font:500 14px/1.4 var(--font-body);color:var(--muted)}
+.pod__steps+p{margin-top:14px}
+.pod__jump{margin-top:16px;font-size:15px;line-height:2.2;color:var(--ink-2)}
+.pod__jump a{display:inline-block;padding:4px 2px}
 @media (max-width:480px){
   .pod{padding-top:28px}
   .pod__card{padding:26px 20px}
