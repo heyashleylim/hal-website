@@ -140,7 +140,7 @@ def compute_peaks(src):
 
 def detect_silences(src):
     r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', str(src), '-vn', '-af', 'silencedetect=noise=-35dB:d=0.7', '-f', 'null', '-'],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     out, start = [], None
     for line in r.stderr.splitlines():
         m = re.search(r'silence_start: (-?[\d.]+)', line)
@@ -211,7 +211,7 @@ def transcribe(pid):
         p = load(pid)
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(source_path(p)), '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', str(wav)], check=True)
         cmd = [binary, '-m', str(MODEL), '-l', 'ko', '-t', str(max(4, (os.cpu_count() or 8) - 2)), '-pp', '-ml', '80', '-sow', '-oj', '-of', str(d / 'whisper'), '-f', str(wav)]
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
         last = -1
         tail = []
         for line in proc.stdout:

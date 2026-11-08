@@ -35,7 +35,7 @@ class EncodeError(Exception):
 
 
 def run(cmd):
-    return subprocess.run(cmd, capture_output=True, text=True)
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def duration_seconds(path):
@@ -88,7 +88,7 @@ def metadata_file(chapters, total, title):
 
 def _ffmpeg_with_progress(cmd, total, on_progress, lo, hi):
     """Runs ffmpeg with -progress on stdout, reporting lo..hi percent. Returns stderr text."""
-    proc = subprocess.Popen(cmd[:1] + ['-progress', 'pipe:1', '-nostats'] + cmd[1:], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.Popen(cmd[:1] + ['-progress', 'pipe:1', '-nostats'] + cmd[1:], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     for line in proc.stdout:
         if on_progress and line.startswith('out_time_us=') and total:
             try:
