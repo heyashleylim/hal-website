@@ -3,13 +3,17 @@
  * so moving to another Postgres host only means changing this file and DATABASE_URL.
  *
  * DATABASE_URL is set in Vercel by the Neon integration (POSTGRES_URL, which it also sets, works too).
- * Locally: .env.local (git-ignored).
+ * PODCAST_DATABASE_URL, set for Preview only, points previews at their own Neon branch (a copy of production),
+ * so testing never touches students' data. Locally: .env.local (git-ignored).
  */
 const { neon } = require('@neondatabase/serverless');
 
 let sql = null;
 
-const databaseUrl = () => process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+const databaseUrl = () => process.env.PODCAST_DATABASE_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+
+// Production, local runs, or a preview with its own database. A preview without one would share production's.
+const separateFromProduction = (env = process.env) => env.VERCEL_ENV !== 'preview' || Boolean((env.PODCAST_DATABASE_URL || '').trim());
 
 function client() {
   if (!sql) {
@@ -36,4 +40,4 @@ async function tx(statements) {
   return db.transaction(statements.map(([text, params = []]) => db.query(text, params)));
 }
 
-module.exports = { query, one, tx, databaseUrl };
+module.exports = { query, one, tx, databaseUrl, separateFromProduction };

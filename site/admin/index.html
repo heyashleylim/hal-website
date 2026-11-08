@@ -56,6 +56,9 @@
     items.push([st.connected, st.connected ? 'File storage (Vercel Blob) connected' : 'File storage (Vercel Blob): ' + Admin.esc(st.error || 'not connected')]);
     var d = h.database || {};
     items.push([d.connected, d.connected ? 'Database connected' : 'Database: ' + Admin.esc(d.error || 'not connected')]);
+    if (d.connected && h.environment === 'preview') items.push([d.separate, d.separate ?
+      'Preview database: its own copy (<code>PODCAST_DATABASE_URL</code>), separate from production' :
+      'Preview database: shared with production, so changes are blocked here. Set <code>PODCAST_DATABASE_URL</code> for Preview in Vercel']);
     if (d.connected) items.push([d.migrations.length > 0, 'Database structure: ' + (d.migrations.map(function (m) { return '<code>' + Admin.esc(m.name) + '</code>'; }).join(', ') || 'none')]);
     document.getElementById('setup').innerHTML = items.map(function (i) {
       return '<li><span class="status ' + (i[0] ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + i[1] + '</span></li>';

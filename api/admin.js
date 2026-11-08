@@ -82,6 +82,9 @@ module.exports = async function handler(req, res) {
   if (isWrite && req.method !== 'POST') return send(res, 405, { error: 'POST required' });
   if (!isWrite && req.method !== 'GET') return send(res, 405, { error: 'GET required' });
   if (isWrite && !auth.sameOrigin(req)) return send(res, 403, { error: 'bad origin' });
+  if (isWrite && name !== 'cron' && !db.separateFromProduction()) {
+    return send(res, 409, { error: 'This preview uses the production database, so changes are blocked here. Set PODCAST_DATABASE_URL for Preview in Vercel (a Neon branch), or make the change in the production admin.' });
+  }
 
   try {
     const input = isWrite ? await readJson(req) : Object.fromEntries(url.searchParams);

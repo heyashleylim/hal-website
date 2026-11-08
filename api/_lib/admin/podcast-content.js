@@ -35,7 +35,7 @@ function episodeOut(e) {
 
 // The uploaded file must exist in this show's folder; returns its size and type from Blob storage.
 async function uploadedFile(show, pathname, kind) {
-  const prefix = `podcast/${show.slug}/${kind}/`;
+  const prefix = `${blobRoot()}/${show.slug}/${kind}/`;
   if (typeof pathname !== 'string' || !pathname.startsWith(prefix) || pathname.includes('..')) throw userError('invalid upload');
   let meta;
   try {
@@ -46,8 +46,17 @@ async function uploadedFile(show, pathname, kind) {
   return { pathname, size: meta.size, contentType: meta.contentType };
 }
 
+// Files uploaded from a preview live under preview/, so a preview never overwrites or deletes production's files
+// (both use the same Blob store; a preview database is a copy of production and still points at production's audio).
+function blobRoot(env = process.env) {
+  return env.VERCEL_ENV === 'preview' ? 'preview/podcast' : 'podcast';
+}
+function mayDelete(pathname, env = process.env) {
+  return env.VERCEL_ENV !== 'preview' || String(pathname).startsWith('preview/');
+}
+
 async function deleteQuietly(pathname) {
-  if (!pathname) return;
+  if (!pathname || !mayDelete(pathname)) return;
   try {
     await blob.del(pathname);
   } catch (err) {
@@ -100,7 +109,7 @@ const actions = {
     try {
       let cursor;
       do {
-        const page = await blob.list({ prefix: `podcast/${show.slug}/`, cursor, limit: 1000 });
+        const page = await blob.list({ prefix: `${blobRoot()}/${show.slug}/`, cursor, limit: 1000 });
         if (page.blobs.length) {
           await blob.del(page.blobs.map((b) => b.pathname));
           files += page.blobs.length;
@@ -151,7 +160,7 @@ const actions = {
     if (!types[contentType]) throw userError(purpose === 'artwork' ? 'artwork must be a JPEG or PNG image' : 'audio must be an MP3 or M4A file');
     const size = int(input.size, { min: 1, max: purpose === 'artwork' ? MAX_IMAGE : MAX_AUDIO, label: 'File size' });
     const folder = purpose === 'artwork' ? 'art' : 'audio';
-    const pathname = `podcast/${show.slug}/${folder}/${crypto.randomUUID()}.${types[contentType]}`;
+    const pathname = `${blobRoot()}/${show.slug}/${folder}/${crypto.randomUUID()}.${types[contentType]}`;
     const validUntil = Date.now() + 30 * 60 * 1000;
     const token = await blob.issueSignedToken({ pathname, operations: ['put'], validUntil, allowedContentTypes: [contentType], maximumSizeInBytes: size });
     const { presignedUrl } = await blob.presignUrl(token, { operation: 'put', pathname, access: 'private', validUntil, allowedContentTypes: [contentType], maximumSizeInBytes: size });
@@ -250,4 +259,4 @@ const actions = {
 
 const writes = ['show-create', 'show-save', 'show-delete', 'upload-url', 'show-artwork', 'episode-save', 'episode-delete'];
 
-module.exports = { section: 'podcast', actions, writes, AUDIO_TYPES, IMAGE_TYPES };
+module.exports = { section: 'podcast', actions, writes, AUDIO_TYPES, IMAGE_TYPES, blobRoot, mayDelete };
