@@ -18,6 +18,13 @@ todo() { printf '  ✗ %s\n' "$1"; missing=1; }
 echo "Podcast Studio setup"
 [ "$(uname -s)" = "Darwin" ] || { echo "This tool is for macOS."; exit 1; }
 
+# The /update-podcast-studio command for Claude Code (points at this folder; refreshed on every run).
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$ROOT/claude-command.md" ]; then
+  mkdir -p "$HOME/.claude/commands"
+  sed "s#{{ROOT}}#$ROOT#g" "$ROOT/claude-command.md" > "$HOME/.claude/commands/update-podcast-studio.md"
+fi
+
 if command -v brew >/dev/null 2>&1; then ok "Homebrew"; else
   todo "Homebrew is missing. Install it from https://brew.sh (it asks for your Mac password), then run this again."
   exit 2

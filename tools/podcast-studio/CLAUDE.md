@@ -62,6 +62,16 @@ Normally the user ticks files in the page and clicks "Export selected". If they 
 chapter count it prints. Files go to `~/Downloads/Podcast Studio`; they upload those on the podcast admin's
 Episodes page.
 
+## Update ("update Podcast Studio", or the `/update-podcast-studio` command)
+
+Run `./podcast-studio update`. It downloads the latest version from GitHub (public repo
+heyashleylim/hal-website, branch main, folder tools/podcast-studio), replaces the code in this folder and keeps
+the user's work (`~/.cache/podcast-studio`) and exports. It stops a running Studio so the new code applies:
+start it again in the background afterwards (`./podcast-studio start`) and tell the user to refresh the page.
+Exit code 4 = a file is still transcribing or exporting: tell the user and offer to wait, or run
+`./podcast-studio update --force` (that job restarts from the beginning). `./podcast-studio update --check` only
+says whether an update exists; `./podcast-studio version` prints the installed version.
+
 ## Reference
 
 - `./podcast-studio status`: which requirements are present.
@@ -70,4 +80,5 @@ Episodes page.
   the page deletes its work folder. The Whisper model is in `~/.cache/podcast-studio/models`. Exports are never
   deleted by the Studio.
 - Code: `app/studio.py` (server + commands), `app/encode.py` (the export, ffmpeg two-pass loudness),
-  `app/ui/` (the page), `setup.sh`, `Podcast Studio.command` (double-click launcher).
+  `app/ui/` (the page), `app/updater.py` (update), `setup.sh` (also installs the
+  `/update-podcast-studio` command from `claude-command.md` into `~/.claude/commands`), `Podcast Studio.command` (double-click launcher).

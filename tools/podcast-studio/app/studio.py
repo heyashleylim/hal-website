@@ -17,7 +17,7 @@ per-session token embedded in the page. Work files live in ~/.cache/podcast-stud
 in the UI to remove its work folder). Needs ffmpeg; transcription needs whisper-cpp + a model:
     bash setup.sh   (installs ffmpeg, whisper-cpp and the Whisper model)
 Chapter suggestions by AI come from Claude in a Claude Code session: see CLAUDE.md (commands: transcript,
-set-chapters).
+set-chapters). Updates: ./podcast-studio update (app/updater.py, from GitHub).
 """
 import argparse
 import json
@@ -711,7 +711,13 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] in ('status', 'list', 'transcript', 'set-chapters', 'export', '-h', '--help'):
+    if len(sys.argv) > 1 and sys.argv[1] in ('update', 'version'):
+        import updater
+        if sys.argv[1] == 'version':
+            print(json.dumps(updater.installed() or {'commit': 'unknown'}))
+            sys.exit(0)
+        sys.exit(updater.main(sys.argv[2:]))
+    elif len(sys.argv) > 1 and sys.argv[1] in ('status', 'list', 'transcript', 'set-chapters', 'export', '-h', '--help'):
         cli(sys.argv[1:])
     elif len(sys.argv) > 1 and sys.argv[1] == 'start':
         main(sys.argv[2:])
