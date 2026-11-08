@@ -28,6 +28,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <link rel="stylesheet" href="/assets/css/header.css">
 <link rel="stylesheet" href="/assets/css/footer.css">
 <link rel="stylesheet" href="/assets/css/faq.css">
+<link rel="stylesheet" href="/assets/css/waitlist-flow.css">
 <link rel="stylesheet" href="/assets/css/pages/nsmb.css">
 <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 <script defer src="/_vercel/insights/script.js"></script>
@@ -356,24 +357,66 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <h3>지금은 내성만방 <span class="accent">다음 기수</span>를 준비하고 있어요.</h3>
         <p>대기 리스트에 등록하시면, 다음 기수 오픈 소식과 대기자 우선 안내를 가장 먼저 받아보실 수 있어요 💌</p>
       </div>
-      <!-- Posts to /api/waitlist (api/waitlist.js) → ActiveCampaign: tag signup_waitlist_nsmb + Master Contact List. -->
-      <form class="waitlist-form" id="waitlist-form" data-endpoint="/api/waitlist" novalidate>
-        <div class="hp" aria-hidden="true"><label for="wl-website">웹사이트</label><input id="wl-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
-        <div class="field">
-          <label for="wl-name">이름 <span class="req" aria-hidden="true">*</span></label>
-          <input id="wl-name" name="name" type="text" autocomplete="name" placeholder="홍길동" required aria-describedby="wl-name-err">
-          <p class="err" id="wl-name-err" aria-live="polite"></p>
+      <!-- Waitlist v2 (css/waitlist-flow.css + js/waitlist-flow.js): name/email first, then Q1–Q3 one at a time.
+           Posts to /api/waitlist (api/waitlist.js) → ActiveCampaign: contact, link code, tags, double opt-in (form 4), answers. -->
+      <div class="wlf" data-waitlist-flow data-endpoint="/api/waitlist" data-source="nsmb-page">
+        <div class="wlf__progress" hidden aria-hidden="true"><span class="wlf__bar"><i></i></span><span class="wlf__count">1 / 4</span></div>
+
+        <form class="wlf__step waitlist-form" id="waitlist-form" data-step="contact" novalidate>
+          <div class="hp" aria-hidden="true"><label for="wl-website">웹사이트</label><input id="wl-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+          <div class="field">
+            <label for="wl-name">이름 <span class="req" aria-hidden="true">*</span></label>
+            <input id="wl-name" name="name" type="text" autocomplete="name" placeholder="홍길동" required aria-describedby="wl-name-err">
+            <p class="err" id="wl-name-err" aria-live="polite"></p>
+          </div>
+          <div class="field">
+            <label for="wl-email">이메일 <span class="req" aria-hidden="true">*</span></label>
+            <input id="wl-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="email@example.com" required aria-describedby="wl-email-err">
+            <p class="err" id="wl-email-err" aria-live="polite"></p>
+          </div>
+          <label class="consent"><input type="checkbox" name="consent" id="wl-consent" required aria-describedby="wl-consent-err"><span>[필수] 신청하신 서비스 제공과 소식·혜택 이메일 수신에 동의합니다. 언제든지 수신거부 가능하며, 자세한 내용은 <a href="/privacy-policy">개인정보처리방침</a>을 확인해 주세요.</span></label>
+          <p class="err" id="wl-consent-err" aria-live="polite"></p>
+          <button class="btn btn--block" type="submit">다음 →</button>
+          <p class="wlf__lead">다음 단계에서 3가지만 여쭤볼게요 · 1분이면 충분해요</p>
+        </form>
+
+        <form class="wlf__step" data-step="q1" hidden novalidate>
+          <p class="wlf__hello" hidden></p>
+          <label class="wlf__q" for="wl-q1"><span class="wlf__n">Q1</span>지금 삶에서 가장 바꾸고 싶은 한 가지는 무엇인가요? 그 상태가 얼마나 오래 이어져 왔나요?</label>
+          <textarea id="wl-q1" name="q1" rows="5" maxlength="3000" placeholder="예: 4년째 이직을 고민만 하고 있어요." aria-describedby="wl-q1-err"></textarea>
+          <p class="err" id="wl-q1-err" aria-live="polite"></p>
+          <div class="wlf__nav"><button class="wlf__back" type="button">← 이전</button><button class="btn" type="submit">다음 →</button></div>
+          <p class="wlf__notyou" hidden><button class="wlf__link" type="button">다른 분이신가요?</button></p>
+        </form>
+
+        <form class="wlf__step" data-step="q2" hidden novalidate>
+          <label class="wlf__q" for="wl-q2"><span class="wlf__n">Q2</span>그걸 바꾸기 위해 지금까지 해 본 것은 무엇이고, 왜 충분하지 않았다고 느끼나요?</label>
+          <textarea id="wl-q2" name="q2" rows="5" maxlength="3000" placeholder="예: 책, 상담, 명상… 해봤지만 그때뿐이었어요." aria-describedby="wl-q2-err"></textarea>
+          <p class="err" id="wl-q2-err" aria-live="polite"></p>
+          <div class="wlf__nav"><button class="wlf__back" type="button">← 이전</button><button class="btn" type="submit">다음 →</button></div>
+        </form>
+
+        <form class="wlf__step" data-step="q3" hidden novalidate>
+          <fieldset>
+            <legend class="wlf__q"><span class="wlf__n">Q3</span>2027년 2월 말 시작하는 12주 동안, 매주 1시간 이상의 과제와 라이브 코칭에 함께할 준비가 되어 있나요?</legend>
+            <div class="wlf__opts">
+              <label class="wlf__opt"><input type="radio" name="q3" value="a" aria-describedby="wl-q3-err"><span class="dot" aria-hidden="true"></span><span>네, 이번 12기에 시작하고 싶어요</span></label>
+              <label class="wlf__opt"><input type="radio" name="q3" value="b"><span class="dot" aria-hidden="true"></span><span>시작하고 싶지만 시기나 비용을 고민 중이에요</span></label>
+              <label class="wlf__opt"><input type="radio" name="q3" value="c"><span class="dot" aria-hidden="true"></span><span>아직은 소식만 받아보고 싶어요</span></label>
+            </div>
+          </fieldset>
+          <p class="err" id="wl-q3-err" aria-live="polite"></p>
+          <div class="wlf__nav"><button class="wlf__back" type="button">← 이전</button><button class="btn" type="submit">완료하기</button></div>
+        </form>
+
+        <div class="wlf__step wlf__done" data-step="done" hidden tabindex="-1">
+          <p class="wlf__done-k" aria-hidden="true">💌</p>
+          <h4 data-done-title>고마워요</h4>
+          <p data-done-text></p>
         </div>
-        <div class="field">
-          <label for="wl-email">이메일 <span class="req" aria-hidden="true">*</span></label>
-          <input id="wl-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="email@example.com" required aria-describedby="wl-email-err">
-          <p class="err" id="wl-email-err" aria-live="polite"></p>
-        </div>
-        <label class="consent"><input type="checkbox" name="consent" id="wl-consent" required aria-describedby="wl-consent-err"><span>[필수] 신청하신 서비스 제공과 소식·혜택 이메일 수신에 동의합니다. 언제든지 수신거부 가능하며, 자세한 내용은 <a href="/privacy-policy">개인정보처리방침</a>을 확인해 주세요.</span></label>
-        <p class="err" id="wl-consent-err" aria-live="polite"></p>
-        <button class="btn btn--block" type="submit">지금 등록하기 →</button>
-        <p class="form-msg" id="wl-msg" role="status"></p>
-      </form>
+
+        <p class="form-msg wlf__msg" role="status" aria-live="polite"></p>
+      </div>
     </div>
   </div>
 </section>
@@ -585,5 +628,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </footer>
 
 <script src="/assets/js/nsmb.js" defer></script>
+<script src="/assets/js/waitlist-flow.js" defer></script>
 </body>
 </html>

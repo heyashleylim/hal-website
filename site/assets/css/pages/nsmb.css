@@ -141,22 +141,7 @@
 .waitlist__intro .accent{color:var(--accent)}
 .waitlist__intro p:last-child{color:var(--ink-2);line-height:1.6}
 .waitlist-form{padding:0}
-.hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
-.field{margin-bottom:16px}
-.field label{display:block;font-size:15px;font-weight:600;margin-bottom:6px}
-.field .req{color:var(--accent)}
-.field input{width:100%;min-height:52px;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 15px;transition:border-color .2s,box-shadow .2s}
-.field input::placeholder{color:#AAAAAA}
-.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(219,74,43,.15)}
-.field input[aria-invalid="true"]{border-color:var(--accent)}
-.err{font-size:13.5px;color:#B53A20;margin-top:6px}
-.err:empty{display:none}
-.consent{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:14px;line-height:1.5;color:var(--ink-2);cursor:pointer}
-.consent input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)}
-.consent a{color:var(--ink-2)}
-.waitlist-form .btn{margin-top:20px}
-.form-msg{margin-top:14px;font-size:14px;text-align:center}
-.form-msg:empty{display:none}
+/* Fields, consent, messages and the question steps: css/waitlist-flow.css (shared with /waitlist). */
 
 /* ---------- Guarantee ---------- */
 .guarantee p + p{margin-top:16px}

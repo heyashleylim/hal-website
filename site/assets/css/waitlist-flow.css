@@ -1,0 +1,72 @@
+/* NSMB waitlist v2: one question at a time (js/waitlist-flow.js). Used on /nsmb (inside .waitlist) and /waitlist.
+   Fields, consent and messages were in pages/nsmb.css; they live here now so both pages share them. */
+
+.hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:15px;font-weight:600;margin-bottom:6px}
+.field .req{color:var(--accent)}
+.field input,.wlf textarea{width:100%;min-height:52px;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 15px;transition:border-color .2s,box-shadow .2s}
+.field input::placeholder,.wlf textarea::placeholder{color:#AAAAAA}
+.field input:focus,.wlf textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(219,74,43,.15)}
+.field input[aria-invalid="true"],.wlf textarea[aria-invalid="true"]{border-color:var(--accent)}
+.err{font-size:13.5px;color:#B53A20;margin-top:6px}
+.err:empty{display:none}
+.consent{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:14px;line-height:1.5;color:var(--ink-2);cursor:pointer}
+.consent input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)}
+.consent a{color:var(--ink-2)}
+.waitlist-form .btn{margin-top:20px}
+.form-msg{margin-top:14px;font-size:14px;text-align:center}
+.form-msg:empty{display:none}
+
+.wlf{scroll-margin-top:84px} /* clear the 60px sticky header when a new step scrolls into view */
+
+/* Progress: "2 / 4" + a thin bar. Hidden until JS runs (the first step works on its own). */
+.wlf__progress{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.wlf__progress[hidden]{display:none}
+.wlf__bar{flex:1;height:4px;border-radius:var(--r-pill);background:var(--line-soft);overflow:hidden}
+.wlf__bar i{display:block;height:100%;width:var(--p,25%);background:var(--accent);border-radius:inherit;transition:width .4s var(--ease)}
+.wlf__count{font-size:13px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums;min-width:3.2em;text-align:right}
+
+.wlf__step[hidden]{display:none}
+.wlf__step.is-in{animation:wlf-in .35s var(--ease) both}
+@keyframes wlf-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+.wlf__lead{font-size:13.5px;color:var(--muted);text-align:center;margin-top:12px}
+.wlf__hello{font-size:15px;font-weight:600;color:var(--rose);margin-bottom:12px}
+.wlf__q{display:block;font-family:var(--font-head);font-weight:500;font-size:19px;line-height:1.5;color:var(--ink);margin-bottom:14px;word-break:keep-all}
+.wlf__n{display:block;font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--accent);margin-bottom:6px}
+.wlf textarea{min-height:132px;line-height:1.6;resize:vertical}
+.wlf__hint{font-size:13.5px;color:var(--muted);margin-top:8px}
+
+.wlf fieldset{border:0;margin:0;padding:0;min-width:0}
+.wlf__opts{display:grid;gap:10px}
+.wlf__opt{position:relative;display:flex;align-items:center;gap:12px;min-height:56px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg);cursor:pointer;font-size:16px;line-height:1.5;transition:border-color .2s,background-color .2s,box-shadow .2s}
+.wlf__opt input{position:absolute;opacity:0;width:1px;height:1px}
+.wlf__opt .dot{flex:0 0 20px;height:20px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);transition:border-color .2s,box-shadow .2s}
+.wlf__opt:hover{border-color:var(--rose)}
+.wlf__opt input:checked + .dot{border-color:var(--accent);box-shadow:inset 0 0 0 5px var(--accent)}
+.wlf__opt:has(input:checked){border-color:var(--accent);background:var(--bg-blush)}
+.wlf__opt:has(input:focus-visible){box-shadow:0 0 0 3px rgba(219,74,43,.25)}
+
+.wlf__nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px}
+.wlf__nav .btn{min-width:140px}
+.wlf__back,.wlf__link{background:none;border:0;font:inherit;font-size:15px;color:var(--ink-2);padding:10px 4px;min-height:44px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.wlf__back:hover,.wlf__link:hover{color:var(--ink)}
+.wlf__back[hidden]{display:none}
+.wlf__notyou{margin-top:10px;text-align:center}
+.wlf__notyou[hidden]{display:none}
+
+.wlf__done{text-align:center;padding:12px 0}
+.wlf__done:focus{outline:none}
+.wlf__done-k{font-size:34px;line-height:1;margin-bottom:14px}
+.wlf__done h3,.wlf__done h4{font-size:22px;line-height:1.45;margin-bottom:12px}
+.wlf__done p{color:var(--ink-2);line-height:1.6}
+
+@media (max-width:767px){
+  .wlf__q{font-size:17px}
+  .wlf__nav .btn{min-width:0;flex:1}
+}
+@media (prefers-reduced-motion:reduce){
+  .wlf__step.is-in{animation:none}
+  .wlf__bar i{transition:none}
+}

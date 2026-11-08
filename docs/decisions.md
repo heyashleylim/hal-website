@@ -2,6 +2,17 @@
 
 Newest first. One entry per decision: what, why, date.
 
+## 2026-11-08 — Waitlist v2: one question at a time, built in-house
+- The NSMB waitlist asks name/email, then three questions (Q1–Q3 from the NSMB 12 plan), one per screen, on
+  `/nsmb` and on its own page `/waitlist`. Built here rather than in Tally/Typeform so it looks like Ashley's site
+  and every channel (website, personal email links, ManyChat) writes to AC through one endpoint. Setup: `docs/waitlist.md`.
+- Step 1 is saved immediately (with the existing double opt-in, AC form 4), so people who stop early are still on
+  the list (`nsmb_wl_incomplete`). Each answer is saved as soon as she moves on.
+- Existing waitlisters get a personal link with a signed code (`?c=`), not their email or name in the URL: no
+  personal data reaches GTM/analytics, and nobody can guess or overwrite someone else's answers.
+- Scoring and grouping stay manual in AC (Alex's choice): the site never writes `WL Score` or `WL Group`.
+- Question copy is the draft from the plan; run it through Ashley's voice before launch.
+
 ## 2026-10-23 — Private podcast built in-house
 - Per-student private podcast for NSMB, built on this site instead of Hello Audio: full control of cohorts,
   Korean subscribe pages in Ashley's design, ActiveCampaign automation and our own analytics. Plan: `docs/podcast-plan.md`.

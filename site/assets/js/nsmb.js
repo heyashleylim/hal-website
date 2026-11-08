@@ -1,4 +1,4 @@
-/* /nsmb page behaviour: progress-bar reveal, lite YouTube, waitlist form. */
+/* /nsmb page behaviour: progress-bar reveal, lite YouTube. */
 (function(){
   /* 95% / 5% bars fill when the card scrolls into view */
   var cards=document.querySelectorAll('[data-reveal]');
@@ -22,35 +22,5 @@
     });
   });
 
-  /* Waitlist form: inline validation, then POST to data-endpoint (api/waitlist.js → ActiveCampaign) */
-  var form=document.getElementById('waitlist-form');
-  if(!form)return;
-  var startedAt=Date.now();
-  function setErr(input,id,msg){input.setAttribute('aria-invalid',msg?'true':'false');document.getElementById(id).textContent=msg||''}
-  var MSG={
-    confirm:'거의 다 됐어요! 방금 보내드린 확인 이메일에서 구독을 확인해 주세요 💌 메일이 보이지 않으면 스팸함도 확인해 주세요.',
-    done:'등록되었어요! 다음 기수 오픈 소식을 가장 먼저 보내드릴게요 💌',
-    limited:'잠시 후 다시 시도해 주세요.',
-    fail:'등록에 실패했어요. 잠시 후 다시 시도하거나 hello@ashleylim.com 으로 문의해 주세요.'
-  };
-  form.addEventListener('submit',function(e){
-    e.preventDefault();
-    var f=form.elements,n=f.namedItem('name'),em=f.namedItem('email'),c=f.namedItem('consent'),first=null;
-    if(!n.value.trim()){setErr(n,'wl-name-err','이름을 입력해 주세요.');first=first||n}else setErr(n,'wl-name-err','');
-    if(!/^\S+@\S+\.\S+$/.test(em.value.trim())){setErr(em,'wl-email-err','올바른 이메일 주소를 입력해 주세요. 예: name@example.com');first=first||em}else setErr(em,'wl-email-err','');
-    if(!c.checked){setErr(c,'wl-consent-err','안내 수신에 동의해 주셔야 등록할 수 있어요.');first=first||c}else setErr(c,'wl-consent-err','');
-    if(first){first.focus();return}
-    var msg=document.getElementById('wl-msg'),btn=form.querySelector('button[type=submit]'),label=btn.textContent;
-    btn.disabled=true;btn.textContent='등록 중…';msg.textContent='';
-    fetch(form.dataset.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      name:n.value.trim(),email:em.value.trim(),consent:c.checked,website:f.namedItem('website').value,t:startedAt
-    })}).then(function(r){
-      return r.json().catch(function(){return {}}).then(function(d){
-        if(r.status===429){msg.textContent=MSG.limited;return}
-        if(!r.ok||!d.ok)throw 0;
-        form.reset();msg.textContent=d.confirm?MSG.confirm:MSG.done;
-      });
-    }).catch(function(){msg.textContent=MSG.fail})
-    .finally(function(){btn.disabled=false;btn.textContent=label});
-  });
+  /* The waitlist form lives in waitlist-flow.js (shared with /waitlist). */
 })();

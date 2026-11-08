@@ -16,7 +16,7 @@ hal-website/
 ├── CLAUDE.md              ← this file
 ├── README.md              ← human quick-start (preview, deploy)
 ├── vercel.json            ← outputDirectory: "site", clean URLs, cache headers
-├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
+├── api/waitlist.js        ← Vercel function: NSMB waitlist v2 → ActiveCampaign (sign-up, personal link codes, Q1–Q3, ManyChat); logic in api/_lib/waitlist.js, setup in docs/waitlist.md
 ├── api/admin.js           ← the admin API for every section (/api/admin?action=…); sections' code in api/_lib/admin/
 ├── api/podcast-*.js       ← private podcast functions for students and AC (docs/podcast-plan.md); shared code in api/_lib/ (not endpoints)
 ├── db/migrations/         ← private podcast database schema (Neon Postgres), applied with `npm run db:migrate`
@@ -25,6 +25,7 @@ hal-website/
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
 ├── tools/podcast/         ← podcast database migration script (npm run db:migrate)
+├── tools/waitlist/        ← link-codes.js: terminal version of the /admin button "Give personal links to the waitlist" (api/_lib/admin/waitlist.js)
 ├── tools/podcast-studio/  ← source of Podcast Studio, a standalone Mac app shared as a zip (bash tools/build-podcast-studio-zip.sh → ~/Downloads/Podcast-Studio.zip). Not deployed; not part of the site
 ├── .env.example           ← names of the env vars the function needs (values live in Vercel only)
 ├── .gitignore
@@ -36,12 +37,14 @@ hal-website/
 │   ├── DESIGN.md          ← web design system
 │   ├── FRAME.md           ← video/frame companion (reels, thumbnails), not for web pages
 │   ├── content/nsmb.md    ← source copy per page, verbatim from Ashley's live pages
+│   ├── waitlist.md        ← waitlist v2: AC fields/tags, double opt-in, personal links, ManyChat setup
 │   └── decisions.md       ← short log of design/content decisions and why
 ├── _originals/            ← git-ignored: unoptimized source images and unused downloads
 └── site/                  ← the ONLY folder Vercel serves
     ├── index.html         ← / — rebuild of the ashleylim.com home (link-in-bio: profile + program cards)
     ├── engine/index.html  ← /engine — ENGINE-style NSMB page (ENGINE palette, its own CSS/JS)
     ├── nsmb/index.html    ← /nsmb — rebuild of ashleylim.com/nsmb in Ashley's design system (hand-built, customised)
+    ├── waitlist/index.html ← /waitlist — the waitlist form on its own page (noindex; personal links ?c=CODE)
     ├── lifeartist/, eft/, chosen/, switch/              ← generated from the live pages (tools/rebuild); /lifeartist = live /lifeartist2026
     ├── terms-and-conditions/, refund-policy/, privacy-policy/  ← generated from the live pages
     ├── preview/<page>/    ← PRIVATE copies incl. elements hidden on the live site (password + noindex)
@@ -62,7 +65,8 @@ hal-website/
         │   ├── base.css        ← /engine: reset, typography, layout, reveal
         │   └── components.css  ← /engine: components + responsive
         ├── js/main.js          ← /engine: enrollment state, countdown, reveal, lite-YouTube, forms
-        ├── js/nsmb.js          ← /nsmb: progress bars, lite-YouTube, waitlist form
+        ├── js/nsmb.js          ← /nsmb: progress bars, lite-YouTube
+        ├── js/waitlist-flow.js ← /nsmb + /waitlist: name/email, then Q1–Q3 one at a time (with css/waitlist-flow.css)
         ├── js/lv-carousel.js   ← generated pages: image carousel (autoplay, loop, arrows, dots), no dependencies
         ├── js/lv-masonry.js    ← generated pages: balances an image masonry (overrides.json "masonry"); CSS columns without JS
         ├── css/fonts.css       ← @font-face for every page (link before page CSS)
@@ -115,7 +119,7 @@ Rules for the structure:
 - **Accessibility**: one `h1` per page, sequential headings, visible focus rings, labels on every input, 44px touch targets, text contrast ≥ 4.5:1, skip link.
 - **Responsive**: check 375px, 768px, 1024px and 1440px. There must be no horizontal scroll at 375px.
 - **Third parties**: no new trackers, pixels, chat widgets or CDNs without asking. Fonts may come from Google Fonts or jsDelivr only until self-hosted.
-- **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`, `/admin/*` or the private podcast pages (`/podcast/*`, feeds, audio: a student's secret token is in those URLs): head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
+- **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`, `/admin/*` or the private podcast pages (`/podcast/*`, feeds, audio: a student's secret token is in those URLs). `/waitlist` has it, but an inline script before the GTM snippet moves the personal code (`?c=`) out of the URL first; keep that order: head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
 - **Vercel Web Analytics** is enabled in the Vercel project and loaded on the same public pages as GTM (never `/preview/*`, `/admin/*` or the private podcast pages): `window.va` queue + `<script defer src="/_vercel/insights/script.js">` right before `</head>`. `tools/rebuild/gtm.py` adds both (gen.py runs it). Locally the script 404s; that's expected.
 
 ## Generated pages and private previews

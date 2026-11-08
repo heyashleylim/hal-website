@@ -29,6 +29,14 @@
     </div>
   </div>
 
+  <section class="admin-card" aria-labelledby="wl-title">
+    <h2 id="wl-title">NSMB waitlist</h2>
+    <ul class="checklist" id="wl-setup" aria-live="polite"><li class="muted">Checking…</li></ul>
+    <p class="muted" style="margin:16px 0 12px">Personal links: gives everyone tagged <code>signup_waitlist_nsmb</code> their code in <code>%WL_LINK_CODE%</code>, so an email can link to <code>https://www.ashleylim.com/waitlist?c=%WL_LINK_CODE%&amp;src=reconfirm</code>. New sign-ups get theirs automatically. Run it once; running it again changes nothing.</p>
+    <button class="btn-sm" type="button" id="wl-codes" data-tip="Writes a personal link code into WL Link code for every contact on the NSMB waitlist in ActiveCampaign">Give personal links to the waitlist</button>
+    <p class="muted" id="wl-codes-msg" role="status" style="margin-top:10px"></p>
+  </section>
+
   <section class="admin-card" aria-labelledby="setup-title">
     <h2 id="setup-title">System status</h2>
     <ul class="checklist" id="setup" aria-live="polite"><li class="muted">Checking…</li></ul>
@@ -45,6 +53,34 @@
       '<div><dt>Subscribed</dt><dd>' + o.subscribed + '</dd></div>' +
       (o.ac_failed ? '<div><dt>AC updates failed</dt><dd class="is-error">' + o.ac_failed + '</dd></div>' : '');
   }).catch(function () { document.getElementById('podcast-stats').innerHTML = ''; });
+
+  // NSMB waitlist: settings check + personal link codes (api/_lib/admin/waitlist.js)
+  var wlSetup = document.getElementById('wl-setup');
+  Admin.get('waitlist-status').then(function (s) {
+    var rows = ['WAITLIST_SECRET', 'WAITLIST_MANYCHAT_KEY'].map(function (name) {
+      var ok = s.missingEnv.indexOf(name) < 0;
+      return [ok, 'Setting <code>' + name + '</code>' + (ok ? '' : ' is missing in Vercel (see docs/waitlist.md)')];
+    });
+    rows.push([s.doubleOptIn, s.doubleOptIn ? 'Double opt-in: sign-ups go through AC form 4 (confirmation email)' : 'Double opt-in is off here: sign-ups are subscribed without a confirmation email (AC_FORM_* settings missing)']);
+    wlSetup.innerHTML = rows.map(function (i) {
+      return '<li><span class="status ' + (i[0] ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + i[1] + '</span></li>';
+    }).join('');
+  }).catch(function (err) { wlSetup.innerHTML = '<li><span class="status status--bad">Error</span><span>' + Admin.esc(err.message) + '</span></li>'; });
+
+  var wlBtn = document.getElementById('wl-codes'), wlMsg = document.getElementById('wl-codes-msg');
+  wlBtn.addEventListener('click', function () {
+    wlBtn.disabled = true;
+    var failed = 0;
+    (function batch(offset) {
+      Admin.post('waitlist-link-codes', { offset: offset }).then(function (r) {
+        failed += r.failed || 0;
+        wlMsg.textContent = 'Working… ' + r.done + ' of ' + r.total + ' contacts';
+        if (r.next !== null) return batch(r.next);
+        wlMsg.textContent = 'Done: ' + r.total + ' contacts have their personal link code' + (failed ? ' (' + failed + ' failed — run it again)' : '') + '.';
+        wlBtn.disabled = false;
+      }).catch(function (err) { wlMsg.textContent = 'Stopped: ' + err.message; wlBtn.disabled = false; });
+    })(0);
+  });
 
   Admin.get('health').then(function (h) {
     var items = [];
