@@ -151,7 +151,7 @@ function personalPage({ base, token, student, shows, query = '' }) {
   ${shows.length === 1 ? '<p class="pod__eyebrow">비공개 팟캐스트</p>' : ''}
   <h1 class="pod__title">${shows.length === 1 ? esc(shows[0].show.title) : '나의 팟캐스트'}</h1>
   <p class="pod__lead">${lead}</p>
-  ${active.length ? '<p class="pod__hint">다른 팟캐스트 앱(Podcast Addict 등)을 쓰신다면 구독 주소를 복사해 앱의 ‘URL로 추가’ 메뉴에 붙여 넣어 주세요. 단계별 안내는 <a href="/podcast/help">구독 방법 안내</a>에 있어요.</p>' : ''}
+  ${active.length ? '<p class="pod__hint">Castro, Podcast Addict, AntennaPod 같은 다른 팟캐스트 앱을 쓰신다면 구독 주소를 복사해 앱의 ‘URL로 추가’ 또는 ‘RSS 피드’ 메뉴에 붙여 넣어 주세요. 단계별 안내는 <a href="/podcast/help">구독 방법 안내</a>에 있어요.</p>' : ''}
 </section>
 
 ${cards}
