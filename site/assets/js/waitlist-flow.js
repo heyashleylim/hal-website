@@ -183,12 +183,10 @@
     });
   });
 
-  /* Q3: one choice. A tap (mouse/touch) moves on by itself; keyboard users confirm with the button. */
+  /* Q3: one choice. Picking an option only selects it; she sends it with the "완료하기" button. */
   var q3 = steps.q3;
   var q3Sending = false;
-  var q3Timer = null;
   function submitQ3() {
-    clearTimeout(q3Timer);
     if (q3Sending || state.current !== 'q3') return;
     var picked = q3.querySelector('input[name=q3]:checked');
     var first = q3.querySelector('input[name=q3]');
@@ -201,15 +199,7 @@
       .catch(fail).finally(function () { q3Sending = false; busy(q3, false); });
   }
   q3.addEventListener('submit', function (e) { e.preventDefault(); submitQ3(); });
-  q3.querySelectorAll('.wlf__opt').forEach(function (opt) {
-    opt.addEventListener('click', function (e) {
-      // A tap on the label also fires a synthetic click on its radio; react to the tap only.
-      // Keyboard "clicks" (space) have detail 0: don't jump ahead, she confirms with the button.
-      if (e.target.tagName === 'INPUT' || e.detail === 0) return;
-      clearTimeout(q3Timer);
-      q3Timer = setTimeout(submitQ3, 220);
-    });
-  });
+  q3.addEventListener('change', function () { setErr(q3.querySelector('input[name=q3]'), ''); });
 
   /* Back buttons */
   root.querySelectorAll('.wlf__back').forEach(function (b) {
