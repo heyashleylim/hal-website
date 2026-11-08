@@ -1,8 +1,8 @@
 /*
  * /api/admin?action=… — the JSON API behind the admin (site/admin/), for every section.
  *
- * Sections register their actions here (MODULES). Today: system (status, activity log) and podcast
- * (_lib/admin/podcast-*.js). A new section (e.g. e-commerce) adds its module to MODULES; action names must be
+ * Sections register their actions here (MODULES). Today: system (status, activity log), podcast
+ * (_lib/admin/podcast-*.js) and waitlist (_lib/admin/waitlist.js: personal link codes). A new section (e.g. e-commerce) adds its module to MODULES; action names must be
  * unique across sections (prefix them, e.g. "shop-orders").
  *
  * Every request needs the admin cookie (set by the /admin login in middleware.js, checked again here).
@@ -19,6 +19,7 @@ const MODULES = [
   require('./_lib/admin/podcast-cohorts.js'),
   require('./_lib/admin/podcast-students.js'),
   require('./_lib/admin/podcast-automation.js'),
+  require('./_lib/admin/waitlist.js'),
 ];
 
 const actions = {};      // name → handler
