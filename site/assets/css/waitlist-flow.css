@@ -58,7 +58,6 @@
 
 .wlf__done{text-align:center;padding:12px 0}
 .wlf__done:focus{outline:none}
-.wlf__done-k{font-size:34px;line-height:1;margin-bottom:14px}
 .wlf__done h3,.wlf__done h4{font-size:22px;line-height:1.45;margin-bottom:12px}
 .wlf__done p{color:var(--ink-2);line-height:1.6}
 
