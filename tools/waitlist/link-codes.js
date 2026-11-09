@@ -1,6 +1,6 @@
 /*
  * Gives every NSMB waitlist contact a personal link code in %WL_LINK_CODE%, so an AC email can link to
- * https://www.ashleylim.com/waitlist?c=%WL_LINK_CODE%&src=reconfirm (she lands straight on Q1, greeted by name).
+ * https://www.ashleylim.com/nsmb/waitlist?c=%WL_LINK_CODE%&src=reconfirm (she lands straight on Q1, greeted by name).
  * New sign-ups get their code automatically (api/waitlist.js); run this once for the people already on the list.
  *
  *   node --env-file=.env.local tools/waitlist/link-codes.js            # dry run: counts, writes nothing

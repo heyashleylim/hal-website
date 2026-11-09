@@ -22,5 +22,5 @@
     });
   });
 
-  /* The waitlist form lives in waitlist-flow.js (shared with /waitlist). */
+  /* The waitlist form lives in waitlist-flow.js (shared with /nsmb/waitlist). */
 })();

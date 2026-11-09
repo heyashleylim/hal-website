@@ -141,7 +141,7 @@
 .waitlist__intro .accent{color:var(--accent)}
 .waitlist__intro p:last-child{color:var(--ink-2);line-height:1.6}
 .waitlist-form{padding:0}
-/* Fields, consent, messages and the question steps: css/waitlist-flow.css (shared with /waitlist). */
+/* Fields, consent, messages and the question steps: css/waitlist-flow.css (shared with /nsmb/waitlist). */
 
 /* ---------- Guarantee ---------- */
 .guarantee p + p{margin-top:16px}

@@ -1,4 +1,4 @@
-/* NSMB waitlist v2: name/email first, then the three questions one at a time (/nsmb and /waitlist).
+/* NSMB waitlist v2: name/email first, then the three questions one at a time (/nsmb and /nsmb/waitlist).
  *
  * Markup: <div class="wlf" data-waitlist-flow data-endpoint="/api/waitlist" data-source="nsmb-page"> with one
  * .wlf__step per step (data-step="contact" | "q1" | "q2" | "q3" | "done"). Without JS only the first step shows.
@@ -6,7 +6,7 @@
  * - Step 1 saves the contact right away (api/waitlist.js), so she's on the list even if she stops there; the server
  *   answers with her personal code, kept in sessionStorage so a reload carries on where she was.
  * - Each question is saved as soon as she moves on. Q3 completes it.
- * - Personal link (/waitlist?c=CODE): the page's head script moves the code from the URL to sessionStorage before
+ * - Personal link (/nsmb/waitlist?c=CODE): the page's head script moves the code from the URL to sessionStorage before
  *   GTM loads; here we look up her first name, greet her and start at Q1.
  * - ?src=reconfirm|ig-bio|… sets %WL_SOURCE% (the server only accepts known values).
  * - GTM events: waitlist_signup (step 1 saved), waitlist_complete (Q3 saved).

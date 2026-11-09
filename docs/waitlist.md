@@ -6,8 +6,8 @@ and every answer ends up in the same ActiveCampaign fields.
 | Where | Who it's for | `WL Source` |
 |---|---|---|
 | `/nsmb` (the form in the 등록 안내 section) | people reading the sales page | `nsmb-page` |
-| `/waitlist` (a page of its own) | Instagram bio, story links, emails | `waitlist-page`, or what `?src=` says |
-| `/waitlist?c=CODE&src=reconfirm` | people already on the waitlist (personal link) | `reconfirm` |
+| `/nsmb/waitlist` (a page of its own) | Instagram bio, story links, emails | `waitlist-page`, or what `?src=` says |
+| `/nsmb/waitlist?c=CODE&src=reconfirm` | people already on the waitlist (personal link) | `reconfirm` |
 | ManyChat (comment keyword / DM) | Instagram, without leaving the app | `manychat` |
 
 `?src=` accepts `nsmb-page`, `waitlist-page`, `reconfirm`, `ig-bio`. Anything else is saved as `waitlist-page`.
@@ -94,7 +94,7 @@ keep the page open). New sign-ups get their code automatically. Clicking it agai
 ### 4. The email link
 
 In the AC email to the existing waitlist, link the button to:
-`https://www.ashleylim.com/waitlist?c=%WL_LINK_CODE%&src=reconfirm`
+`https://www.ashleylim.com/nsmb/waitlist?c=%WL_LINK_CODE%&src=reconfirm`
 
 She lands on Q1 with "지은님, 반가워요. 3가지만 여쭤볼게요 🙂", without typing her name or email again.
 A "지은님이 아니신가요?" link lets someone else start from step 1.
@@ -113,7 +113,7 @@ forwarded email could overwrite her answers.
 > 12기를 준비하면서, 대기 리스트에 계신 분들께 먼저 연락드리고 싶어요.
 > 지금 어떤 변화를 가장 원하시는지 3가지만 알려주시면, 그에 맞춰 안내해 드릴게요. 1분이면 충분해요.
 >
-> [3가지 질문에 답하기 →]  ← https://www.ashleylim.com/waitlist?c=%WL_LINK_CODE%&src=reconfirm
+> [3가지 질문에 답하기 →]  ← https://www.ashleylim.com/nsmb/waitlist?c=%WL_LINK_CODE%&src=reconfirm
 >
 > 답이 없으시면 대기 리스트에서는 빠지고, 뉴스레터는 그대로 받아보실 수 있어요.
 
@@ -160,7 +160,7 @@ the AC contact, starts the double opt-in and saves the answers, exactly like the
     `https://www.ashleylim.com/nsmb` ("내성만방 자세히 보기").
 
 If the request fails (the response isn't `"ok":true`), add a fallback message with a button to
-`https://www.ashleylim.com/waitlist?src=ig-bio` so she can still sign up there.
+`https://www.ashleylim.com/nsmb/waitlist?src=ig-bio` so she can still sign up there.
 
 ## Analytics
 

@@ -4,7 +4,7 @@ Newest first. One entry per decision: what, why, date.
 
 ## 2026-11-08 — Waitlist v2: one question at a time, built in-house
 - The NSMB waitlist asks name/email, then three questions (Q1–Q3 from the NSMB 12 plan), one per screen, on
-  `/nsmb` and on its own page `/waitlist`. Built here rather than in Tally/Typeform so it looks like Ashley's site
+  `/nsmb` and on its own page `/nsmb/waitlist`. Built here rather than in Tally/Typeform so it looks like Ashley's site
   and every channel (website, personal email links, ManyChat) writes to AC through one endpoint. Setup: `docs/waitlist.md`.
 - Step 1 is saved immediately (with the existing double opt-in, AC form 4), so people who stop early are still on
   the list (`nsmb_wl_incomplete`). Each answer is saved as soon as she moves on.

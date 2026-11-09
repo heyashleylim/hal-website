@@ -5,7 +5,7 @@
  * Link code: "<contact id in base 36>-<16-character signature>". The signature is an HMAC of the contact id with
  * WAITLIST_SECRET, so the site can trust a code without looking it up and nobody can guess another person's code.
  * The code is also stored in the contact field %WL_LINK_CODE%, so AC emails can put it in a link
- * (https://www.ashleylim.com/waitlist?c=%WL_LINK_CODE%). Changing WAITLIST_SECRET invalidates every code.
+ * (https://www.ashleylim.com/nsmb/waitlist?c=%WL_LINK_CODE%). Changing WAITLIST_SECRET invalidates every code.
  *
  * Scoring and the group (%WL_SCORE%, %WL_GROUP%) are done by hand in AC; the site never writes them.
  */

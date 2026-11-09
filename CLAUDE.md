@@ -44,7 +44,7 @@ hal-website/
     ├── index.html         ← / — rebuild of the ashleylim.com home (link-in-bio: profile + program cards)
     ├── engine/index.html  ← /engine — ENGINE-style NSMB page (ENGINE palette, its own CSS/JS)
     ├── nsmb/index.html    ← /nsmb — rebuild of ashleylim.com/nsmb in Ashley's design system (hand-built, customised)
-    ├── waitlist/index.html ← /waitlist — the waitlist form on its own page (noindex; personal links ?c=CODE)
+    ├── nsmb/waitlist/index.html ← /nsmb/waitlist — the waitlist form on its own page (noindex; personal links ?c=CODE)
     ├── lifeartist/, eft/, chosen/, switch/              ← generated from the live pages (tools/rebuild); /lifeartist = live /lifeartist2026
     ├── terms-and-conditions/, refund-policy/, privacy-policy/  ← generated from the live pages
     ├── preview/<page>/    ← PRIVATE copies incl. elements hidden on the live site (password + noindex)
@@ -119,7 +119,7 @@ Rules for the structure:
 - **Accessibility**: one `h1` per page, sequential headings, visible focus rings, labels on every input, 44px touch targets, text contrast ≥ 4.5:1, skip link.
 - **Responsive**: check 375px, 768px, 1024px and 1440px. There must be no horizontal scroll at 375px.
 - **Third parties**: no new trackers, pixels, chat widgets or CDNs without asking. Fonts may come from Google Fonts or jsDelivr only until self-hosted.
-- **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`, `/admin/*` or the private podcast pages (`/podcast/*`, feeds, audio: a student's secret token is in those URLs). `/waitlist` has it, but an inline script before the GTM snippet moves the personal code (`?c=`) out of the URL first; keep that order: head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
+- **Google Tag Manager** (`GTM-MK4FNWNV`, asked for by Ashley) is on every public page, never on `/preview/*`, `/admin/*` or the private podcast pages (`/podcast/*`, feeds, audio: a student's secret token is in those URLs). `/nsmb/waitlist` has it, but an inline script before the GTM snippet moves the personal code (`?c=`) out of the URL first; keep that order: head script right after `<meta charset>`, `<noscript>` iframe right after `<body>`. `tools/rebuild/gtm.py` adds it (gen.py runs it; run it on any new hand-built page). Tags, pixels and analytics are managed in GTM, not in this repo.
 - **Vercel Web Analytics** is enabled in the Vercel project and loaded on the same public pages as GTM (never `/preview/*`, `/admin/*` or the private podcast pages): `window.va` queue + `<script defer src="/_vercel/insights/script.js">` right before `</head>`. `tools/rebuild/gtm.py` adds both (gen.py runs it). Locally the script 404s; that's expected.
 
 ## Generated pages and private previews
