@@ -543,7 +543,7 @@ link, and can move back the same way if something is wrong.
 - [ ] Vercel: add the env vars from section 4; move to Pro at go-live.
 - [ ] Texts from Ashley: consent line, guarantee line, thank-you page, AC emails, privacy policy update
       (checkout data, CiderPay, PayPal, Neon, ActiveCampaign); referral terms later (R6).
-- [ ] The refund window is 14 days: replace the remaining "7일" wording on the NSMB page.
+- [ ] The refund window is 14 days: the live WordPress NSMB page still says "7일 환불 보장" under its last button (this site's `/nsmb` and `/engine` say 14일).
 
 ---
 
