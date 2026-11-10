@@ -9,6 +9,7 @@
 .admin-card h2{font:700 18px/1.4 var(--font-head);margin-bottom:12px}
 .checklist{list-style:none;display:grid;gap:10px;font-size:15px;line-height:1.6;word-break:keep-all}
 .checklist li{display:flex;gap:10px;align-items:baseline}
+.checklist li>span:last-child{min-width:0;overflow-wrap:anywhere}
 .status{flex:none;display:inline-block;min-width:44px;padding:2px 8px;border-radius:var(--r-pill);font:700 12px/1.6 var(--font-body);text-align:center}
 .status--ok{background:var(--proof-bg);color:var(--proof-fg)}
 .status--bad{background:var(--bad-bg);color:var(--bad-fg)}

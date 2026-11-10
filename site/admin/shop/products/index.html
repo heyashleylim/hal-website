@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Products · Shop · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="shop">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <div class="admin-head">
+    <h1>Products</h1>
+    <button data-tip="Create a new product: name, prices, instalment plan and the ActiveCampaign tag buyers receive" class="btn-sm" type="button" id="add">Add product</button>
+  </div>
+
+  <section class="admin-panel" id="editor" hidden aria-labelledby="editor-title">
+    <h2 id="editor-title">Add product</h2>
+    <form id="form" class="admin-form" novalidate>
+      <input type="hidden" name="id">
+      <label>Name <span class="hint">shown to customers, e.g. 내성만방 프로그램</span><input name="name" maxlength="120" required></label>
+      <label>Address <span class="hint">the checkout will be /checkout/<b id="slug-echo">…</b></span><input name="slug" maxlength="60" required autocapitalize="none" spellcheck="false" pattern="[a-z0-9]+(-[a-z0-9]+)*"></label>
+      <label>Status <span class="hint">only Open products can be bought</span>
+        <select name="status"><option value="draft">Draft (being prepared)</option><option value="open">Open (on sale)</option><option value="closed">Closed (not on sale)</option></select>
+      </label>
+      <label>Sale starts <span class="hint">optional, Seoul time</span><input name="sale_starts_at" type="datetime-local"></label>
+      <label>Sale ends <span class="hint">optional, Seoul time</span><input name="sale_ends_at" type="datetime-local"></label>
+
+      <p class="admin-h3">Prices <span class="hint">VAT included</span></p>
+      <label>KRW price (₩) <span class="hint">card, through CiderPay</span><input name="price_krw" inputmode="numeric" placeholder="2690000"></label>
+      <label>USD price ($) <span class="hint">PayPal; empty = not sold in USD</span><input name="price_usd" inputmode="decimal" placeholder="2299"></label>
+      <label>VAT on USD sales <span class="hint">ask the accountant before changing</span>
+        <select name="usd_vat"><option value="taxable">Taxable: 10% VAT included</option><option value="zero">Zero-rated: no VAT</option></select>
+      </label>
+
+      <p class="admin-h3">Instalment plan <span class="hint">KRW only; leave all three empty for none</span></p>
+      <label>First payment (₩) <span class="hint">charged at checkout</span><input name="instalment_first" inputmode="numeric" placeholder="930000"></label>
+      <label>Monthly payment (₩)<input name="instalment_monthly" inputmode="numeric" placeholder="930000"></label>
+      <label>Number of monthly payments <span class="hint">after the first one</span><input name="instalment_count" type="number" min="1" max="24" inputmode="numeric" placeholder="2"></label>
+
+      <p class="admin-h3">ActiveCampaign</p>
+      <label>Purchase tag <span class="hint">added when someone pays, e.g. purchased_eft</span><input name="purchase_tag" maxlength="100" autocapitalize="none" spellcheck="false"></label>
+      <label>Extra tags <span class="hint">optional, separated by commas</span><input name="extra_tags" autocapitalize="none" spellcheck="false"></label>
+      <label>WooCommerce product ids <span class="hint">so old payment links find this product, e.g. 2882, 4536</span><input name="legacy_ids" inputmode="numeric"></label>
+
+      <p class="admin-h3">On the checkout page <span class="hint">Korean, shown to customers</span></p>
+      <label class="admin-form__wide">Summary <span class="hint">one line under the product name</span><input name="summary" maxlength="300"></label>
+      <label class="admin-form__wide">What's included <span class="hint">one line each</span><textarea name="included" rows="5"></textarea></label>
+      <label>Image <span class="hint">a picture already on the site, e.g. /assets/img/shop/nsmb.webp</span><input name="image" maxlength="300" autocapitalize="none" spellcheck="false"></label>
+      <label class="admin-form__wide">Thank-you text <span class="hint">shown after payment</span><textarea name="thanks" rows="4" maxlength="2000"></textarea></label>
+
+      <div class="admin-form__actions">
+        <button data-tip="Save this product. Prices are checked and shown below once saved" class="btn-sm" type="submit">Save</button>
+        <button data-tip="Close this form without saving anything" class="btn-ghost" type="button" id="cancel">Cancel</button>
+        <button data-tip="Delete this product. Only possible while it has no order; otherwise set it to Closed" class="btn-danger" type="button" id="delete" hidden>Delete product</button>
+      </div>
+      <p class="admin-form__result" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section class="admin-card" aria-label="All products">
+    <div id="list" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" id="quote" hidden aria-labelledby="quote-title">
+    <div class="admin-head">
+      <h2 id="quote-title">Price check</h2>
+      <button data-tip="Close the price check" class="btn-ghost" type="button" id="close-quote">Close</button>
+    </div>
+    <p class="muted">What a customer would be charged if they bought today, computed by the same code the checkout will use.</p>
+    <div id="quote-body" aria-live="polite"></div>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var products = [];
+  var editor = document.getElementById('editor'), form = document.getElementById('form'), out = form.querySelector('.admin-form__result');
+  var STATUS = { draft: '<span class="badge">Draft</span>', open: '<span class="badge badge--ok">Open</span>', closed: '<span class="badge badge--warn">Closed</span>' };
+  var REASON = { not_started: 'sale not started', ended: 'sale ended' };
+  var PLAN = { full: 'In full', instalment: 'Instalments' };
+
+  function load() {
+    return Admin.get('shop-products').then(function (r) { products = r.products; render(); })
+      .catch(function (err) { document.getElementById('list').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+
+  function priceCell(p, currency) {
+    var rows = p.options.filter(function (o) { return o.currency === currency; }).map(function (o) {
+      return o.plan === 'instalment'
+        ? Admin.money(o.dueToday, currency) + ' + ' + (o.payments.length - 1) + ' × ' + Admin.money(o.payments[1].amount, currency) + ' <span class="muted">(' + Admin.money(o.total, currency) + ')</span>'
+        : Admin.money(o.total, currency);
+    });
+    return rows.join('<br>') || '<span class="muted">–</span>';
+  }
+
+  function render() {
+    var el = document.getElementById('list');
+    if (!products.length) { el.innerHTML = '<p class="admin-empty">No product yet. Add the first one with “Add product”.</p>'; return; }
+    el.innerHTML = '<table class="admin-table"><thead><tr><th style="min-width:220px">Product</th><th>Status</th><th>KRW</th><th>USD</th><th>Purchase tag</th><th>Orders</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+      products.map(function (p) {
+        var state = STATUS[p.status] + (p.status === 'open' && !p.sale.open ? ' <span class="badge badge--info">' + REASON[p.sale.reason] + '</span>' : '');
+        var warn = p.warnings.map(function (w) { return '<br><span class="small is-error">' + Admin.esc(w) + '</span>'; }).join('');
+        return '<tr><td>' + Admin.esc(p.name) + '<br><code>/checkout/' + Admin.esc(p.slug) + '</code>' + warn + '</td><td>' + state + '</td>' +
+          '<td class="num">' + priceCell(p, 'KRW') + '</td><td class="num">' + priceCell(p, 'USD') + '</td>' +
+          '<td>' + (p.purchase_tag ? '<code>' + Admin.esc(p.purchase_tag) + '</code>' : '<span class="muted">–</span>') + '</td>' +
+          '<td class="num">' + p.paid_orders + ' paid' + (p.orders > p.paid_orders ? ' <span class="muted">(' + p.orders + ' in all)</span>' : '') + '</td>' +
+          '<td><div class="admin-actions"><button data-tip="Show exactly what a customer would pay for this product today: each payment, its date and the VAT" class="btn-ghost" type="button" data-quote="' + p.id + '">Price check</button><button data-tip="Change this product: name, prices, instalment plan, tags or checkout texts" class="btn-ghost" type="button" data-edit="' + p.id + '">Edit</button></div></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function find(id) { return products.find(function (p) { return String(p.id) === String(id); }); }
+  function dollars(cents) { return cents == null ? '' : (cents % 100 ? (cents / 100).toFixed(2) : String(cents / 100)); }
+  function local(iso) { if (!iso) return ''; var k = Admin.kstParts(iso); return k.date + 'T' + k.time; }
+
+  function open(p) {
+    form.reset();
+    Admin.say(out, '');
+    var c = (p && p.content) || {};
+    var values = p ? {
+      id: p.id, name: p.name, slug: p.slug, status: p.status, sale_starts_at: local(p.sale_starts_at), sale_ends_at: local(p.sale_ends_at),
+      price_krw: p.price_krw == null ? '' : p.price_krw, price_usd: dollars(p.price_usd), usd_vat: p.usd_vat,
+      instalment_first: p.instalment_first == null ? '' : p.instalment_first, instalment_monthly: p.instalment_monthly == null ? '' : p.instalment_monthly,
+      instalment_count: p.instalment_count == null ? '' : p.instalment_count,
+      purchase_tag: p.purchase_tag, extra_tags: (p.extra_tags || []).join(', '), legacy_ids: (p.legacy_ids || []).join(', '),
+      summary: c.summary || '', included: (c.included || []).join('\n'), image: c.image || '', thanks: c.thanks || '',
+    } : { id: '', status: 'draft', usd_vat: 'taxable' };
+    Object.keys(values).forEach(function (k) { form.elements[k].value = values[k]; });
+    document.getElementById('slug-echo').textContent = form.slug.value || '…';
+    document.getElementById('delete').hidden = !p;
+    document.getElementById('editor-title').textContent = p ? 'Edit ' + p.name : 'Add product';
+    editor.hidden = false;
+    editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    form.elements.name.focus({ preventScroll: true });
+  }
+
+  form.slug.addEventListener('input', function () { document.getElementById('slug-echo').textContent = form.slug.value || '…'; });
+  document.getElementById('add').addEventListener('click', function () { open(null); });
+  document.getElementById('cancel').addEventListener('click', function () { editor.hidden = true; });
+  document.getElementById('list').addEventListener('click', function (ev) {
+    var edit = ev.target.closest('[data-edit]'), q = ev.target.closest('[data-quote]');
+    if (edit) open(find(edit.dataset.edit));
+    if (q) showQuote(find(q.dataset.quote));
+  });
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var f = form.elements, submit = form.querySelector('[type=submit]');
+    submit.disabled = true;
+    Admin.say(out, 'Saving…');
+    Admin.post('shop-product-save', {
+      id: f.id.value || undefined, name: f.name.value, slug: f.slug.value, status: f.status.value,
+      sale_starts_at: f.sale_starts_at.value, sale_ends_at: f.sale_ends_at.value,
+      price_krw: f.price_krw.value.replace(/[,\s₩]/g, ''), price_usd: f.price_usd.value.replace(/[\s$]/g, ''), usd_vat: f.usd_vat.value,
+      instalment_first: f.instalment_first.value.replace(/[,\s₩]/g, ''), instalment_monthly: f.instalment_monthly.value.replace(/[,\s₩]/g, ''), instalment_count: f.instalment_count.value,
+      purchase_tag: f.purchase_tag.value, extra_tags: f.extra_tags.value, legacy_ids: f.legacy_ids.value,
+      content: { summary: f.summary.value, included: f.included.value, image: f.image.value, thanks: f.thanks.value },
+    }).then(function (r) {
+      editor.hidden = true;
+      return load().then(function () { showQuote(find(r.product.id)); });
+    }).catch(function (err) { Admin.say(out, err.message, true); })
+      .then(function () { submit.disabled = false; });
+  });
+
+  document.getElementById('delete').addEventListener('click', function () {
+    var p = find(form.elements.id.value);
+    if (!p || !confirm('Delete ' + p.name + '? This only works while it has no order.')) return;
+    Admin.post('shop-product-delete', { id: p.id }).then(function () { editor.hidden = true; document.getElementById('quote').hidden = true; return load(); })
+      .catch(function (err) { Admin.say(out, err.message, true); });
+  });
+
+  // Price check: one table per way to buy, from the server's own computation.
+  var quote = document.getElementById('quote'), body = document.getElementById('quote-body');
+  document.getElementById('close-quote').addEventListener('click', function () { quote.hidden = true; });
+
+  function showQuote(p) {
+    if (!p) return;
+    document.getElementById('quote-title').textContent = 'Price check · ' + p.name;
+    quote.hidden = false;
+    body.innerHTML = '<p class="admin-empty">Loading…</p>';
+    Promise.all(p.options.map(function (o) { return Admin.get('shop-quote', { slug: p.slug, currency: o.currency, plan: o.plan }); })).then(function (all) {
+      body.innerHTML = all.map(function (r) {
+        var q = r.quote;
+        return '<h3 class="admin-h3">' + q.currency + ' · ' + PLAN[q.plan] + '</h3>' +
+          '<dl class="facts"><div><dt>Charged today</dt><dd>' + q.dueTodayLabel + '</dd></div><div><dt>Total</dt><dd>' + q.totalLabel + '</dd></div>' +
+          '<div><dt>Supply amount</dt><dd>' + q.supplyLabel + '</dd></div><div><dt>VAT</dt><dd>' + q.vatLabel + (q.vatRule === 'zero' ? ' (zero-rated)' : '') + '</dd></div></dl>' +
+          (q.payments.length > 1 ? '<table class="admin-table"><thead><tr><th>Payment</th><th>Date (if bought today)</th><th>Amount</th></tr></thead><tbody>' +
+            q.payments.map(function (pay) { return '<tr><td class="num">' + pay.number + ' of ' + q.payments.length + '</td><td class="num">' + Admin.kst(pay.due + 'T00:00:00+09:00', false) + '</td><td class="num">' + pay.label + '</td></tr>'; }).join('') + '</tbody></table>' : '');
+      }).join('') + (p.sale.open ? '' : '<p class="muted">This product is not on sale right now, so the checkout would not accept an order.</p>');
+      quote.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }).catch(function (err) { body.innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

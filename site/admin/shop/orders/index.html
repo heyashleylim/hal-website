@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Orders · Shop · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="shop">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <h1>Orders</h1>
+
+  <form class="filters" id="filters" role="search">
+    <label>Search <input type="search" name="q" placeholder="Order number, email or name" maxlength="100"></label>
+    <label>Status <select name="status"><option value="">All</option></select></label>
+    <label>Product <select name="product"><option value="">All</option></select></label>
+    <button data-tip="Show the orders that match the search, status and product chosen" class="btn-sm" type="submit">Search</button>
+  </form>
+
+  <section class="admin-card" aria-label="Orders">
+    <div id="list" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" id="detail" hidden aria-labelledby="detail-title">
+    <div class="admin-head">
+      <h2 id="detail-title">Order</h2>
+      <button data-tip="Close this order" class="btn-ghost" type="button" id="close-detail">Close</button>
+    </div>
+    <div id="detail-body" aria-live="polite"></div>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var form = document.getElementById('filters'), list = document.getElementById('list');
+  var LABEL = { created: 'Started', awaiting_payment: 'Awaiting payment', paid: 'Paid', refund_requested: 'Refund requested', partially_refunded: 'Partly refunded', refunded: 'Refunded', expired: 'Expired', cancelled: 'Cancelled' };
+  var TONE = { paid: 'badge--ok', refund_requested: 'badge--warn', partially_refunded: 'badge--info', refunded: 'badge--info', awaiting_payment: 'badge--info' };
+  var PLAN = { active: 'badge--ok', completed: 'badge--ok', overdue: 'badge--warn', paused: 'badge--info', stopped: '' };
+  var INST = { paid: 'badge--ok', failed: 'badge--warn', overdue: 'badge--warn', due: 'badge--info', cancelled: '' };
+  var ORIGIN = { imported: ' <span class="badge">WooCommerce</span>', manual: ' <span class="badge">By hand</span>', site: '' };
+  var filled = false;
+
+  function badge(text, tone) { return '<span class="badge ' + (tone || '') + '">' + Admin.esc(text) + '</span>'; }
+  function status(o) {
+    return badge(LABEL[o.status] || o.status, TONE[o.status]) + (o.plan_status ? ' ' + badge('Instalments: ' + o.plan_status, PLAN[o.plan_status]) : '');
+  }
+
+  function load() {
+    list.innerHTML = '<p class="admin-empty">Loading…</p>';
+    return Admin.get('shop-orders', { q: form.q.value.trim(), status: form.status.value, product: form.product.value }).then(function (r) {
+      if (!filled) {
+        filled = true;
+        form.status.innerHTML = '<option value="">All</option>' + r.statuses.map(function (s) { return '<option value="' + s + '">' + LABEL[s] + '</option>'; }).join('');
+      }
+      if (!r.orders.length) {
+        list.innerHTML = '<p class="admin-empty">' + (form.q.value || form.status.value || form.product.value ? 'No order matches.' : 'No order yet. Orders appear here once the checkout is live, and past WooCommerce orders once they are imported.') + '</p>';
+        return;
+      }
+      list.innerHTML = '<table class="admin-table"><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Product</th><th>Total</th><th>Paid</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+        r.orders.map(function (o) {
+          return '<tr><td class="num">#' + o.number + ORIGIN[o.origin] + '</td><td class="num">' + Admin.kst(o.created_at) + '</td>' +
+            '<td>' + Admin.esc(o.customer_name) + '<br><span class="small muted">' + Admin.esc(o.email) + '</span></td>' +
+            '<td>' + Admin.esc(o.product_name) + (o.plan === 'instalment' ? ' <span class="small muted">(instalments)</span>' : '') + '</td>' +
+            '<td class="num">' + Admin.money(o.total, o.currency) + '</td>' +
+            '<td class="num">' + Admin.money(o.paid_total - o.refunded_total, o.currency) + '</td><td>' + status(o) + '</td>' +
+            '<td><button data-tip="Open this order: customer, payments, instalment dates and tax lines" class="btn-ghost" type="button" data-open="' + o.id + '">Open</button></td></tr>';
+        }).join('') + '</tbody></table>';
+    }).catch(function (err) { list.innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+
+  form.addEventListener('submit', function (ev) { ev.preventDefault(); load(); });
+  list.addEventListener('click', function (ev) { var b = ev.target.closest('[data-open]'); if (b) show(b.dataset.open); });
+
+  var detail = document.getElementById('detail'), body = document.getElementById('detail-body');
+  document.getElementById('close-detail').addEventListener('click', function () { detail.hidden = true; });
+
+  function fact(label, value) { return '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>'; }
+  function table(head, rows, empty) {
+    return rows.length ? '<div class="admin-scroll"><table class="admin-table"><thead><tr>' + head.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>' : '<p class="admin-empty">' + empty + '</p>';
+  }
+
+  function show(id) {
+    detail.hidden = false;
+    body.innerHTML = '<p class="admin-empty">Loading…</p>';
+    Admin.get('shop-order', { id: id }).then(function (r) {
+      var o = r.order, cur = o.currency;
+      document.getElementById('detail-title').textContent = 'Order #' + o.number;
+      var address = [o.postcode, o.address1, o.address2, o.country].filter(Boolean).join(' ');
+      body.innerHTML =
+        '<dl class="facts">' +
+          fact('Status', status(o)) + fact('Created', Admin.kst(o.created_at)) + fact('Paid', o.paid_at ? Admin.kst(o.paid_at) : '–') +
+          fact('Customer', Admin.esc(o.customer_name) + '<br>' + Admin.esc(o.email) + (o.phone ? '<br>' + Admin.esc(o.phone) : '')) +
+          fact('Address', Admin.esc(address) || '–') +
+          fact('Product', Admin.esc(o.product_name) + (o.plan === 'instalment' ? ' (instalments)' : '')) +
+          fact('Price', Admin.money(o.subtotal, cur) + (o.discount ? ' − ' + Admin.money(o.discount, cur) + ' discount' : '')) +
+          fact('Total', Admin.money(o.total, cur)) + fact('Received', Admin.money(o.paid_total, cur)) + fact('Refunded', Admin.money(o.refunded_total, cur)) +
+          (o.legacy_id ? fact('WooCommerce order', '#' + o.legacy_id) : '') + (o.note ? fact('Note', Admin.esc(o.note)) : '') +
+        '</dl>' +
+        (r.instalments.length ? '<h3 class="admin-h3">Instalments</h3>' + table(['#', 'Due', 'Amount', 'Status'], r.instalments.map(function (i) {
+          return '<tr><td class="num">' + i.number + '</td><td class="num">' + Admin.kst(i.due_date + 'T00:00:00+09:00', false) + '</td><td class="num">' + Admin.money(i.amount, cur) + '</td><td>' + badge(i.status, INST[i.status]) + (i.error ? ' <span class="small is-error">' + Admin.esc(i.error) + '</span>' : '') + '</td></tr>';
+        }), '') : '') +
+        '<h3 class="admin-h3">Payments</h3>' + table(['Date', 'Type', 'Amount', 'Method', 'Reference', 'Receipt'], r.payments.map(function (p) {
+          return '<tr><td class="num">' + Admin.kst(p.at) + '</td><td>' + (p.kind === 'refund' ? badge('Refund', 'badge--warn') : 'Payment' + (p.instalment_no ? ' ' + p.instalment_no : '')) + '</td><td class="num">' + Admin.money(p.kind === 'refund' ? -p.amount : p.amount, p.currency) + '</td>' +
+            '<td>' + Admin.esc(p.provider) + (p.method ? ' · ' + Admin.esc(p.method) : '') + '</td><td class="small">' + Admin.esc([p.provider_ref, p.approval_no].filter(Boolean).join(' / ')) + '</td>' +
+            '<td>' + (p.receipt_url && /^https:\/\//.test(p.receipt_url) ? '<a href="' + Admin.esc(p.receipt_url) + '" target="_blank" rel="noopener noreferrer">Receipt</a>' : '–') + '</td></tr>';
+        }), 'No payment yet.') +
+        '<h3 class="admin-h3">Tax lines</h3>' + table(['Date', 'Type', 'Amount', 'Supply', 'VAT', 'Won value'], r.ledger.map(function (l) {
+          return '<tr><td class="num">' + Admin.kst(l.at) + '</td><td>' + Admin.esc(l.kind) + (l.vat_rule === 'zero' ? ' <span class="small muted">(zero-rated)</span>' : '') + '</td><td class="num">' + Admin.money(l.amount, l.currency) + '</td><td class="num">' + Admin.money(l.supply, l.currency) + '</td><td class="num">' + Admin.money(l.vat, l.currency) + '</td>' +
+            '<td class="num">' + (l.amount_krw == null ? '–' : Admin.money(l.amount_krw, 'KRW') + ' <span class="small muted">@ ' + Admin.esc(l.fx_rate) + '</span>') + '</td></tr>';
+        }), 'No tax line yet.');
+      detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }).catch(function (err) { body.innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+
+  Admin.get('shop-products').then(function (r) {
+    form.product.innerHTML = '<option value="">All</option>' + r.products.map(function (p) { return '<option value="' + p.id + '">' + Admin.esc(p.name) + '</option>'; }).join('');
+  }).catch(function () {});
+  load();
+})();
+</script>
+</body>
+</html>

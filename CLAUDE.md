@@ -19,12 +19,14 @@ hal-website/
 ├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
 ├── api/admin.js           ← the admin API for every section (/api/admin?action=…); sections' code in api/_lib/admin/
 ├── api/podcast-*.js       ← private podcast functions for students and AC (docs/podcast-plan.md); shared code in api/_lib/ (not endpoints)
-├── db/migrations/         ← private podcast database schema (Neon Postgres), applied with `npm run db:migrate`
+├── api/_lib/shop/         ← shop rules (pricing.js, ledger.js: pure, unit-tested); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
 ├── tools/podcast/         ← podcast database migration script (npm run db:migrate)
+├── tools/shop/            ← dev-server.js: the admin with its API on this computer, inside a rolled-back transaction ("shop-admin" preview)
 ├── tools/podcast-studio/  ← source of Podcast Studio, a standalone Mac app shared as a zip (bash tools/build-podcast-studio-zip.sh → ~/Downloads/Podcast-Studio.zip). Not deployed; not part of the site
 ├── .env.example           ← names of the env vars the function needs (values live in Vercel only)
 ├── .gitignore
@@ -174,6 +176,25 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   `_revoked` (prefix e.g. `podcast_nsmb`), plus `podcast_link_reset`; field `PODCAST_LINK`.
   Students added by hand only reach AC when "Tell ActiveCampaign" is ticked.
 
+## Shop (e-commerce, replacing WooCommerce)
+
+Plan, decisions and phases: `docs/commerce-plan.md` (phase table at the top). Built on the `shop` branch. Phase 1
+(foundations) is in place: products, read-only orders, settings and the tax ledger's rules. No checkout yet: payment
+links still go to WordPress.
+- Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
+  actions prefixed `shop-`.
+- Money is a whole number in the smallest unit (won; cents for USD), VAT included. **Every amount is computed on the
+  server by `api/_lib/shop/pricing.js`** (pure, unit-tested); change price rules there and in `tests/shop/` only.
+- `shop_ledger` is the tax record: one permanent line per payment or refund (supply + VAT), built by
+  `api/_lib/shop/ledger.js`. A database trigger refuses edits and deletes (only a USD line's exchange-rate columns can
+  change); a correction is a new line. Orders, payments and ledger lines are never deleted automatically.
+- A product's ActiveCampaign purchase tag is the one WooCommerce used (`purchased_eft`, `purchased_chosen_2026`,
+  `purchased_switch`, `purchased_nsmb_XX_YYYYMM`), set per product in the admin.
+- The refund window is 14 days.
+- Local admin with real data and nothing saved: the `shop-admin` preview (`tools/shop/dev-server.js`, port 8793) runs
+  the admin API inside one transaction that is rolled back when it stops, applying pending migrations inside it.
+  Only one can run at a time (a second one waits on the first one's locks).
+
 ## Page configuration
 
 Sales pages keep cohort-specific values in one place: the `data-state` and `data-deadline` attributes on `#page`.
@@ -199,7 +220,7 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 
 - [ ] `/engine` uses the ENGINE palette (red `#bd1b1b`, Instrument Serif). DESIGN.md specifies Ashley's palette (terracotta/coral, Gmarket Sans + Pretendard). Decide which is canonical for the site, then update this file.
 - [ ] Set the ActiveCampaign env vars in Vercel (see `.env.example`) and, for double opt-in, the AC form id.
-- [ ] Confirm "7일" vs "14일" refund wording on the NSMB page.
+- [ ] Refund window is 14 days (Alex, 2026-11-10): replace the remaining "7일" wording on the NSMB page.
 - [ ] Check Gmarket Sans license terms for public web hosting (subset woff2 files are now served).
 - [ ] Decide whether to keep `/engine` or delete it.
 - [ ] Domain move: www.ashleylim.com → Vercel, ashleylim.com (no www) stays on WordPress for the checkout. `vercel.json` already sends WordPress/WooCommerce addresses that arrive on www back to ashleylim.com (`/?product=`, `/?add-to-cart=`, `/?wc-api=`, `/checkout`, `/cart`, `/my-account`, `/product`, `/shop`, `/wp-admin`, `/wp-login.php`, `/wp-json`, `/wp-content`); payment gateway webhooks should still be set to ashleylim.com directly. WordPress must not redirect ashleylim.com → www (its Site URL must stay `https://ashleylim.com`), or the payment links would land on this site.
