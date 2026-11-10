@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Settings · Shop · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="shop">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main">
+  <h1>Shop settings</h1>
+
+  <section class="admin-card" aria-labelledby="conn-title">
+    <h2 id="conn-title">Connections</h2>
+    <p class="muted">Keys are kept in Vercel (Project → Settings → Environment Variables), never here. They are needed from the checkout phase on.</p>
+    <ul class="checklist" id="connections" aria-live="polite"><li class="muted">Checking…</li></ul>
+  </section>
+
+  <section class="admin-card" aria-labelledby="texts-title">
+    <h2 id="texts-title">Checkout texts and alerts</h2>
+    <p class="muted">Korean lines shown to customers on the checkout page. Leave a line empty until Ashley's wording is ready: an empty line is simply not shown.</p>
+    <form id="form" class="admin-form" novalidate>
+      <label class="admin-form__wide">Consent line <span class="hint">under the pay button: agreement to the terms and privacy policy</span><textarea name="consent" rows="2" maxlength="500"></textarea></label>
+      <label class="admin-form__wide">Guarantee line <span class="hint">the refund guarantee (14 days)</span><textarea name="guarantee" rows="2" maxlength="500"></textarea></label>
+      <label class="admin-form__wide">Secure payment note <span class="hint">card details are handled by CiderPay</span><textarea name="secure_note" rows="2" maxlength="500"></textarea></label>
+      <label class="admin-form__wide">PayPal instalments note <span class="hint">shown on the PayPal option for USD buyers; must not promise instalments, PayPal decides</span><textarea name="paypal_instalments" rows="2" maxlength="500"></textarea></label>
+
+      <p class="admin-h3">Slack alerts</p>
+      <label class="check-ac"><input type="checkbox" name="paid"> A payment is received</label>
+      <label class="check-ac"><input type="checkbox" name="refund"> A refund or cancellation happens</label>
+      <label class="check-ac"><input type="checkbox" name="instalment_failed"> An instalment fails or is overdue</label>
+
+      <div class="admin-form__actions">
+        <button data-tip="Save the checkout texts and the Slack alert choices" class="btn-sm" type="submit">Save</button>
+      </div>
+      <p class="admin-form__result" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var form = document.getElementById('form'), out = form.querySelector('.admin-form__result');
+  var TEXTS = ['consent', 'guarantee', 'secure_note', 'paypal_instalments'], ALERTS = ['paid', 'refund', 'instalment_failed'];
+
+  function fill(s) {
+    TEXTS.forEach(function (k) { form.elements[k].value = s.checkout_texts[k] || ''; });
+    ALERTS.forEach(function (k) { form.elements[k].checked = s.notifications[k] !== false; });
+  }
+
+  Admin.get('shop-settings').then(function (r) {
+    fill(r.settings);
+    var c = r.connections, rows = [
+      [c.ciderpay, 'CiderPay (card payments in KRW)', '<code>CIDERPAY_MEMBER_ID</code> and <code>CIDERPAY_API_TOKEN</code>'],
+      [c.paypal, 'PayPal (USD)', '<code>PAYPAL_CLIENT_ID</code> and <code>PAYPAL_SECRET</code>'],
+      [c.slack, 'Slack alerts', '<code>SLACK_WEBHOOK_ASHLEY</code> and/or <code>SLACK_WEBHOOK_ALEX</code>'],
+    ];
+    document.getElementById('connections').innerHTML = rows.map(function (i) {
+      return '<li><span class="status ' + (i[0] ? 'status--ok">OK' : 'status--info">Later') + '</span><span>' + i[1] + (i[0] ? ': keys present' : ': add ' + i[2] + ' in Vercel before the checkout goes live') + '</span></li>';
+    }).join('');
+  }).catch(function (err) {
+    document.getElementById('connections').innerHTML = '<li><span class="status status--bad">Error</span><span>' + Admin.esc(err.message) + '</span></li>';
+  });
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var submit = form.querySelector('[type=submit]'), texts = {}, alerts = {};
+    TEXTS.forEach(function (k) { texts[k] = form.elements[k].value; });
+    ALERTS.forEach(function (k) { alerts[k] = form.elements[k].checked; });
+    submit.disabled = true;
+    Admin.say(out, 'Saving…');
+    Admin.post('shop-settings-save', { checkout_texts: texts, notifications: alerts })
+      .then(function (r) { fill(r.settings); Admin.say(out, 'Saved.'); })
+      .catch(function (err) { Admin.say(out, err.message, true); })
+      .then(function () { submit.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>

@@ -23,10 +23,11 @@
       <p class="muted">Private podcasts: programs, episodes, cohorts, students and ActiveCampaign automation.</p>
       <dl class="stats" id="podcast-stats"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
     </a>
-    <div class="home-card home-card--soon" aria-label="Coming later">
-      <h2>E-commerce</h2>
-      <p>Coming later: checkout and orders, to replace WooCommerce.</p>
-    </div>
+    <a class="home-card" href="/admin/shop">
+      <h2>Shop</h2>
+      <p class="muted">Products, orders and tax records, to replace WooCommerce. The checkout itself comes next.</p>
+      <dl class="stats" id="shop-stats"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
+    </a>
   </div>
 
   <section class="admin-card" aria-labelledby="wl-title">
@@ -53,6 +54,14 @@
       '<div><dt>Subscribed</dt><dd>' + o.subscribed + '</dd></div>' +
       (o.ac_failed ? '<div><dt>AC updates failed</dt><dd class="is-error">' + o.ac_failed + '</dd></div>' : '');
   }).catch(function () { document.getElementById('podcast-stats').innerHTML = ''; });
+
+  Admin.get('shop-overview').then(function (r) {
+    var o = r.overview, need = o.attention.instalments + o.attention.refunds + o.attention.unpaid;
+    document.getElementById('shop-stats').innerHTML =
+      '<div><dt>Products on sale</dt><dd>' + o.products.open + '</dd></div>' +
+      '<div><dt>Paid orders</dt><dd>' + o.orders.paid + '</dd></div>' +
+      (need ? '<div><dt>Need attention</dt><dd class="is-error">' + need + '</dd></div>' : '');
+  }).catch(function () { document.getElementById('shop-stats').innerHTML = ''; });
 
   // NSMB waitlist: settings check + personal link codes (api/_lib/admin/waitlist.js)
   var wlSetup = document.getElementById('wl-setup');
