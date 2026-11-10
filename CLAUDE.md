@@ -101,7 +101,7 @@ Rules for the structure:
 
 - Never invent testimonials, numbers, results, prices, deadlines, guarantees or names. Use only what Ashley has published or provided.
 - Keep testimonial text verbatim, including emoji and informal spelling. Anonymized names stay anonymized (`김00`).
-- If source copy contradicts itself (for example "7일 환불 보장" vs "14일 전액 환불 보장"), keep it and flag it. Don't fix it silently.
+- If source copy contradicts itself (for example two different refund periods on one page), keep it and flag it. Don't fix it silently.
 - Structural labels (eyebrows, section tags) may be added for design, but list them in the change summary.
 - Legal/business footer details (사업자등록번호, 통신판매업신고, address) must match the live ashleylim.com footer exactly.
 
@@ -220,7 +220,7 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 
 - [ ] `/engine` uses the ENGINE palette (red `#bd1b1b`, Instrument Serif). DESIGN.md specifies Ashley's palette (terracotta/coral, Gmarket Sans + Pretendard). Decide which is canonical for the site, then update this file.
 - [ ] Set the ActiveCampaign env vars in Vercel (see `.env.example`) and, for double opt-in, the AC form id.
-- [ ] Refund window is 14 days (Alex, 2026-11-10): replace the remaining "7일" wording on the NSMB page.
+- [x] Refund window is 14 days (Alex, 2026-11-10). `/nsmb` already said 14일; the "7일 환불 보장" line on `/engine` and in `docs/content/nsmb.md` now reads "14일 전액 환불 보장". Still "7일" on the live WordPress NSMB page (and so in the generated `/preview/nsmb`): change it in WordPress, then re-capture.
 - [ ] Check Gmarket Sans license terms for public web hosting (subset woff2 files are now served).
 - [ ] Decide whether to keep `/engine` or delete it.
 - [ ] Domain move: www.ashleylim.com → Vercel, ashleylim.com (no www) stays on WordPress for the checkout. `vercel.json` already sends WordPress/WooCommerce addresses that arrive on www back to ashleylim.com (`/?product=`, `/?add-to-cart=`, `/?wc-api=`, `/checkout`, `/cart`, `/my-account`, `/product`, `/shop`, `/wp-admin`, `/wp-login.php`, `/wp-json`, `/wp-content`); payment gateway webhooks should still be set to ashleylim.com directly. WordPress must not redirect ashleylim.com → www (its Site URL must stay `https://ashleylim.com`), or the payment links would land on this site.
