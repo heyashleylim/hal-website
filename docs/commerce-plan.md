@@ -596,6 +596,16 @@ the daily schedule check).
 - Money really received is never dropped: a valid payment for an expired order is accepted; a second payment for
   a paid order is recorded and flagged for a refund.
 
+**The page (redesigned 2026-11-11 after Alex's review: ThriveCart / ClickFunnels order form, not WooCommerce)**
+
+- The site's own header and footer (`header.css`, `footer.css`), like every other page.
+- The product is the headline (name, summary, price), with a "안전 결제" badge above it.
+- One form card with three numbered steps (내 정보, 주소, 결제 방법), then the order and its total, then one large
+  button with the amount (`₩2,690,000 결제하기 →`; PayPal's yellow for USD).
+- Beside the form (below it on phones): the product image and "포함 내용", the guarantee in a green box, reviews.
+  Each comes from the product in the admin (Image, What's included, Guarantee, Reviews) and is left out when empty.
+- Structural labels added for the design: "안전 결제", "포함 내용", "후기", "주문 요약", "총 결제 금액", the step names.
+
 **Differences from the plan above**
 
 - **PayPal has no button on our page.** The buyer is redirected to PayPal and back (one flow, works without

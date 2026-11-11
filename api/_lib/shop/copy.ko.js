@@ -56,7 +56,9 @@ const copy = {
   // Default consent line: the wording already published on the WooCommerce checkout (2026-11-10).
   consent: '구매를 진행하면 <a href="/terms-and-conditions" target="_blank" rel="noopener">이용 약관</a> 및 <a href="/privacy-policy" target="_blank" rel="noopener">개인정보 보호정책</a>에 동의하는 것입니다',
 
-  pay: (amount) => `${amount} 결제하기`,
+  // docs/DESIGN.md: a primary button's label ends in an arrow.
+  pay: (amount) => `${amount} 결제하기 →`,
+  side: { included: '포함 내용', reviews: '후기' },
   paying: '결제 화면으로 이동하고 있어요…',
 
   // Field problems. Keys are the codes api/_lib/shop/validate.js returns.

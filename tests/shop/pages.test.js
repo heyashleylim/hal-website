@@ -47,11 +47,32 @@ test('checkout page: the product, the price and a form that works without JavaSc
   assert.match(html, /<meta name="robots" content="noindex, nofollow, noarchive">/);
   assert.ok(html.includes('GTM-MK4FNWNV'));
   assert.ok(html.includes('사업자등록번호 : 708-81-01999'), 'legal business details from the site footer');
-  assert.ok(html.includes('href="/nsmb"'), 'the logo goes back to the program page');
+  assert.ok(html.includes('<header class="site-header">') && html.includes('<footer class="site-footer">'), 'the site’s own header and footer');
+  assert.ok(html.includes('/assets/css/header.css') && html.includes('/assets/css/footer.css'));
+  assert.match(html, /<h1 class="co-title">내성만방 프로그램<\/h1>/);
+  assert.deepEqual([...html.matchAll(/<span class="co-step__n" aria-hidden="true">(\d)<\/span>([^<]+)/g)].map((m) => m[1] + m[2]), ['1내 정보', '2주소', '3결제 방법']);
+  assert.ok(html.indexOf('co-order__title') < html.indexOf('id="co-pay"'), 'the order and its total sit right above the button');
+  assert.ok(html.includes('₩2,690,000 결제하기 →'));
   const data = dataOf(html);
   assert.equal(data.slug, 'nsmb');
   assert.equal(data.value, 2690000);
   assert.equal(data.kakao, true);
+});
+
+test('beside the form: what you get, the guarantee and reviews, only when the product has them', () => {
+  const rich = { ...product, content: { ...product.content, guarantee: '14일 전액 환불 보장\n조건이 있어요.', testimonials: [{ text: '인생의 마스터 키를 쥔 기분.\n정말로요', name: '유00' }, { text: '이름 없는 후기', name: '' }] } };
+  let html = page.checkoutPage({ product: rich, offers, currency: 'KRW' });
+  assert.ok(html.includes('<h2 class="co-box__title" id="co-g-title">14일 전액 환불 보장</h2>') && html.includes('<p>조건이 있어요.</p>'));
+  assert.ok(html.includes('인생의 마스터 키를 쥔 기분.<br>정말로요') && html.includes('<figcaption class="t-card__by">유00</figcaption>'));
+  assert.equal((html.match(/<figure class="t-card co-review">/g) || []).length, 2);
+  assert.equal((html.match(/<figcaption/g) || []).length, 1, 'no empty name line');
+  assert.ok(html.includes('src="/assets/img/shop/nsmb.webp"') && /<img class="co-box__img"[^>]*width="\d+" height="\d+" loading="lazy"/.test(html));
+  // nothing set: no empty boxes
+  html = page.checkoutPage({ product: { ...product, content: {} }, offers, currency: 'KRW' });
+  assert.ok(!html.includes('co-box') && !html.includes('co-reviews') && !html.includes('co-sub'));
+  // the shop-wide guarantee line (Settings) is used when the product has none
+  html = page.checkoutPage({ product: { ...product, content: {} }, offers, currency: 'KRW', settings: { checkout_texts: { guarantee: '환불 보장' } } });
+  assert.ok(html.includes('id="co-g-title">환불 보장</h2>'));
 });
 
 test('checkout page in USD: PayPal, a country list in Korean, dollars', () => {
@@ -76,7 +97,7 @@ test('what the buyer typed comes back after an error, with the message next to t
 });
 
 test('nothing typed by a buyer or stored on a product can inject markup', () => {
-  const evilProduct = { ...product, name: EVIL, content: { summary: EVIL, included: [EVIL], thanks: EVIL, image: 'javascript:alert(1)', page: 'javascript:alert(1)' } };
+  const evilProduct = { ...product, name: EVIL, content: { summary: EVIL, included: [EVIL], thanks: EVIL, image: 'javascript:alert(1)', page: 'javascript:alert(1)', guarantee: EVIL + '\n' + EVIL, testimonials: [{ text: EVIL, name: EVIL }] } };
   const pages = [
     page.checkoutPage({ product: evilProduct, offers: orders.offers(evilProduct), currency: 'KRW', values: { name: EVIL, email: EVIL, phone: EVIL, postcode: EVIL, address1: EVIL, address2: EVIL }, query: { utm_source: EVIL, utm_campaign: '"><script>x</script>' }, settings: { checkout_texts: { consent: EVIL, guarantee: EVIL, secure_note: EVIL } } }),
     page.checkoutPage({ product: evilProduct, offers: orders.offers(evilProduct), currency: 'USD', values: { country: EVIL }, settings: { checkout_texts: { paypal_instalments: EVIL } } }),

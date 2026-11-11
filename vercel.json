@@ -11,10 +11,10 @@
       "includeFiles": "site/{index.html,nsmb/index.html}"
     },
     "api/shop-page.js": {
-      "includeFiles": "site/index.html"
+      "includeFiles": "site/{index.html,nsmb/index.html}"
     },
     "api/shop.js": {
-      "includeFiles": "site/index.html"
+      "includeFiles": "site/{index.html,nsmb/index.html}"
     }
   },
   "crons": [
