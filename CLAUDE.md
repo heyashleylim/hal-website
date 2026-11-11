@@ -19,14 +19,15 @@ hal-website/
 ├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
 ├── api/admin.js           ← the admin API for every section (/api/admin?action=…); sections' code in api/_lib/admin/
 ├── api/podcast-*.js       ← private podcast functions for students and AC (docs/podcast-plan.md); shared code in api/_lib/ (not endpoints)
-├── api/_lib/shop/         ← shop rules (pricing.js, ledger.js: pure, unit-tested); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005), applied with `npm run db:migrate`
+├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
+├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
 ├── tools/podcast/         ← podcast database migration script (npm run db:migrate)
-├── tools/shop/            ← dev-server.js: the admin with its API on this computer, inside a rolled-back transaction ("shop-admin" preview)
+├── tools/shop/            ← dev-server.js: the site with its API and FAKE payment providers on this computer, inside a rolled-back transaction ("shop-admin" preview); e2e.js: `npm run test:shop`
 ├── tools/podcast-studio/  ← source of Podcast Studio, a standalone Mac app shared as a zip (bash tools/build-podcast-studio-zip.sh → ~/Downloads/Podcast-Studio.zip). Not deployed; not part of the site
 ├── .env.example           ← names of the env vars the function needs (values live in Vercel only)
 ├── .gitignore
@@ -178,22 +179,41 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
 
 ## Shop (e-commerce, replacing WooCommerce)
 
-Plan, decisions and phases: `docs/commerce-plan.md` (phase table at the top). Built on the `shop` branch. Phase 1
-(foundations) is in place: products, read-only orders, settings and the tax ledger's rules. No checkout yet: payment
-links still go to WordPress.
+Plan, decisions and phases: `docs/commerce-plan.md` (phase table at the top; section 10 = the checkout as built and
+Alex's real-payment tests). Built on the `shop` branch. Phase 1 (products, orders, tax ledger) and phase 2 (checkout,
+pay in full) are built. The site's payment links still go to WordPress until go-live (phase 5).
+**This code takes real money: every change needs `npm test` and `npm run test:shop` to pass, and a browser check.**
+- Pages: `/checkout/<product>` and `/checkout/complete` (rewrites in `vercel.json` → `api/shop-page.js`), rendered on the
+  server by `api/_lib/shop/page.js`, in Korean (`copy.ko.js` holds every customer-facing string), `noindex`, with GTM.
+  `/checkout`, `/checkout/order-received/*` and `/checkout/order-pay/*` still redirect to WordPress; a product can't use
+  those addresses or `complete`.
 - Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
   actions prefixed `shop-`.
 - Money is a whole number in the smallest unit (won; cents for USD), VAT included. **Every amount is computed on the
-  server by `api/_lib/shop/pricing.js`** (pure, unit-tested); change price rules there and in `tests/shop/` only.
+  server by `api/_lib/shop/pricing.js`** (pure, unit-tested); the browser never sends an amount. Change price rules there
+  and in `tests/shop/` only.
+- KRW → CiderPay (hosted payment page, then a "feedback" notice to `/api/shop-callback?p=ciderpay&k=…`). USD → PayPal
+  (redirect, capture on return to `/checkout/complete`, webhooks as a safety net). No PayPal script on the page.
+  CiderPay has no test mode and no payment lookup: a notice is believed only with the address key, the order token and
+  our signature (`pay/ciderpay.js`), and the exact amount (`orders.decide`).
+- A payment is recorded once, with its ledger line and the order state, by one statement (`orders.recordPayment`;
+  unique `(provider, kind, provider_ref)`). Opening the thank-you page never marks an order paid.
 - `shop_ledger` is the tax record: one permanent line per payment or refund (supply + VAT), built by
   `api/_lib/shop/ledger.js`. A database trigger refuses edits and deletes (only a USD line's exchange-rate columns can
   change); a correction is a new line. Orders, payments and ledger lines are never deleted automatically.
-- A product's ActiveCampaign purchase tag is the one WooCommerce used (`purchased_eft`, `purchased_chosen_2026`,
-  `purchased_switch`, `purchased_nsmb_XX_YYYYMM`), set per product in the admin.
-- The refund window is 14 days.
-- Local admin with real data and nothing saved: the `shop-admin` preview (`tools/shop/dev-server.js`, port 8793) runs
-  the admin API inside one transaction that is rolled back when it stops, applying pending migrations inside it.
-  Only one can run at a time (a second one waits on the first one's locks).
+- ActiveCampaign: `shop_outbox` (own queue, like the podcast's), sent by `sync.js` after a payment, from the thank-you
+  page, by "Send to ActiveCampaign now" in the admin, and by the daily cron. A product's purchase tag is the one
+  WooCommerce used (`purchased_eft`, `purchased_chosen_2026`, `purchased_switch`, `purchased_nsmb_XX_YYYYMM`), set per
+  product. Order fields (`ORDER_NUMBER`…) that don't exist in AC are skipped, never blocking the tags.
+- Instalment plans are stored on products but not sold yet (`orders.INSTALMENTS_ENABLED`, phase 3). The refund window is
+  14 days; refunds are handled by hand until phase 3.
+- Env vars: `SHOP_SECRET` (never change once live), `CIDERPAY_*`, `PAYPAL_*`, `SLACK_WEBHOOK_*` (`.env.example`).
+  Previews use the PayPal sandbox and need Vercel's "Protection Bypass for Automation" so providers can reach them.
+- The Kakao address search loads from `t1.kakaocdn.net` with no parameters (the script refuses any, with an alert).
+- Local testing with nothing saved and no money: the `shop-admin` preview (`tools/shop/dev-server.js`, port 8793) runs
+  the site, the admin and the checkout against fake CiderPay/PayPal inside one transaction that is rolled back when it
+  stops (pending migrations are applied inside it; it uses `PODCAST_DATABASE_URL` when set). Only one can run at a
+  time: stop it before `npm run test:shop`, which uses the same mechanism.
 
 ## Page configuration
 

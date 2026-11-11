@@ -77,6 +77,18 @@
 
   form.addEventListener('submit', function (ev) { ev.preventDefault(); load(); });
   list.addEventListener('click', function (ev) { var b = ev.target.closest('[data-open]'); if (b) show(b.dataset.open); });
+  document.getElementById('detail-body').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-sync]');
+    if (!b) return;
+    var out = document.getElementById('sync-out');
+    b.disabled = true;
+    out.textContent = 'Sending…';
+    Admin.post('shop-sync-run', { order: b.dataset.sync }).then(function (r) {
+      var x = r.result;
+      if (x.skipped) { out.textContent = x.skipped; b.disabled = false; return; }
+      show(b.dataset.sync);
+    }).catch(function (err) { out.textContent = err.message; b.disabled = false; });
+  });
 
   var detail = document.getElementById('detail'), body = document.getElementById('detail-body');
   document.getElementById('close-detail').addEventListener('click', function () { detail.hidden = true; });
@@ -99,6 +111,7 @@
           fact('Customer', Admin.esc(o.customer_name) + '<br>' + Admin.esc(o.email) + (o.phone ? '<br>' + Admin.esc(o.phone) : '')) +
           fact('Address', Admin.esc(address) || '–') +
           fact('Product', Admin.esc(o.product_name) + (o.plan === 'instalment' ? ' (instalments)' : '')) +
+          fact('Paid with', o.provider === 'paypal' ? 'PayPal' : o.provider === 'ciderpay' ? 'Card (CiderPay)' : '–') +
           fact('Price', Admin.money(o.subtotal, cur) + (o.discount ? ' − ' + Admin.money(o.discount, cur) + ' discount' : '')) +
           fact('Total', Admin.money(o.total, cur)) + fact('Received', Admin.money(o.paid_total, cur)) + fact('Refunded', Admin.money(o.refunded_total, cur)) +
           (o.legacy_id ? fact('WooCommerce order', '#' + o.legacy_id) : '') + (o.note ? fact('Note', Admin.esc(o.note)) : '') +
@@ -111,6 +124,14 @@
             '<td>' + Admin.esc(p.provider) + (p.method ? ' · ' + Admin.esc(p.method) : '') + '</td><td class="small">' + Admin.esc([p.provider_ref, p.approval_no].filter(Boolean).join(' / ')) + '</td>' +
             '<td>' + (p.receipt_url && /^https:\/\//.test(p.receipt_url) ? '<a href="' + Admin.esc(p.receipt_url) + '" target="_blank" rel="noopener noreferrer">Receipt</a>' : '–') + '</td></tr>';
         }), 'No payment yet.') +
+        '<h3 class="admin-h3">ActiveCampaign updates</h3>' + table(['Update', 'Status', 'Tries', 'Note'], r.outbox.map(function (x) {
+          var what = x.op === 'contact' ? 'Contact + Master Contact List' : x.op === 'fields' ? 'Fields: ' + Object.keys(x.payload.fields || {}).join(', ') : (x.op === 'tag_remove' ? 'Remove tag ' : 'Add tag ') + (x.payload.tag || '');
+          return '<tr><td>' + Admin.esc(what) + '</td><td>' + badge(x.status, x.status === 'done' ? 'badge--ok' : x.status === 'failed' ? 'badge--warn' : 'badge--info') + '</td><td class="num">' + x.attempts + '</td><td class="small">' + Admin.esc(x.last_error || '') + '</td></tr>';
+        }), 'Nothing to send to ActiveCampaign for this order.') +
+        (r.outbox.some(function (x) { return x.status !== 'done'; }) ? '<p style="margin-top:12px"><button data-tip="Send this order’s waiting ActiveCampaign updates now, and retry the ones that failed" class="btn-ghost" type="button" data-sync="' + o.id + '">Send to ActiveCampaign now</button> <span class="muted small" id="sync-out" role="status"></span></p>' : '') +
+        '<h3 class="admin-h3">Notices from the payment provider</h3>' + table(['Date', 'Provider', 'Result', 'Why'], r.notices.map(function (x) {
+          return '<tr><td class="num">' + Admin.kst(x.at) + '</td><td>' + Admin.esc(x.provider) + '</td><td>' + badge(x.outcome, x.outcome === 'paid' ? 'badge--ok' : x.outcome === 'duplicate' || x.outcome === 'ignored' ? '' : 'badge--warn') + '</td><td class="small">' + Admin.esc(x.reason) + '</td></tr>';
+        }), 'No notice received for this order.') +
         '<h3 class="admin-h3">Tax lines</h3>' + table(['Date', 'Type', 'Amount', 'Supply', 'VAT', 'Won value'], r.ledger.map(function (l) {
           return '<tr><td class="num">' + Admin.kst(l.at) + '</td><td>' + Admin.esc(l.kind) + (l.vat_rule === 'zero' ? ' <span class="small muted">(zero-rated)</span>' : '') + '</td><td class="num">' + Admin.money(l.amount, l.currency) + '</td><td class="num">' + Admin.money(l.supply, l.currency) + '</td><td class="num">' + Admin.money(l.vat, l.currency) + '</td>' +
             '<td class="num">' + (l.amount_krw == null ? '–' : Admin.money(l.amount_krw, 'KRW') + ' <span class="small muted">@ ' + Admin.esc(l.fx_rate) + '</span>') + '</td></tr>';

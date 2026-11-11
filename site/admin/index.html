@@ -25,7 +25,7 @@
     </a>
     <a class="home-card" href="/admin/shop">
       <h2>Shop</h2>
-      <p class="muted">Products, orders and tax records, to replace WooCommerce. The checkout itself comes next.</p>
+      <p class="muted">Products, orders, checkout and tax records, to replace WooCommerce.</p>
       <dl class="stats" id="shop-stats"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
     </a>
   </div>
@@ -56,7 +56,7 @@
   }).catch(function () { document.getElementById('podcast-stats').innerHTML = ''; });
 
   Admin.get('shop-overview').then(function (r) {
-    var o = r.overview, need = o.attention.instalments + o.attention.refunds + o.attention.unpaid;
+    var o = r.overview, need = o.attention.instalments + o.attention.refunds + o.attention.unpaid + o.attention.notices + o.attention.ac_failed;
     document.getElementById('shop-stats').innerHTML =
       '<div><dt>Products on sale</dt><dd>' + o.products.open + '</dd></div>' +
       '<div><dt>Paid orders</dt><dd>' + o.orders.paid + '</dd></div>' +

@@ -13,6 +13,15 @@
 const db = require('./_lib/db.js');
 const auth = require('./_lib/auth.js');
 const automation = require('./_lib/automation.js');
+const shopOrders = require('./_lib/shop/orders.js');
+const shopSync = require('./_lib/shop/sync.js');
+
+// Shop daily job: unpaid orders older than a day expire; ActiveCampaign updates still waiting are sent.
+async function shopJob() {
+  const expired = await shopOrders.expireStale();
+  const sent = await shopSync.process({ budgetMs: 60 * 1000 });
+  return { expired, sent };
+}
 
 const MODULES = [
   require('./_lib/admin/system.js'),
@@ -69,6 +78,14 @@ module.exports = async function handler(req, res) {
     try {
       const result = await automation.dailyJob();
       await log('cron', 'podcast', 'daily-job', 'daily job', result);
+      // The shop's daily job runs after the podcast's and never makes it fail.
+      try {
+        result.shop = await shopJob();
+        await log('cron', 'shop', 'daily-job', 'daily job', result.shop);
+      } catch (err) {
+        console.error('admin cron: shop job', err);
+        result.shop = { error: 'shop job failed' };
+      }
       return send(res, 200, result);
     } catch (err) {
       console.error('admin cron', err);
