@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Emails · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="emails">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <h1>Emails</h1>
+
+  <section class="admin-card" aria-labelledby="numbers-title">
+    <h2 id="numbers-title">Archive</h2>
+    <dl class="stats" id="numbers" aria-live="polite"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
+    <p class="muted" id="freshness" style="margin-top:16px"></p>
+  </section>
+
+  <section class="admin-card" aria-labelledby="again-title">
+    <div class="admin-head" style="margin-bottom:16px">
+      <h2 id="again-title" style="margin:0">Worth sending again</h2>
+      <a class="btn-ghost" href="/admin/emails/browse?level=good&amp;sort=score">See all above-usual emails</a>
+    </div>
+    <p class="muted" style="margin-bottom:12px">The emails that did best against what is usual for similar sends, not yet marked “No” or “Sent again”. Click one to read it.</p>
+    <div id="again" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card explain" aria-labelledby="how-title">
+    <h2 id="how-title">How the score works</h2>
+    <p>Each email is compared with <strong>similar sends</strong>: the <span data-rule="neighbours">30</span> broadcast emails closest to it in time whose audience was between half and double its size. So an email is judged against what was normal <em>then</em>, for an audience of <em>that</em> size.</p>
+    <ul>
+      <li><strong>Opens</strong>: how far its open rate is above or below the usual one, measured in “usual spreads”.</li>
+      <li><strong>Clicks</strong>: the same for its click rate, only when the email had a link, and only against other emails with a link.</li>
+      <li><strong>Score</strong>: the average of the two (opens only when there is no link). <strong><span data-rule="top">+2</span> or more is an outlier</strong>: about 1 email in 20 gets there by luck. +<span data-rule="above">1</span> or more is above usual.</li>
+    </ul>
+    <p class="muted">Not scored: sends to fewer than <span data-rule="min_sent">300</span> people, emails younger than <span data-rule="settle_days">3</span> days, and automation emails. The spreadsheet’s old “Perf” number is still shown when you open an email, so you can compare.</p>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script src="/assets/js/admin/emails.js"></script>
+<script>
+(function () {
+  var E = AdminEmails;
+  function stat(label, value) { return '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>'; }
+
+  Admin.get('emails-overview').then(function (r) {
+    var o = r.overview;
+    Object.keys(r.rules).forEach(function (k) {
+      document.querySelectorAll('[data-rule="' + k + '"]').forEach(function (n) { n.textContent = r.rules[k]; });
+    });
+    document.getElementById('numbers').innerHTML =
+      stat('Emails', o.total) + stat('From the spreadsheet', o.imported) + stat('From ActiveCampaign', o.ac) +
+      stat('Outliers', o.top) + stat('Above usual', o.above) + stat('Marked to send again', o.marked) + stat('Sent again', o.resent);
+    var fresh = document.getElementById('freshness');
+    if (!o.total) {
+      fresh.innerHTML = 'No email here yet. Go to <a href="/admin/emails/sync">Import &amp; sync</a> to import the spreadsheet and copy the emails from ActiveCampaign.';
+    } else {
+      fresh.innerHTML = 'From ' + Admin.kst(o.first, false) + ' to ' + Admin.kst(o.last, false) + '. ' +
+        (!o.ac_connected ? 'ActiveCampaign is not connected here, so its emails are not copied.' :
+          o.last_run && o.last_run.ok === false ? '<span class="is-error">The last ActiveCampaign sync failed: ' + Admin.esc(o.last_run.error || '') + '</span> (<a href="/admin/emails/sync">details</a>)' :
+          o.last_ok_at ? 'ActiveCampaign stats refreshed ' + Admin.kst(o.last_ok_at) + ' (every day at 09:10, or with “Sync now”).' :
+          'ActiveCampaign has not been synced yet: <a href="/admin/emails/sync">sync now</a>.') +
+        (o.body_pending ? ' ' + o.body_pending + ' ActiveCampaign email(s) still wait for their text: the next sync reads them.' : '');
+    }
+    var box = document.getElementById('again');
+    if (!r.candidates.length) {
+      box.innerHTML = '<p class="admin-empty">' + (o.scored ? 'No email stands out above usual right now.' : 'Nothing to compare yet: scores appear once there are a few emails sent to 300 people or more.') + '</p>';
+      return;
+    }
+    box.innerHTML = '<table class="admin-table emails-table"><thead><tr><th>Sent</th><th>Email</th><th>To</th><th>Opened</th><th>Clicked</th><th>Score</th><th>Send again?</th></tr></thead><tbody>' +
+      r.candidates.map(function (e) {
+        return '<tr class="email-row" data-id="' + e.id + '"><td class="num">' + E.day(e.sent_at) + '</td>' +
+          '<td class="email-cell"><a class="email-name" href="/admin/emails/browse?level=good&amp;sort=score&amp;open=' + e.id + '">' + Admin.esc(e.name) + '</a><span class="email-subject" lang="ko">' + Admin.esc(e.subject) + '</span></td>' +
+          '<td class="num">' + e.sent.toLocaleString('en-US') + '</td>' +
+          '<td class="num">' + E.versus(e.open_rate, e.score.open) + '</td><td class="num">' + (e.score.click ? E.versus(e.click_rate, e.score.click) : '<span class="muted">no link</span>') + '</td>' +
+          '<td>' + E.score(e.score) + '</td><td>' + E.resend(e.resend) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    box.addEventListener('click', function (ev) {
+      var row = ev.target.closest('.email-row');
+      if (row && !ev.target.closest('a')) location.href = '/admin/emails/browse?level=good&sort=score&open=' + row.dataset.id;
+    });
+  }).catch(function (err) {
+    document.getElementById('numbers').innerHTML = '';
+    document.getElementById('again').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>';
+  });
+})();
+</script>
+</body>
+</html>

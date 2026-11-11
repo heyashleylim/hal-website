@@ -28,6 +28,11 @@
       <p class="muted">Products, orders, checkout and tax records, to replace WooCommerce.</p>
       <dl class="stats" id="shop-stats"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
     </a>
+    <a class="home-card" href="/admin/emails">
+      <h2>Emails</h2>
+      <p class="muted">Every email sent, with its performance: find one, read it again, and spot the ones worth sending again.</p>
+      <dl class="stats" id="emails-stats"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
+    </a>
   </div>
 
   <section class="admin-card" aria-labelledby="wl-title">
@@ -62,6 +67,14 @@
       '<div><dt>Paid orders</dt><dd>' + o.orders.paid + '</dd></div>' +
       (need ? '<div><dt>Need attention</dt><dd class="is-error">' + need + '</dd></div>' : '');
   }).catch(function () { document.getElementById('shop-stats').innerHTML = ''; });
+
+  Admin.get('emails-overview').then(function (r) {
+    var o = r.overview;
+    document.getElementById('emails-stats').innerHTML =
+      '<div><dt>Emails</dt><dd>' + o.total + '</dd></div>' +
+      '<div><dt>Outliers</dt><dd>' + o.top + '</dd></div>' +
+      (o.last_run && o.last_run.ok === false ? '<div><dt>Last sync</dt><dd class="is-error">Failed</dd></div>' : '');
+  }).catch(function () { document.getElementById('emails-stats').innerHTML = ''; });
 
   // NSMB waitlist: settings check + personal link codes (api/_lib/admin/waitlist.js)
   var wlSetup = document.getElementById('wl-setup');

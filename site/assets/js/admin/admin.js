@@ -12,6 +12,7 @@ window.Admin = (function () {
     podcast: '<rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     activity: '<path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     shop: '<path d="M5 8h14l-1 12H6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8V7a3 3 0 0 1 6 0v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    emails: '<rect x="3.5" y="5.5" width="17" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 7.5l8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     logout: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   };
   var SECTIONS = [
@@ -32,6 +33,11 @@ window.Admin = (function () {
         ['/admin/shop/products', 'Products'],
       ] },
       { title: 'Setup', items: [['/admin/shop/settings', 'Settings']] },
+    ] },
+    { key: 'emails', label: 'Emails', icon: 'emails', home: '/admin/emails', groups: [
+      { items: [['/admin/emails', 'Overview']] },
+      { title: 'Review', items: [['/admin/emails/browse', 'All emails']] },
+      { title: 'Setup', items: [['/admin/emails/sync', 'Import & sync']] },
     ] },
   ];
   var COLLAPSE_KEY = 'admin-menu-collapsed';

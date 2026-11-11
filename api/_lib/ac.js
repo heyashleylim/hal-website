@@ -203,4 +203,4 @@ function resetCaches() {
   fieldCache = null;
 }
 
-module.exports = { findContactByEmail, getContact, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, findField, fieldOptions, syncContact, updateContactFields, subscribeToList, resetCaches };
+module.exports = { request: ac, findContactByEmail, getContact, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, findField, fieldOptions, syncContact, updateContactFields, subscribeToList, resetCaches };
