@@ -19,7 +19,7 @@
 
   <section class="admin-card" aria-labelledby="conn-title">
     <h2 id="conn-title">Connections</h2>
-    <p class="muted">Keys are kept in Vercel (Project → Settings → Environment Variables), never here. They are needed from the checkout phase on.</p>
+    <p class="muted">Keys are kept in Vercel (Project → Settings → Environment Variables), never here. This list shows what this deployment has.</p>
     <ul class="checklist" id="connections" aria-live="polite"><li class="muted">Checking…</li></ul>
   </section>
 
@@ -58,13 +58,17 @@
   Admin.get('shop-settings').then(function (r) {
     fill(r.settings);
     var c = r.connections, rows = [
+      [c.secret, 'Shop secret (signs payment notices and order links)', '<code>SHOP_SECRET</code> (random, 32+ characters). Without it no order can be taken'],
       [c.ciderpay, 'CiderPay (card payments in KRW)', '<code>CIDERPAY_MEMBER_ID</code> and <code>CIDERPAY_API_TOKEN</code>'],
-      [c.paypal, 'PayPal (USD)', '<code>PAYPAL_CLIENT_ID</code> and <code>PAYPAL_SECRET</code>'],
+      [c.paypal, 'PayPal (USD), ' + (c.paypal_mode === 'live' ? 'LIVE: real money' : 'sandbox: test money'), '<code>PAYPAL_CLIENT_ID</code> and <code>PAYPAL_SECRET</code>'],
+      [c.paypal_webhook, 'PayPal webhook', '<code>PAYPAL_WEBHOOK_ID</code>' + (c.paypal_webhook_url ? '. In PayPal, the webhook address is <code>' + Admin.esc(c.paypal_webhook_url) + '</code>' : '')],
+      [c.activecampaign, 'ActiveCampaign (tags and order fields)', '<code>AC_API_URL</code> and <code>AC_API_KEY</code>'],
       [c.slack, 'Slack alerts', '<code>SLACK_WEBHOOK_ASHLEY</code> and/or <code>SLACK_WEBHOOK_ALEX</code>'],
     ];
+    if (!c.production) rows.push([c.bypass, 'Preview: payment providers can reach this deployment', 'Vercel’s “Protection Bypass for Automation” (Project → Settings → Deployment Protection). Without it CiderPay and PayPal cannot confirm payments on a preview']);
     document.getElementById('connections').innerHTML = rows.map(function (i) {
-      return '<li><span class="status ' + (i[0] ? 'status--ok">OK' : 'status--info">Later') + '</span><span>' + i[1] + (i[0] ? ': keys present' : ': add ' + i[2] + ' in Vercel before the checkout goes live') + '</span></li>';
-    }).join('');
+      return '<li><span class="status ' + (i[0] ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + i[1] + (i[0] ? ': ready' : ': add ' + i[2]) + '</span></li>';
+    }).join('') + '<li><span class="status status--info">Info</span><span>Contact fields to create in ActiveCampaign for the order emails: ' + c.order_fields.map(function (f) { return '<code>' + f + '</code>'; }).join(', ') + '. A missing field is skipped, never blocking the tags.</span></li>';
   }).catch(function (err) {
     document.getElementById('connections').innerHTML = '<li><span class="status status--bad">Error</span><span>' + Admin.esc(err.message) + '</span></li>';
   });

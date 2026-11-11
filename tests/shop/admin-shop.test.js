@@ -59,13 +59,18 @@ test('refuses incomplete or unsafe products', () => {
   bad({ legacy_ids: 'abc' }, /WooCommerce id/);
   bad({ content: { image: 'https://example.com/x.png' } }, /site path/);
   bad({ usd_vat: 'exempt' }, /USD VAT/);
+  bad({ slug: 'complete' }, /already uses/);        // /checkout/complete is the thank-you page
+  bad({ slug: 'order-received' }, /already uses/);  // still a WooCommerce address
+  bad({ content: { page: 'https://evil.example' } }, /page of this site/);
+  bad({ content: { page: '//evil.example' } }, /page of this site/);
+  assert.equal(products.productInput({ ...nsmb, content: { page: '/nsmb' } }).content.page, '/nsmb');
 });
 
 test('a USD-only product without a plan is fine', () => {
   const p = products.productInput({ name: 'X', slug: 'x', price_usd: '99', price_krw: '', instalment_first: '', instalment_monthly: '', instalment_count: '' });
   assert.equal(p.price_krw, null);
   assert.equal(p.status, 'draft');
-  assert.deepEqual(p.content, { summary: '', included: [], image: '', thanks: '' });
+  assert.deepEqual(p.content, { summary: '', included: [], image: '', thanks: '', page: '' });
 });
 
 test('warnings point at likely mistakes without blocking', () => {

@@ -5,9 +5,15 @@
 const db = require('../db.js');
 const pricing = require('../shop/pricing.js');
 const ledger = require('../shop/ledger.js');
+const settings = require('../shop/settings.js');
+const shopConfig = require('../shop/config.js');
+
+const safe = (fn) => { try { return fn(); } catch (_) { return null; } };
 const { userError, text, int, friendlyUnique } = require('./util.js');
 
 const STATUSES = ['draft', 'open', 'closed'];
+// /checkout/complete is the thank-you page; the other two are WooCommerce addresses still redirected to WordPress.
+const RESERVED_SLUGS = ['complete', 'order-received', 'order-pay'];
 const MAX_WON = 100000000;   // ₩100,000,000
 const MAX_CENTS = 10000000;  // $100,000
 
@@ -50,6 +56,7 @@ function productInput(input) {
   const name = text(input.name, { max: 120, required: true, label: 'Name' });
   const slug = text(input.slug, { max: 60, required: true, label: 'Address' }).toLowerCase();
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) throw userError('Address can only use lowercase letters, numbers and hyphens (e.g. nsmb, eft-masterclass)');
+  if (RESERVED_SLUGS.includes(slug)) throw userError(`"${slug}" is an address the site already uses: choose another`);
   const status = String(input.status || 'draft');
   if (!STATUSES.includes(status)) throw userError('Status must be draft, open or closed');
 
@@ -79,11 +86,14 @@ function productInput(input) {
   const c = input.content && typeof input.content === 'object' ? input.content : {};
   const image = text(c.image, { max: 300, label: 'Image' });
   if (image && !/^\/[A-Za-z0-9/_.-]+\.(webp|jpg|jpeg|png)$/.test(image)) throw userError('Image must be a site path to a picture, like /assets/img/shop/nsmb.webp');
+  const page = text(c.page, { max: 100, label: 'Program page' });
+  if (page && !/^\/[a-z0-9]+(?:[/-][a-z0-9]+)*$/.test(page)) throw userError('Program page must be a page of this site, like /eft or /nsmb');
   const content = {
     summary: text(c.summary, { max: 300, label: 'Summary' }),
     included: list(c.included, { max: 12, each: 200, label: 'What’s included' }),
     image,
     thanks: text(c.thanks, { max: 2000, label: 'Thank-you text' }),
+    page,
   };
 
   return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content };
@@ -119,12 +129,7 @@ async function getProduct(id) {
   return row;
 }
 
-const SETTINGS = {
-  // Korean lines shown on the checkout; empty until Ashley provides the wording.
-  checkout_texts: { consent: '', guarantee: '', secure_note: '', paypal_instalments: '' },
-  // Slack messages (webhook addresses are Vercel env vars).
-  notifications: { paid: true, refund: true, instalment_failed: true },
-};
+const SETTINGS = settings.DEFAULTS;
 
 function settingsInput(input) {
   const t = input.checkout_texts || {};
@@ -135,12 +140,7 @@ function settingsInput(input) {
   };
 }
 
-async function readSettings() {
-  const rows = await db.query('SELECT key, value FROM shop_settings');
-  const out = JSON.parse(JSON.stringify(SETTINGS));
-  for (const r of rows) if (out[r.key]) Object.assign(out[r.key], r.value);
-  return out;
-}
+const readSettings = settings.read;
 
 const actions = {
   async 'shop-products'() {
@@ -201,9 +201,18 @@ const actions = {
       settings: await readSettings(),
       // Connection status: names only, never values. Used from phase 2 on.
       connections: {
-        ciderpay: present('CIDERPAY_MEMBER_ID') && present('CIDERPAY_API_TOKEN'),
-        paypal: present('PAYPAL_CLIENT_ID') && present('PAYPAL_SECRET'),
+        secret: shopConfig.configured(),
+        ciderpay: shopConfig.ciderpayConfigured(),
+        paypal: shopConfig.paypalConfigured(),
+        paypal_webhook: present('PAYPAL_WEBHOOK_ID'),
+        paypal_mode: shopConfig.paypalMode(),
         slack: present('SLACK_WEBHOOK_ASHLEY') || present('SLACK_WEBHOOK_ALEX'),
+        activecampaign: present('AC_API_URL') && present('AC_API_KEY'),
+        bypass: shopConfig.isProduction() || present('VERCEL_AUTOMATION_BYPASS_SECRET'),
+        production: shopConfig.isProduction(),
+        // Where the providers must send their notices (the CiderPay address is sent with each payment request).
+        paypal_webhook_url: shopConfig.configured() ? safe(() => shopConfig.callbackUrl('paypal').replace(/x-vercel-protection-bypass=[^&]+/, 'x-vercel-protection-bypass=…')) : null,
+        order_fields: require('../shop/sync.js').ORDER_FIELDS,
       },
     };
   },

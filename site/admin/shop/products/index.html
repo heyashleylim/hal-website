@@ -53,6 +53,7 @@
       <label class="admin-form__wide">Summary <span class="hint">one line under the product name</span><input name="summary" maxlength="300"></label>
       <label class="admin-form__wide">What's included <span class="hint">one line each</span><textarea name="included" rows="5"></textarea></label>
       <label>Image <span class="hint">a picture already on the site, e.g. /assets/img/shop/nsmb.webp</span><input name="image" maxlength="300" autocapitalize="none" spellcheck="false"></label>
+      <label>Program page <span class="hint">where the logo and "back" links go, e.g. /nsmb</span><input name="page" maxlength="100" autocapitalize="none" spellcheck="false"></label>
       <label class="admin-form__wide">Thank-you text <span class="hint">shown after payment</span><textarea name="thanks" rows="4" maxlength="2000"></textarea></label>
 
       <div class="admin-form__actions">
@@ -107,7 +108,7 @@
       products.map(function (p) {
         var state = STATUS[p.status] + (p.status === 'open' && !p.sale.open ? ' <span class="badge badge--info">' + REASON[p.sale.reason] + '</span>' : '');
         var warn = p.warnings.map(function (w) { return '<br><span class="small is-error">' + Admin.esc(w) + '</span>'; }).join('');
-        return '<tr><td>' + Admin.esc(p.name) + '<br><code>/checkout/' + Admin.esc(p.slug) + '</code>' + warn + '</td><td>' + state + '</td>' +
+        return '<tr><td>' + Admin.esc(p.name) + '<br><a href="/checkout/' + Admin.esc(p.slug) + '" target="_blank" rel="noopener"><code>/checkout/' + Admin.esc(p.slug) + '</code></a>' + warn + '</td><td>' + state + '</td>' +
           '<td class="num">' + priceCell(p, 'KRW') + '</td><td class="num">' + priceCell(p, 'USD') + '</td>' +
           '<td>' + (p.purchase_tag ? '<code>' + Admin.esc(p.purchase_tag) + '</code>' : '<span class="muted">–</span>') + '</td>' +
           '<td class="num">' + p.paid_orders + ' paid' + (p.orders > p.paid_orders ? ' <span class="muted">(' + p.orders + ' in all)</span>' : '') + '</td>' +
@@ -129,7 +130,7 @@
       instalment_first: p.instalment_first == null ? '' : p.instalment_first, instalment_monthly: p.instalment_monthly == null ? '' : p.instalment_monthly,
       instalment_count: p.instalment_count == null ? '' : p.instalment_count,
       purchase_tag: p.purchase_tag, extra_tags: (p.extra_tags || []).join(', '), legacy_ids: (p.legacy_ids || []).join(', '),
-      summary: c.summary || '', included: (c.included || []).join('\n'), image: c.image || '', thanks: c.thanks || '',
+      summary: c.summary || '', included: (c.included || []).join('\n'), image: c.image || '', thanks: c.thanks || '', page: c.page || '',
     } : { id: '', status: 'draft', usd_vat: 'taxable' };
     Object.keys(values).forEach(function (k) { form.elements[k].value = values[k]; });
     document.getElementById('slug-echo').textContent = form.slug.value || '…';
@@ -160,7 +161,7 @@
       price_krw: f.price_krw.value.replace(/[,\s₩]/g, ''), price_usd: f.price_usd.value.replace(/[\s$]/g, ''), usd_vat: f.usd_vat.value,
       instalment_first: f.instalment_first.value.replace(/[,\s₩]/g, ''), instalment_monthly: f.instalment_monthly.value.replace(/[,\s₩]/g, ''), instalment_count: f.instalment_count.value,
       purchase_tag: f.purchase_tag.value, extra_tags: f.extra_tags.value, legacy_ids: f.legacy_ids.value,
-      content: { summary: f.summary.value, included: f.included.value, image: f.image.value, thanks: f.thanks.value },
+      content: { summary: f.summary.value, included: f.included.value, image: f.image.value, thanks: f.thanks.value, page: f.page.value },
     }).then(function (r) {
       editor.hidden = true;
       return load().then(function () { showQuote(find(r.product.id)); });

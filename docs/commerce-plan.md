@@ -1,6 +1,7 @@
 # E-commerce — moving checkout, orders and products off WordPress
 
-Status: **approved by Alex on 2026-11-10. Phase 1 in progress on the `shop` branch.**
+Status: **approved by Alex on 2026-11-10. Phase 1 done; phase 2 built on the `shop` branch (2026-11-11) and waiting for
+the real-payment tests of section 10.**
 Open points left are listed in section 8.
 
 Goal: retire WordPress and WooCommerce completely. Products, checkout, payments, orders, refunds, coupons, tax
@@ -19,8 +20,8 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 | Phase | Contents | Done when |
 |---|---|---|
 | **0. Inventory** | WordPress exports, the list of what tags AC today, PayPal app + sandbox, accountant's answers. | The open points of section 8 that block a phase are cleared. |
-| **1. Foundations** (started 2026-11-10, branch `shop`) | Migration `005`, pricing + ledger modules with tests, Shop admin: Products, Orders (read), Settings. | A product can be created in the admin and quoted by the API. |
-| **2. Checkout, pay in full** | Checkout page, Kakao search, CiderPay pay-in-full, PayPal, notices, thank-you page, Slack, AC sync for purchases, dataLayer. | A real ₩1,000 payment and a sandbox $ payment go through on a preview, end to end. |
+| **1. Foundations** ✅ 2026-11-10 | Migration `005`, pricing + ledger modules with tests, Shop admin: Products, Orders (read), Settings. | A product can be created in the admin and quoted by the API. |
+| **2. Checkout, pay in full** (built 2026-11-11, section 10) | Checkout page, Kakao search, CiderPay pay-in-full, PayPal, notices, thank-you page, Slack, AC sync for purchases, dataLayer. | A real ₩1,000 payment and a sandbox $ payment go through on a preview, end to end. **Still to do: Alex's tests in section 10.** |
 | **3. Instalments, refunds, coupons** | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
 | **4. Tax & reports + import** | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
 | **5. Go live** | Section 6, steps 3–6. Vercel Pro. | No payment link points to WordPress. |
@@ -74,7 +75,7 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 |---|---|---|
 | D1 | **Card provider** | ✅ Keep CiderPay. The card step stays on CiderPay's page; everything around it is ours. The payment code sits behind one small interface so another provider can be added later. |
 | D2 | **Billing address** | ✅ Kept, with the Kakao search inline. |
-| D3 | **Two outside scripts on the checkout page only**: Kakao/Daum's address search (`t1.daumcdn.net`, the same one WordPress loads today) and PayPal's button (`paypal.com/sdk/js`). The repo rule is "no new third-party script without asking", hence the question. | ✅ Approved (Alex left the call to Claude): both are required for the features asked for, and they load nowhere else. No new npm package is needed. |
+| D3 | **Outside scripts on the checkout page.** The repo rule is "no new third-party script without asking". | ✅ One only: Kakao's address search (`t1.kakaocdn.net`; Kakao closes the old `t1.daumcdn.net` address on 2026-11-30). PayPal needs no script after all: the buyer is sent to PayPal's own page and back, like CiderPay (section 10). No new npm package. |
 | D4 | **Order emails** | ✅ Through ActiveCampaign automations, triggered by tags and fields the site sets. |
 | D5 | **Referral or affiliate** | ✅ Customer referral program (추천 프로그램). The engine can take approved outside partners later. |
 | D6 | **Customer accounts** | ✅ No passwords: `/my` sends a sign-in link by email. |
@@ -565,3 +566,86 @@ the daily schedule check).
 - **The card step still happens on CiderPay's page** (D1).
 - **No physical goods**: no shipping, stock or delivery. If Ashley ever sells a book, that's new work.
 - **No tax advice**: the admin records and reports; the accountant decides how figures are declared.
+
+---
+
+## 10. Phase 2 as built (2026-11-11)
+
+**What exists**
+
+| Piece | Where |
+|---|---|
+| Checkout page `/checkout/<product>` and thank-you page `/checkout/complete` | `api/shop-page.js`, rendered by `api/_lib/shop/page.js`; styles `site/assets/css/pages/checkout.css`; browser script `site/assets/js/checkout.js` |
+| Order API (create order, payment status, "purchase event sent") | `api/shop.js` |
+| Provider notices (CiderPay feedback, PayPal webhooks) | `api/shop-callback.js` |
+| Rules | `api/_lib/shop/`: `config.js` (secrets, signatures, addresses), `validate.js` (the form), `orders.js` (orders, recording a payment), `flow.js` (start, confirm), `pay/ciderpay.js`, `pay/paypal.js`, `sync.js` (ActiveCampaign queue), `notify.js` (Slack), `copy.ko.js` (every Korean text) |
+| Database | `db/migrations/006_shop_checkout.sql`: provider columns on orders, `shop_callbacks` (every notice received), `shop_outbox` (ActiveCampaign queue) |
+| Admin | Orders show payments, tax lines, ActiveCampaign updates and provider notices; Overview lists what needs attention; Settings shows which keys this deployment has |
+
+**How a payment is confirmed**
+
+- The browser sends only the product, the currency and the buyer's details. Amounts come from the product.
+- CiderPay: the request carries the order's token and our signature (of token + order number + amount). A notice is
+  accepted only with the secret key in its address, that token, that signature, our merchant id and exactly the
+  expected amount. Anything else is refused, logged, and a Slack alert goes out.
+- PayPal: the buyer approves on PayPal and comes back; our server captures the payment and checks the amount and
+  currency in PayPal's answer. If the buyer never comes back, PayPal's webhook triggers the same capture. Webhooks
+  are checked with PayPal before anything is believed.
+- A payment is recorded once (unique provider reference), together with its tax ledger line and the order's
+  state, in one database statement. A repeated notice changes nothing.
+- Money really received is never dropped: a valid payment for an expired order is accepted; a second payment for
+  a paid order is recorded and flagged for a refund.
+
+**Differences from the plan above**
+
+- **PayPal has no button on our page.** The buyer is redirected to PayPal and back (one flow, works without
+  JavaScript, one fewer outside script).
+- **Instalment plans are not sold yet** (phase 3). A product's plan is stored but the checkout only offers pay in
+  full; `?plan=instalment` is ignored.
+- **No sticky pay button on phones**: the form is short and a fixed bar collides with the keyboard.
+- **Not yet on the checkout**: testimonials, coupons, order bump, abandoned-checkout tags (later phases).
+- **Refunds and cancellations** made at the provider are logged and raise a Slack alert, but the order must be
+  updated by hand until phase 3.
+- **Vercel previews**: providers can only reach a preview through Vercel's "Protection Bypass for Automation".
+
+**How it is tested**
+
+- `npm test`: unit tests of every rule (prices, VAT, signatures, the form, provider answers, pages, ActiveCampaign
+  sending, Slack), no network.
+- `npm run test:shop`: end-to-end. The real endpoints and database statements against fake CiderPay and PayPal
+  (`tools/shop/`), inside a transaction that is rolled back. It plays paying, paying twice, forged notices, wrong
+  amounts, cancelling, declined cards, never returning, late payments, rate limits, and checks the order, the
+  payment, the tax line and the ActiveCampaign queue after each.
+- The `shop-admin` preview runs the same thing in a browser: `/checkout/<product>` leads to a fake payment page
+  with a button for each case.
+- **Not testable without Alex**: a real CiderPay payment (no test mode exists) and a PayPal sandbox payment.
+- **Independent review: not done yet.** A separate reviewer was started on 2026-11-11 to attack the payment code
+  and stopped on a usage limit before reporting anything. To run again before go-live. A second pass by the
+  author found and fixed four points (broken request bodies, rate limits too tight for shared mobile networks,
+  two racing payments not flagged as a double payment, strangers able to add rows to the notice log).
+- **WordPress, urgent and separate:** Kakao closes `t1.daumcdn.net` on 2026-11-30. The WordPress snippet "Add Kakao
+  postcode button…" loads the address search from there: change that address to `t1.kakaocdn.net` in the snippet
+  before that date, or the "우편번호 찾기" button on the current checkout stops working.
+
+**Alex's tests before go-live** (in order; each needs the previous one)
+
+1. Vercel → Project → Settings → Environment Variables, for **Preview**: `SHOP_SECRET` (any random text of 32+
+   characters), `CIDERPAY_MEMBER_ID`, `CIDERPAY_API_TOKEN` (the two values from WooCommerce → Payments → CiderPay),
+   `SLACK_WEBHOOK_ALEX` (optional).
+2. Vercel → Project → Settings → Deployment Protection → **Protection Bypass for Automation** → enable. Redeploy
+   the `shop` preview.
+3. `npm run db:migrate:preview` (adds migration `006` to the preview database).
+4. On the preview: `/admin/shop/settings` must show "ready" for the shop secret, CiderPay and the preview line.
+5. `/admin/shop/products`: create a product "Test", address `test`, status Open, KRW price `1000`, purchase tag
+   `test_shop_purchase`.
+6. Open `/checkout/test` on a phone, pay ₩1,000 with a real card. Expected: back on the thank-you page within
+   seconds; Slack message starting with `[TEST]`; in the admin the order is Paid with one payment, one tax line
+   (₩909 + ₩91) and a notice "paid"; in ActiveCampaign the contact has the tag `test_shop_purchase`.
+7. Refund the ₩1,000 in CiderPay's dashboard. Expected: a Slack alert that CiderPay reports a cancellation (the
+   order itself stays Paid until phase 3).
+8. PayPal: create a REST app at developer.paypal.com (sandbox), add `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` for
+   Preview; create a webhook to the address shown in `/admin/shop/settings` (events: Checkout order approved,
+   Payment capture completed/refunded/denied), add its id as `PAYPAL_WEBHOOK_ID`; redeploy. Give the Test product
+   a USD price, open `/checkout/test?currency=usd`, pay with a sandbox buyer account.
+9. Tell Claude what happened at each step, especially anything unexpected on CiderPay's page (step 6 is the first
+   time the new request format meets the real CiderPay).

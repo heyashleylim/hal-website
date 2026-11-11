@@ -16,7 +16,7 @@
 <header class="admin-bar"></header>
 <main id="main" class="admin-main">
   <h1>Shop</h1>
-  <p class="muted">Products, orders and tax records. The checkout page and payments come in the next phase: until then customers still pay through WordPress, and no order appears here.</p>
+  <p class="muted">Products, orders and tax records. The checkout exists at <code>/checkout/&lt;product&gt;</code> for products set to Open, but the site’s payment links still go to WordPress until the switch.</p>
 
   <section class="admin-card" aria-labelledby="now-title">
     <h2 id="now-title">Now</h2>
@@ -53,6 +53,8 @@
       [a.instalments, 'instalment(s) failed or overdue', 'No failed or overdue instalment'],
       [a.refunds, 'refund(s) requested and not yet confirmed by the payment provider', 'No refund waiting for confirmation'],
       [a.unpaid, 'order(s) started more than an hour ago and still unpaid', 'No unpaid order waiting'],
+      [a.notices, 'notice(s) from a payment provider refused or unusual in the last 14 days (open the order to see why)', 'No refused or unusual payment notice'],
+      [a.ac_failed, 'ActiveCampaign update(s) failed after 8 tries (open the order, then “Send to ActiveCampaign now”)', a.ac_pending ? a.ac_pending + ' ActiveCampaign update(s) waiting to be sent' : 'ActiveCampaign is up to date'],
     ];
     document.getElementById('attention').innerHTML = items.map(function (i) {
       return '<li><span class="status ' + (i[0] ? 'status--bad">' + i[0] : 'status--ok">OK') + '</span><span>' + (i[0] ? i[1] + ' — <a href="/admin/shop/orders">see orders</a>' : i[2]) + '</span></li>';
