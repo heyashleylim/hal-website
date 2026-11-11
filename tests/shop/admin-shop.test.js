@@ -70,7 +70,24 @@ test('a USD-only product without a plan is fine', () => {
   const p = products.productInput({ name: 'X', slug: 'x', price_usd: '99', price_krw: '', instalment_first: '', instalment_monthly: '', instalment_count: '' });
   assert.equal(p.price_krw, null);
   assert.equal(p.status, 'draft');
-  assert.deepEqual(p.content, { summary: '', included: [], image: '', thanks: '', page: '' });
+  assert.deepEqual(p.content, { summary: '', included: [], image: '', thanks: '', page: '', guarantee: '', testimonials: [] });
+});
+
+test('guarantee and reviews are kept exactly as typed', () => {
+  const c = products.productInput({ ...nsmb, content: {
+    guarantee: ' 14일 전액 환불 보장 \n\n프로그램 시작 후 14일 이내에… ',
+    testimonials: '인생의 마스터 키를 쥔 기분. 😭\n둘째 줄\n— 유00, 자영업\n\n\n이름 없는 후기\n\n- 한 줄만 있는 후기',
+  } }).content;
+  assert.equal(c.guarantee, '14일 전액 환불 보장\n프로그램 시작 후 14일 이내에…');
+  assert.deepEqual(c.testimonials, [
+    { text: '인생의 마스터 키를 쥔 기분. 😭\n둘째 줄', name: '유00, 자영업' },
+    { text: '이름 없는 후기', name: '' },
+    { text: '- 한 줄만 있는 후기', name: '' },   // a single line starting with a dash is the review itself
+  ]);
+  // saving what the form shows again changes nothing
+  assert.deepEqual(products.testimonials(c.testimonials), c.testimonials);
+  assert.throws(() => products.productInput({ ...nsmb, content: { testimonials: Array(7).fill('후기').join('\n\n') } }), /at most 6/);
+  assert.throws(() => products.productInput({ ...nsmb, content: { guarantee: 'x'.repeat(801) } }), /Guarantee is too long/);
 });
 
 test('warnings point at likely mistakes without blocking', () => {

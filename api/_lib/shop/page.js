@@ -20,17 +20,17 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':
 // JSON placed inside a <script> element: nothing in it may close the element or start a comment.
 const json = (value) => JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 
-let bizCache = null;
-// The legal business details, exactly as in the site footer.
-function businessDetails() {
-  if (bizCache != null) return bizCache;
-  try {
-    const html = fs.readFileSync(path.join(SITE, 'index.html'), 'utf8');
-    bizCache = (html.match(/<p class="site-footer__biz">[\s\S]*?<\/p>/) || [''])[0];
-  } catch (_) {
-    bizCache = '';
-  }
-  return bizCache;
+let chromeCache = null;
+// The site's own header and footer, read from the pages that define them (CLAUDE.md: header in
+// site/nsmb/index.html, footer in site/index.html), so the checkout always matches the rest of the site.
+function siteChrome() {
+  if (chromeCache) return chromeCache;
+  const read = (file) => { try { return fs.readFileSync(path.join(SITE, file), 'utf8'); } catch (_) { return ''; } };
+  chromeCache = {
+    header: (read('nsmb/index.html').match(/<header class="site-header">[\s\S]*?<\/header>/) || [''])[0],
+    footer: (read('index.html').match(/<footer class="site-footer">[\s\S]*?<\/footer>/) || [''])[0],
+  };
+  return chromeCache;
 }
 
 // The consent line may link to the policies. Only <a href="/site-path"> survives; everything else is text.
@@ -65,7 +65,7 @@ const analytics = `<script>window.va = window.va || function () { (window.vaq = 
  *   data        JSON for checkout.js (<script type="application/json" id="co-data">)
  *   beforeTags  inline script that must run before GTM (the thank-you page hides the order token from tags)
  */
-function layout({ title, body, data = null, beforeTags = '', home = '/', refresh = null }) {
+function layout({ title, body, data = null, beforeTags = '', refresh = null }) {
   return `<!doctype html>
 <html lang="ko">
 <head>
@@ -80,27 +80,19 @@ ${refresh ? `<noscript><meta http-equiv="refresh" content="${esc(refresh)}"></no
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/header.css">
+<link rel="stylesheet" href="/assets/css/footer.css">
 <link rel="stylesheet" href="/assets/css/pages/checkout.css">
 ${analytics}
 </head>
 <body class="co">
 ${gtmBody}
 <a class="skip" href="#main">${esc(copy.skip)}</a>
-<header class="co-head">
-  <div class="co-head__in">
-    <a class="co-head__logo" href="${esc(home)}" aria-label="Ashley Lim"><img src="/assets/img/shared/logo.webp" alt="Ashley Lim" width="348" height="80"></a>
-    <p class="co-head__secure"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M7 10V7a5 5 0 0 1 10 0v3h1.5A1.5 1.5 0 0 1 20 11.5v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-8A1.5 1.5 0 0 1 5.5 10zm2 0h6V7a3 3 0 0 0-6 0z" fill="currentColor"/></svg>${esc(copy.secure)}</p>
-  </div>
-</header>
+${siteChrome().header}
 <main id="main" class="co-main">
 ${body}
 </main>
-<footer class="co-foot">
-  <div class="co-foot__in">
-    ${businessDetails().replace('site-footer__biz', 'co-foot__biz')}
-    <p class="co-foot__links"><a href="/terms-and-conditions">이용약관</a><a href="/refund-policy">환불정책</a><a href="/privacy-policy">개인정보처리방침</a></p>
-  </div>
-</footer>
+${siteChrome().footer}
 ${data ? `<script type="application/json" id="co-data">${json(data)}</script>\n` : ''}<script src="/assets/js/checkout.js" defer></script>
 </body>
 </html>`;
@@ -123,41 +115,60 @@ function field({ name, label, value = '', error = '', hint = '', type = 'text', 
 
 const errorText = (errors, name) => (errors && errors[name] ? copy.errors[errors[name]] || copy.problems.invalid : '');
 
-// The order summary: what is being bought and what it costs.
-function summary(product, offer) {
+const LOCK = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M7 10V7a5 5 0 0 1 10 0v3h1.5A1.5 1.5 0 0 1 20 11.5v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-8A1.5 1.5 0 0 1 5.5 10zm2 0h6V7a3 3 0 0 0-6 0z" fill="currentColor"/></svg>';
+const TICK = '<svg class="co-tick" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M6.4 11.6 3.2 8.4l1.1-1.1 2.1 2.1 5.3-5.3 1.1 1.1z" fill="currentColor"/></svg>';
+
+// One numbered step of the form.
+function step(n, title, inner) {
+  return `<fieldset class="co-step">
+        <legend><span class="co-step__n" aria-hidden="true">${n}</span>${esc(title)}</legend>
+        ${inner}
+      </fieldset>`;
+}
+
+// Beside the form: what the buyer gets, the guarantee, what others said. All of it comes from the product
+// (set in the admin); a part with nothing to show is left out.
+function side(product, texts) {
   const c = product.content || {};
   const included = Array.isArray(c.included) ? c.included.filter(Boolean) : [];
   const image = c.image && /^\/[A-Za-z0-9/_.-]+\.(webp|jpg|jpeg|png)$/.test(c.image) ? c.image : '';
-  const total = pricing.formatMoney(offer.total, offer.currency);
-  return `<aside class="co-sum" aria-labelledby="co-sum-title">
-    <h2 class="co-sum__title" id="co-sum-title">${esc(copy.summary.title)}</h2>
-    <div class="co-sum__product">
-      ${image ? `<img class="co-sum__img" src="${esc(image)}" alt="" width="72" height="72">` : ''}
-      <div>
-        <p class="co-sum__name">${esc(product.name)}</p>
-        ${c.summary ? `<p class="co-sum__desc">${esc(c.summary)}</p>` : ''}
-      </div>
-    </div>
-    ${included.length ? `<details class="co-sum__more" open>
-      <summary>${esc(copy.summary.included)}</summary>
-      <ul class="co-sum__list">${included.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
-    </details>` : ''}
-    <dl class="co-sum__total">
-      <dt>${esc(copy.summary.total)}</dt>
-      <dd><strong data-total>${esc(total)}</strong>${offer.vat > 0 ? `<span class="co-sum__vat">${esc(copy.summary.vat(pricing.formatMoney(offer.vat, offer.currency)))}</span>` : ''}</dd>
-    </dl>
-  </aside>`;
+  const guarantee = String(c.guarantee || texts.guarantee || '').trim();
+  const [gTitle, ...gBody] = guarantee.split('\n').map((x) => x.trim()).filter(Boolean);
+  const reviews = Array.isArray(c.testimonials) ? c.testimonials.filter((r) => r && r.text) : [];
+  const parts = [];
+  if (image || included.length) {
+    parts.push(`<section class="co-box" aria-labelledby="co-inc-title">
+      ${image ? `<img class="co-box__img" src="${esc(image)}" alt="" width="640" height="360" loading="lazy">` : ''}
+      ${included.length ? `<h2 class="co-box__title" id="co-inc-title">${esc(copy.side.included)}</h2>
+      <ul class="co-list">${included.map((x) => `<li>${TICK}<span>${esc(x)}</span></li>`).join('')}</ul>` : `<h2 class="sr-only" id="co-inc-title">${esc(product.name)}</h2>`}
+    </section>`);
+  }
+  if (gTitle) {
+    parts.push(`<section class="co-box co-box--guarantee" aria-labelledby="co-g-title">
+      <h2 class="co-box__title" id="co-g-title">${esc(gTitle)}</h2>
+      ${gBody.map((x) => `<p>${esc(x)}</p>`).join('')}
+    </section>`);
+  }
+  if (reviews.length) {
+    parts.push(`<section class="co-reviews" aria-labelledby="co-r-title">
+      <h2 class="co-box__title" id="co-r-title">${esc(copy.side.reviews)}</h2>
+      ${reviews.map((r) => `<figure class="t-card co-review"><blockquote class="t-card__body">${esc(r.text).replace(/\n/g, '<br>')}</blockquote>${r.name ? `<figcaption class="t-card__by">${esc(r.name)}</figcaption>` : ''}</figure>`).join('')}
+    </section>`);
+  }
+  parts.push(`<p class="co-help">${esc(copy.closed.contact)}</p>`);
+  return `<aside class="co-side">${parts.join('\n')}</aside>`;
 }
 
 /*
- * The checkout page.
+ * The checkout page: an order form in the ThriveCart / ClickFunnels manner. One column of numbered steps
+ * (who, where, how to pay), the order and its total right above one large button, and beside it what the
+ * buyer gets, the guarantee and reviews.
  *   product, offers   the product and its priced offers (orders.offers)
  *   currency          'KRW' | 'USD' being shown
  *   values, errors    what the buyer typed and the problems found (after a failed submit without JavaScript)
  *   problem           a code from copy.problems to show above the form
  *   settings          shop settings (checkout_texts)
  *   query             campaign values to carry through the form
- *   status            HTTP status the caller will send (only used for the title)
  */
 function checkoutPage({ product, offers, currency, values = {}, errors = null, problem = '', settings = {}, query = {} }) {
   const mine = offers.filter((o) => o.currency === currency);
@@ -165,23 +176,32 @@ function checkoutPage({ product, offers, currency, values = {}, errors = null, p
   const other = offers.find((o) => o.currency !== currency);
   const texts = (settings && settings.checkout_texts) || {};
   const isUsd = currency === 'USD';
-  const payLabel = copy.pay(pricing.formatMoney(offer.dueToday, offer.currency));
+  const price = pricing.formatMoney(offer.dueToday, offer.currency);
+  const payLabel = copy.pay(price);
   const v = (name) => (values && values[name] != null ? String(values[name]) : '');
   const source = validate.sourceInput(query);
   const switchUrl = other ? `/checkout/${product.slug}${other.currency === 'USD' ? '?currency=usd' : ''}` : '';
+  const c = product.content || {};
 
-  const address = isUsd
+  const me = `<div class="co-fields">
+          ${field({ name: 'name', label: copy.fields.name, value: v('name'), error: errorText(errors, 'name'), attrs: 'autocomplete="name" maxlength="60" required' })}
+          ${field({ name: 'phone', label: copy.fields.phone, value: v('phone'), error: errorText(errors, 'phone'), type: 'tel', attrs: `autocomplete="tel" inputmode="tel" maxlength="20" required${isUsd ? ' placeholder="+1 415 555 0123"' : ' placeholder="010-1234-5678"'}` })}
+          ${field({ name: 'email', label: copy.fields.email, value: v('email'), error: errorText(errors, 'email'), hint: copy.fields.emailHint, type: 'email', wide: true, attrs: 'autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" required' })}
+        </div>`;
+
+  const address = `<div class="co-fields">
+          ${isUsd
     ? `<div class="co-field${errors && errors.country ? ' is-invalid' : ''}" data-field="country">
       <label for="co-country">${esc(copy.fields.country)}</label>
       <select id="co-country" name="country" autocomplete="country" required aria-describedby="country-error"${errors && errors.country ? ' aria-invalid="true"' : ''}>
         <option value="">${esc(copy.fields.chooseCountry)}</option>
-        ${validate.countries().map((c) => `<option value="${esc(c.code)}"${v('country') === c.code ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
+        ${validate.countries().map((x) => `<option value="${esc(x.code)}"${v('country') === x.code ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}
       </select>
       <p class="co-field__error" id="country-error" role="alert">${esc(errorText(errors, 'country'))}</p>
     </div>
+    ${field({ name: 'postcode', label: copy.fields.postcodeOptional, value: v('postcode'), error: errorText(errors, 'postcode'), attrs: 'autocomplete="postal-code" maxlength="20"' })}
     ${field({ name: 'address1', label: copy.fields.address1, value: v('address1'), error: errorText(errors, 'address1'), wide: true, attrs: 'autocomplete="address-line1" maxlength="200" required' })}
-    ${field({ name: 'address2', label: copy.fields.address2, value: v('address2'), error: errorText(errors, 'address2'), hint: copy.fields.address2Hint, attrs: 'autocomplete="address-line2" maxlength="100"' })}
-    ${field({ name: 'postcode', label: copy.fields.postcodeOptional, value: v('postcode'), error: errorText(errors, 'postcode'), attrs: 'autocomplete="postal-code" maxlength="20"' })}`
+    ${field({ name: 'address2', label: copy.fields.address2, value: v('address2'), error: errorText(errors, 'address2'), hint: copy.fields.address2Hint, wide: true, attrs: 'autocomplete="address-line2" maxlength="100"' })}`
     : `<div class="co-postcode">
       ${field({ name: 'postcode', label: copy.fields.postcode, value: v('postcode'), error: errorText(errors, 'postcode'), attrs: 'autocomplete="postal-code" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" required data-kakao' })}
       <button class="co-search" type="button" id="co-search" hidden>${esc(copy.fields.search)}</button>
@@ -191,18 +211,19 @@ function checkoutPage({ product, offers, currency, values = {}, errors = null, p
       <div class="co-kakao__frame" id="co-kakao-frame" role="region" aria-labelledby="co-kakao-title"></div>
     </div>
     ${field({ name: 'address1', label: copy.fields.address1, value: v('address1'), error: errorText(errors, 'address1'), wide: true, attrs: 'autocomplete="address-line1" maxlength="200" required data-kakao' })}
-    ${field({ name: 'address2', label: copy.fields.address2, value: v('address2'), error: errorText(errors, 'address2'), hint: copy.fields.address2Hint, wide: true, attrs: 'autocomplete="address-line2" maxlength="100"' })}`;
+    ${field({ name: 'address2', label: copy.fields.address2, value: v('address2'), error: errorText(errors, 'address2'), hint: copy.fields.address2Hint, wide: true, attrs: 'autocomplete="address-line2" maxlength="100"' })}`}
+        </div>`;
 
-  const method = `<div class="co-method is-selected">
-      <input type="radio" name="plan" id="co-plan-full" value="full" checked>
-      <label for="co-plan-full">
-        <span class="co-method__name">${isUsd ? esc(copy.methods.paypal) : `${esc(copy.methods.card)} · ${esc(copy.methods.cardFull)}`}</span>
-        <span class="co-method__price">${esc(pricing.formatMoney(offer.dueToday, offer.currency))}</span>
-        <span class="co-method__note">${esc(isUsd ? copy.methods.paypalNote : copy.methods.redirectCard)}</span>
-        ${isUsd && texts.paypal_instalments ? `<span class="co-method__note">${esc(texts.paypal_instalments)}</span>` : ''}
-      </label>
-    </div>
-    ${other ? `<p class="co-switch"><a href="${esc(switchUrl)}">${esc(other.currency === 'USD' ? copy.methods.toUsd : copy.methods.toKrw)}</a></p>` : ''}`;
+  const method = `<div class="co-method">
+          <input type="radio" name="plan" id="co-plan-full" value="full" checked>
+          <label for="co-plan-full">
+            <span class="co-method__name">${isUsd ? esc(copy.methods.paypal) : `${esc(copy.methods.card)} · ${esc(copy.methods.cardFull)}`}</span>
+            <span class="co-method__price">${esc(price)}</span>
+            <span class="co-method__note">${esc(isUsd ? copy.methods.paypalNote : copy.methods.redirectCard)}</span>
+            ${isUsd && texts.paypal_instalments ? `<span class="co-method__note">${esc(texts.paypal_instalments)}</span>` : ''}
+          </label>
+        </div>
+        ${other ? `<p class="co-switch"><a href="${esc(switchUrl)}">${esc(other.currency === 'USD' ? copy.methods.toUsd : copy.methods.toKrw)}</a></p>` : ''}`;
 
   const data = {
     slug: product.slug, currency, plan: offer.plan, payLabel, paying: copy.paying,
@@ -213,46 +234,41 @@ function checkoutPage({ product, offers, currency, values = {}, errors = null, p
     value: offer.currency === 'USD' ? offer.total / 100 : offer.total,
   };
 
-  const body = `<div class="co-grid">
-  <div class="co-col">
-    <h1 class="co-title">${esc(copy.title)}</h1>
-    <p class="co-problem" id="co-problem" role="alert"${problem ? '' : ' hidden'}>${esc(problem ? copy.problems[problem] || copy.problems.server : '')}</p>
+  const body = `<div class="co-wrap">
+  <header class="co-hero">
+    <p class="co-badge">${LOCK}${esc(copy.secure)}</p>
+    <h1 class="co-title">${esc(product.name)}</h1>
+    ${c.summary ? `<p class="co-sub">${esc(c.summary)}</p>` : ''}
+    <p class="co-price"><strong>${esc(pricing.formatMoney(offer.total, offer.currency))}</strong>${offer.vat > 0 ? `<span>${esc(copy.summary.vat(pricing.formatMoney(offer.vat, offer.currency)))}</span>` : ''}</p>
+  </header>
+  <div class="co-grid">
     <form class="co-form" id="co-form" method="post" action="/api/shop?action=order" novalidate>
+      <p class="co-problem" id="co-problem" role="alert"${problem ? '' : ' hidden'}>${esc(problem ? copy.problems[problem] || copy.problems.server : '')}</p>
       <input type="hidden" name="slug" value="${esc(product.slug)}">
       <input type="hidden" name="currency" value="${esc(currency)}">
       ${Object.entries(source).map(([k, val]) => `<input type="hidden" name="${esc(k)}" value="${esc(val)}">`).join('')}
 
-      <fieldset class="co-set">
-        <legend>${esc(copy.sections.me)}</legend>
-        <div class="co-fields">
-          ${field({ name: 'name', label: copy.fields.name, value: v('name'), error: errorText(errors, 'name'), attrs: 'autocomplete="name" maxlength="60" required' })}
-          ${field({ name: 'phone', label: copy.fields.phone, value: v('phone'), error: errorText(errors, 'phone'), type: 'tel', attrs: `autocomplete="tel" inputmode="tel" maxlength="20" required${isUsd ? ' placeholder="+1 415 555 0123"' : ' placeholder="010-1234-5678"'}` })}
-          ${field({ name: 'email', label: copy.fields.email, value: v('email'), error: errorText(errors, 'email'), hint: copy.fields.emailHint, type: 'email', wide: true, attrs: 'autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" required' })}
-        </div>
-      </fieldset>
+      ${step(1, copy.sections.me, me)}
+      ${step(2, copy.sections.address, address)}
+      ${step(3, copy.sections.method, method)}
 
-      <fieldset class="co-set">
-        <legend>${esc(copy.sections.address)}</legend>
-        <div class="co-fields">
-          ${address}
-        </div>
-      </fieldset>
+      <section class="co-order" aria-labelledby="co-order-title">
+        <h2 class="co-order__title" id="co-order-title">${esc(copy.summary.title)}</h2>
+        <dl>
+          <div class="co-order__row"><dt>${esc(product.name)}</dt><dd>${esc(price)}</dd></div>
+          <div class="co-order__row co-order__row--total"><dt>${esc(copy.summary.total)}</dt><dd><strong data-total>${esc(pricing.formatMoney(offer.total, offer.currency))}</strong>${offer.vat > 0 ? `<span class="co-order__vat">${esc(copy.summary.vat(pricing.formatMoney(offer.vat, offer.currency)))}</span>` : ''}</dd></div>
+        </dl>
+      </section>
 
-      <fieldset class="co-set">
-        <legend>${esc(copy.sections.method)}</legend>
-        ${method}
-      </fieldset>
-
-      <p class="co-consent">${consentHtml(texts.consent)}</p>
-      <button class="btn btn--block co-pay" type="submit" id="co-pay">${esc(payLabel)}</button>
+      <button class="btn btn--block co-pay${isUsd ? ' co-pay--paypal' : ''}" type="submit" id="co-pay">${esc(payLabel)}</button>
       <p class="co-wait" id="co-wait" role="status" aria-live="polite"></p>
-      ${texts.guarantee ? `<p class="co-note co-note--guarantee">${esc(texts.guarantee)}</p>` : ''}
-      ${texts.secure_note ? `<p class="co-note">${esc(texts.secure_note)}</p>` : ''}
+      ${texts.secure_note ? `<p class="co-secure">${LOCK}<span>${esc(texts.secure_note)}</span></p>` : ''}
+      <p class="co-consent">${consentHtml(texts.consent)}</p>
     </form>
+    ${side(product, texts)}
   </div>
-  ${summary(product, offer)}
 </div>`;
-  return layout({ title: `${copy.title} · ${product.name}`, body, data, home: homeOf(product) });
+  return layout({ title: `${copy.title} · ${product.name}`, body, data });
 }
 
 // The product exists but isn't on sale.
@@ -260,7 +276,7 @@ function closedPage({ product, reason }) {
   const why = reason === 'not_started' ? copy.closed.notStarted : reason === 'ended' ? copy.closed.ended : copy.closed.closed;
   const home = homeOf(product);
   return layout({
-    title: copy.closed.title, home,
+    title: copy.closed.title,
     body: `<section class="co-card co-card--center">
   <h1 class="co-title">${esc(copy.closed.title)}</h1>
   <p class="co-lead">${esc(product.name)}</p>
@@ -321,7 +337,6 @@ function completePage({ order, product = null, receiptUrl = '', slow = false, tr
 </section>`,
     });
   }
-  const home = homeOf(product);
   const retryUrl = product ? `/checkout/${product.slug}${order.currency === 'USD' ? '?currency=usd' : ''}` : '/';
   const amount = pricing.formatMoney(order.due_today, order.currency);
 
@@ -339,7 +354,7 @@ function completePage({ order, product = null, receiptUrl = '', slow = false, tr
       },
     };
     return layout({
-      title: c.paidTitle, home, data, beforeTags: hideToken,
+      title: c.paidTitle, data, beforeTags: hideToken,
       body: `<section class="co-card co-card--center co-done">
   <p class="co-done__mark" aria-hidden="true"><svg viewBox="0 0 48 48" width="48" height="48" focusable="false"><circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" stroke-width="3"/><path d="M14 24.5l7 7 13-14" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></p>
   <h1 class="co-title">${esc(c.paidTitle)}</h1>
@@ -359,7 +374,7 @@ function completePage({ order, product = null, receiptUrl = '', slow = false, tr
 
   if (order.status === 'refunded') {
     return layout({
-      title: c.refundedTitle, home, beforeTags: hideToken,
+      title: c.refundedTitle, beforeTags: hideToken,
       body: `<section class="co-card co-card--center">
   <h1 class="co-title">${esc(c.refundedTitle)}</h1>
   <p>${esc(c.refundedLead)}</p>
@@ -369,7 +384,7 @@ function completePage({ order, product = null, receiptUrl = '', slow = false, tr
 
   if (order.status === 'expired' || order.status === 'cancelled') {
     return layout({
-      title: c.endedTitle, home, beforeTags: hideToken, data: { complete: 'ended' },
+      title: c.endedTitle, beforeTags: hideToken, data: { complete: 'ended' },
       body: `<section class="co-card co-card--center">
   <h1 class="co-title">${esc(c.endedTitle)}</h1>
   <p>${esc(c.endedLead)}</p>
@@ -382,7 +397,7 @@ function completePage({ order, product = null, receiptUrl = '', slow = false, tr
   // Not confirmed yet: the page checks again by itself (checkout.js; a timed reload without JavaScript).
   const next = `/checkout/complete?o=${encodeURIComponent(order.token)}&n=${tries + 1}`;
   return layout({
-    title: slow ? c.slowTitle : c.pendingTitle, home,
+    title: slow ? c.slowTitle : c.pendingTitle,
     refresh: slow ? null : `4;url=${next}`,
     data: { complete: 'pending', token: order.token, slowTitle: c.slowTitle, slowLead: c.slowLead },
     beforeTags: hideToken,
@@ -400,4 +415,4 @@ function completePage({ order, product = null, receiptUrl = '', slow = false, tr
   });
 }
 
-module.exports = { checkoutPage, closedPage, notFoundPage, errorPage, completePage, consentHtml, esc, json, businessDetails, GTM_ID };
+module.exports = { checkoutPage, closedPage, notFoundPage, errorPage, completePage, consentHtml, esc, json, siteChrome, GTM_ID };

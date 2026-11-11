@@ -51,6 +51,31 @@ function list(value, { max, each, label }) {
   return items;
 }
 
+// Text that keeps its line breaks (the first line is a title): trimmed lines, no blank ones.
+function lines(value, { max, label }) {
+  const s = String(value == null ? '' : value).split(/\r?\n/).map((x) => x.trim()).filter(Boolean).join('\n');
+  if (s.length > max) throw userError(`${label} is too long (max ${max} characters)`);
+  return s;
+}
+
+// Reviews for the checkout, typed as blocks separated by an empty line; a last line starting with a dash is
+// the name ("— 김00, 회사원"). The text is kept exactly as typed (CLAUDE.md: testimonials are verbatim).
+function testimonials(value) {
+  if (Array.isArray(value)) value = value.map((r) => (r && r.text ? r.text + (r.name ? '\n— ' + r.name : '') : '')).join('\n\n');
+  const blocks = String(value == null ? '' : value).replace(/\r/g, '').split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  if (blocks.length > 6) throw userError('Reviews: at most 6 on the checkout');
+  return blocks.map((block) => {
+    const rows = block.split('\n');
+    const last = rows[rows.length - 1].trim();
+    const named = rows.length > 1 && /^[—–-]\s*\S/.test(last);
+    const body = (named ? rows.slice(0, -1) : rows).join('\n').trim();
+    const name = named ? last.replace(/^[—–-]\s*/, '').trim() : '';
+    if (body.length > 1200) throw userError('Reviews: one review is too long for the checkout (max 1,200 characters)');
+    if (name.length > 80) throw userError('Reviews: a name is too long');
+    return { text: body, name };
+  });
+}
+
 // Checks what the product form sends and returns the columns to store. Pure: tested in tests/shop/admin-shop.test.js.
 function productInput(input) {
   const name = text(input.name, { max: 120, required: true, label: 'Name' });
@@ -94,6 +119,8 @@ function productInput(input) {
     image,
     thanks: text(c.thanks, { max: 2000, label: 'Thank-you text' }),
     page,
+    guarantee: lines(c.guarantee, { max: 800, label: 'Guarantee' }),
+    testimonials: testimonials(c.testimonials),
   };
 
   return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content };
@@ -229,4 +256,4 @@ const actions = {
 
 const writes = ['shop-product-save', 'shop-product-delete', 'shop-settings-save'];
 
-module.exports = { section: 'shop', actions, writes, productInput, settingsInput, cents, seoulTime, warnings };
+module.exports = { section: 'shop', actions, writes, productInput, settingsInput, cents, seoulTime, warnings, testimonials };
