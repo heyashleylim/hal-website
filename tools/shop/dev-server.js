@@ -13,6 +13,7 @@
  * create (products, orders, payments) disappears on exit. It uses the previews' database
  * (PODCAST_DATABASE_URL) when set, otherwise DATABASE_URL. CiderPay and PayPal are always the fakes here,
  * whatever keys are in .env.local; ActiveCampaign and Slack are switched off. It listens on localhost only.
+ * The Emails section's "Sync now" reads made-up campaigns (tools/emails/fake-ac.js), never the real ActiveCampaign.
  *
  * tools/shop/e2e.js starts the same server to run the end-to-end checks.
  */
@@ -85,6 +86,9 @@ async function start({ port = Number(process.env.PORT || 8793), quiet = false } 
   };
   Object.assign(process.env, fakeEnv);
   for (const name of ['AC_API_KEY', 'AC_API_URL', 'VERCEL_ENV', 'VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_AUTOMATION_BYPASS_SECRET', 'SLACK_WEBHOOK_ASHLEY', 'SLACK_WEBHOOK_ALEX']) delete process.env[name];
+
+  // The Emails section syncs from a made-up ActiveCampaign.
+  require(path.join(root, 'api', '_lib', 'emails', 'ac-sync.js')).setClient(require(path.join(root, 'tools', 'emails', 'fake-ac.js')).create({ now: new Date() }).request);
 
   const auth = require(path.join(root, 'api', '_lib', 'auth.js'));
   const handlers = {

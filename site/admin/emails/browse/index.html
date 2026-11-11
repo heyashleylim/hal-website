@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>All emails · Emails · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="emails">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <h1>All emails</h1>
+
+  <form class="filters" id="filters" role="search">
+    <label>Search <input type="search" name="q" placeholder="Name, subject or words in the email" maxlength="100"></label>
+    <label>Performance <select name="level">
+      <option value="">All</option><option value="top">Outliers</option><option value="good">Above usual and outliers</option><option value="low">Low</option><option value="unscored">Not scored</option>
+    </select></label>
+    <label>Send again? <select name="resend">
+      <option value="">All</option><option value="marked">Yes or Maybe</option><option value="yes">Yes</option><option value="maybe">Maybe</option><option value="no">No</option><option value="done">Sent again</option><option value="none">Not marked</option>
+    </select></label>
+    <label>Source <select name="source"><option value="">All</option><option value="import">Spreadsheet</option><option value="ac">ActiveCampaign</option></select></label>
+    <label>Type <select name="kind"><option value="">All</option><option value="campaign">Broadcasts</option><option value="automation">Automation emails</option></select></label>
+    <label>From <input type="date" name="from"></label>
+    <label>To <input type="date" name="to"></label>
+    <label>Sort by <select name="sort">
+      <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="score">Best score</option><option value="open">Open rate</option><option value="click">Click rate</option><option value="sent">Audience size</option>
+    </select></label>
+    <button data-tip="Show the emails that match the search and the filters chosen" class="btn-sm" type="submit">Search</button>
+    <button data-tip="Clear the search and every filter, and show all emails" class="btn-ghost" type="button" id="clear-filters">Reset</button>
+  </form>
+
+  <section class="admin-card" aria-label="Emails">
+    <p class="muted" id="count" role="status" style="margin-bottom:12px"></p>
+    <div id="list" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+</main>
+
+<dialog class="reader" id="reader" aria-labelledby="reader-title">
+  <div class="reader__bar">
+    <div class="admin-actions">
+      <button data-tip="Open the previous email of the list (left arrow key)" class="btn-ghost" type="button" id="prev">← Previous</button>
+      <button data-tip="Open the next email of the list (right arrow key)" class="btn-ghost" type="button" id="next">Next →</button>
+      <span class="muted small" id="position"></span>
+    </div>
+    <button data-tip="Close this email and go back to the list (Esc)" class="btn-ghost" type="button" id="close">Close</button>
+  </div>
+  <div class="reader__body" id="reader-body" tabindex="-1"></div>
+</dialog>
+
+<script src="/assets/js/admin/admin.js"></script>
+<script src="/assets/js/admin/emails.js"></script>
+<script>
+(function () {
+  var E = AdminEmails, esc = Admin.esc;
+  var form = document.getElementById('filters'), list = document.getElementById('list'), count = document.getElementById('count');
+  var reader = document.getElementById('reader'), body = document.getElementById('reader-body');
+  var FIELDS = ['q', 'level', 'resend', 'source', 'kind', 'from', 'to', 'sort'];
+  var emails = [], current = -1;
+
+  // The filters live in the address, so a filtered list can be bookmarked or linked from the Overview.
+  var params = new URLSearchParams(location.search);
+  FIELDS.forEach(function (f) { if (params.get(f)) form[f].value = params.get(f); });
+  function values() {
+    var v = {};
+    FIELDS.forEach(function (f) { var x = form[f].value.trim(); if (x && !(f === 'sort' && x === 'newest')) v[f] = x; });
+    return v;
+  }
+  function remember(openId) {
+    var q = new URLSearchParams(values());
+    if (openId) q.set('open', openId);
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
+  }
+
+  function row(e, i) {
+    return '<tr class="email-row" data-i="' + i + '">' +
+      '<td class="num">' + E.day(e.sent_at) + '</td>' +
+      '<td class="email-cell"><button data-tip="Read this email, see how it did, and mark it to send again" class="linkish email-name" type="button">' + esc(e.name) + '</button><span class="email-subject" lang="ko">' + esc(e.subject) + '</span>' +
+        '<span class="vs">' + E.source(e) + (e.body_pending ? ' · text not read yet' : '') + (e.has_note ? ' · has a note' : '') + '</span></td>' +
+      '<td class="num">' + e.sent.toLocaleString('en-US') + '</td>' +
+      '<td class="num">' + E.versus(e.open_rate, e.score.open) + '</td>' +
+      '<td class="num">' + E.versus(e.click_rate, e.score.click) + '</td>' +
+      '<td>' + E.score(e.score) + '</td><td>' + E.resend(e.resend) + '</td></tr>';
+  }
+
+  function load(openId) {
+    list.innerHTML = '<p class="admin-empty">Loading…</p>';
+    count.textContent = '';
+    return Admin.get('emails-list', values()).then(function (r) {
+      emails = r.emails;
+      remember(openId);
+      if (!r.total) {
+        list.innerHTML = '<p class="admin-empty">No email here yet. Go to <a href="/admin/emails/sync">Import &amp; sync</a> to import the spreadsheet and copy the emails from ActiveCampaign.</p>';
+        return;
+      }
+      count.textContent = emails.length === r.total ? r.total + ' emails' : emails.length + ' of ' + r.total + ' emails';
+      if (!emails.length) { list.innerHTML = '<p class="admin-empty">No email matches. Try fewer filters.</p>'; return; }
+      list.innerHTML = '<table class="admin-table emails-table"><thead><tr><th>Sent</th><th>Email</th><th>To</th><th>Opened</th><th>Clicked</th><th>Score</th><th>Send again?</th></tr></thead><tbody>' +
+        emails.map(row).join('') + '</tbody></table>';
+      if (openId) {
+        var i = emails.findIndex(function (e) { return String(e.id) === String(openId); });
+        if (i >= 0) open(i);
+      }
+    }).catch(function (err) { list.innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+  }
+
+  form.addEventListener('submit', function (ev) { ev.preventDefault(); load(); });
+  ['level', 'resend', 'source', 'kind', 'from', 'to', 'sort'].forEach(function (f) { form[f].addEventListener('change', function () { load(); }); });
+  // (not id="reset": that would hide form.reset)
+  document.getElementById('clear-filters').addEventListener('click', function () { form.reset(); load(); });
+  list.addEventListener('click', function (ev) {
+    var tr = ev.target.closest('.email-row');
+    if (tr) open(Number(tr.dataset.i));
+  });
+
+  // ---- the reader
+  function fact(label, value) { return '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>'; }
+  // Blank lines doubled by the export are shown as one.
+  function tidy(text) { return String(text || '').replace(/\n[ \t ]*(\n[ \t ]*)+/g, '\n\n').trim(); }
+
+  function open(i) {
+    if (i < 0 || i >= emails.length) return;
+    current = i;
+    var id = emails[i].id;
+    document.getElementById('position').textContent = (i + 1) + ' of ' + emails.length;
+    document.getElementById('prev').disabled = i === 0;
+    document.getElementById('next').disabled = i === emails.length - 1;
+    body.innerHTML = '<p class="admin-empty">Loading…</p>';
+    if (!reader.open) reader.showModal();
+    remember(id);
+    Admin.get('emails-get', { id: id }).then(function (r) {
+      if (current !== i) return; // another email was opened meanwhile
+      var e = r.email, text = tidy(e.body_text);
+      var ctor = e.opened ? e.clicked / e.opened : null;
+      body.innerHTML =
+        '<h2 id="reader-title">' + esc(e.name) + '</h2>' +
+        '<p class="reader__meta">' + Admin.kst(e.sent_at) + ' · ' + E.source(e) +
+          (e.kind === 'automation' && e.last_sent_at ? ' · last sent ' + Admin.kst(e.last_sent_at, false) : '') + '</p>' +
+        '<dl class="facts">' +
+          fact('Sent to', e.sent.toLocaleString('en-US')) +
+          fact('Opened', e.opened.toLocaleString('en-US') + ' · ' + E.pct(e.open_rate)) +
+          fact('Clicked', e.clicked.toLocaleString('en-US') + ' · ' + E.pct(e.click_rate)) +
+          fact('Clicks per open', E.pct(ctor)) +
+          fact('Unsubscribed', e.unsubscribed + (e.sent ? ' · ' + E.pct(e.unsubscribed / e.sent, 2) : '')) +
+          (e.source === 'ac' ? fact('Bounced', e.bounced) : '') +
+        '</dl>' +
+        '<p class="reader__why">' + E.why(e) + '</p>' +
+        '<form class="reader__mark" id="mark">' +
+          '<label>Send again? <select name="resend">' + Object.keys(E.RESEND).map(function (k) {
+            return '<option value="' + k + '"' + (k === e.resend ? ' selected' : '') + '>' + (k ? E.RESEND[k] : 'Not decided') + '</option>';
+          }).join('') + '</select></label>' +
+          '<label class="grow">Note <input name="note" maxlength="2000" value="' + esc(e.note) + '" placeholder="e.g. resend in January, new subject line"></label>' +
+          '<button data-tip="Save the “send again” choice and the note for this email" class="btn-sm" type="submit">Save</button>' +
+          '<span class="muted small" id="mark-out" role="status"></span>' +
+        '</form>' +
+        '<p class="reader__subject" lang="ko">' + (esc(e.subject) || '<span class="muted">Subject not read yet</span>') + '</p>' +
+        (e.preheader ? '<p class="muted" lang="ko">' + esc(e.preheader) + '</p>' : '') +
+        '<div class="reader__tools">' +
+          '<button data-tip="Copy the subject line" class="btn-ghost" type="button" data-copy="subject">Copy subject</button>' +
+          '<button data-tip="Copy the text of the email" class="btn-ghost" type="button" data-copy="text">Copy text</button>' +
+          (e.has_html ? '<button data-tip="Switch between the plain text and the email as it was designed in ActiveCampaign (its images load from ActiveCampaign)" class="btn-ghost" type="button" id="toggle-html">Show designed version</button>' : '') +
+          '<span class="muted small" id="copy-out" role="status"></span>' +
+        '</div>' +
+        (text ? '<div class="reader__text" id="text" lang="ko">' + esc(text) + '</div>' :
+          '<p class="admin-empty" id="text">' + (e.body_pending ? 'The text of this email has not been read from ActiveCampaign yet: the next sync brings it.' : 'This email has no text.') + '</p>') +
+        '<div id="html-slot"></div>';
+      body.scrollTop = 0;
+      body.dataset.subject = e.subject;
+      body.dataset.text = text;
+    }).catch(function (err) { body.innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+  }
+
+  body.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var f = ev.target, out = document.getElementById('mark-out'), e = emails[current];
+    out.textContent = 'Saving…';
+    Admin.post('emails-update', { id: e.id, resend: f.resend.value, note: f.note.value }).then(function (r) {
+      out.textContent = 'Saved.';
+      e.resend = r.email.resend;
+      e.has_note = Boolean(r.email.note);
+      var tr = list.querySelector('.email-row[data-i="' + current + '"]');
+      if (tr) tr.outerHTML = row(e, current);
+    }).catch(function (err) { Admin.say(out, err.message, true); });
+  });
+
+  body.addEventListener('click', function (ev) {
+    var copy = ev.target.closest('[data-copy]'), out = document.getElementById('copy-out');
+    if (copy) {
+      navigator.clipboard.writeText(body.dataset[copy.dataset.copy] || '').then(function () { out.textContent = 'Copied.'; }, function () { Admin.say(out, 'Copying is blocked by the browser: select the text instead.', true); });
+      return;
+    }
+    var toggle = ev.target.closest('#toggle-html');
+    if (!toggle) return;
+    var slot = document.getElementById('html-slot'), text = document.getElementById('text');
+    if (slot.firstChild) { slot.innerHTML = ''; text.hidden = false; toggle.textContent = 'Show designed version'; return; }
+    toggle.disabled = true;
+    Admin.get('emails-html', { id: emails[current].id }).then(function (r) {
+      // A frame that can run nothing and reach nothing of the admin: the email is only displayed.
+      var frame = document.createElement('iframe');
+      frame.className = 'reader__html';
+      frame.setAttribute('sandbox', '');
+      frame.setAttribute('referrerpolicy', 'no-referrer');
+      frame.title = 'The email as designed';
+      frame.srcdoc = r.html;
+      slot.appendChild(frame);
+      text.hidden = true;
+      toggle.textContent = 'Show plain text';
+    }).catch(function (err) { Admin.say(document.getElementById('copy-out'), err.message, true); })
+      .then(function () { toggle.disabled = false; });
+  });
+
+  document.getElementById('prev').addEventListener('click', function () { open(current - 1); });
+  document.getElementById('next').addEventListener('click', function () { open(current + 1); });
+  document.getElementById('close').addEventListener('click', function () { reader.close(); });
+  reader.addEventListener('close', function () { remember(); });
+  reader.addEventListener('click', function (ev) { if (ev.target === reader) reader.close(); }); // click on the backdrop
+  reader.addEventListener('keydown', function (ev) {
+    if (ev.target.closest('input, select, textarea')) return;
+    if (ev.key === 'ArrowLeft') open(current - 1);
+    if (ev.key === 'ArrowRight') open(current + 1);
+  });
+
+  load(params.get('open'));
+})();
+</script>
+</body>
+</html>
