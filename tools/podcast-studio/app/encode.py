@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """
-Prepares podcast episodes for upload: mono MP3 at a fixed bitrate, loudness at -16 LUFS (true peak -1 dB,
-Apple's guideline), and chapters embedded in the file (read by Apple Podcasts, Pocket Casts, Overcast).
+Prepares podcast episodes for upload: mono MP3 (128 kbps by default), as loud as a -16 LUFS stereo file (true
+peak at most -1 dB, Apple's guideline), and chapters embedded in the file (read by Apple Podcasts, Pocket Casts, Overcast).
+
+How the sound is treated (kept as close to the original as possible):
+  1. Stereo is averaged to mono first (recordings and video exports carry the same voice on both sides).
+  2. One fixed volume change brings it to -19 LUFS. A mono file plays on both speakers, so -19 LUFS mono sounds
+     exactly as loud as -16 LUFS stereo (the reported loudness is that "as heard" value).
+  3. A light limiter, oversampled 4x, only catches the rare peaks above -1.5 dB. Nothing else: no compression,
+     no dynamic normalisation (ffmpeg's dynamic loudnorm made voices pump), and no clipping.
 
 Used by Podcast Studio (app/studio.py) and usable on its own, on many files at once.
 Needs ffmpeg (brew install ffmpeg). Any input ffmpeg reads works: MP3, WAV, M4A, or a video export
 (MP4/MOV, e.g. from CapCut): only the audio is kept.
 
     python3 app/encode.py ~/Podcast/module-*.mp3
-    python3 app/encode.py ~/Podcast/*.mp4 --bitrate 64 --out ~/Podcast/ready
+    python3 app/encode.py ~/Podcast/*.mp4 --bitrate 160 --out ~/Podcast/ready
 
 Chapters (optional): next to each input, a text file with the same name and ".chapters.txt",
 e.g. module-01.mp3 → module-01.chapters.txt, one chapter per line, start time then title:
@@ -27,7 +34,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-TARGET_I, TARGET_TP, TARGET_LRA = -16.0, -1.0, 11.0
+TARGET_TP = -1.0          # dBTP, measured on the final MP3
+MONO_I = -19.0            # LUFS for a mono file = -16 LUFS stereo as heard
+AS_HEARD = 3.0            # dB added when reporting a mono file's loudness as heard (both speakers)
+LIMIT_DB = -1.5           # limiter ceiling before encoding (the MP3 encoder adds a few tenths of a dB)
+BITRATES = (96, 128, 160, 192)
+DEFAULT_BITRATE = 128
 
 
 class EncodeError(Exception):
@@ -101,10 +113,28 @@ def _ffmpeg_with_progress(cmd, total, on_progress, lo, hi):
     return proc.returncode, err
 
 
-def measure(path, total=None, on_progress=None, lo=0, hi=0):
-    """Loudness measurement (ffmpeg loudnorm, first pass). Returns ffmpeg's JSON fields."""
-    cmd = ['ffmpeg', '-hide_banner', '-i', str(path), '-vn', '-ac', '1',
-           '-af', f'loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}:print_format=json', '-f', 'null', '-']
+def audio_info(path):
+    r = run(['ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=channels,sample_rate',
+             '-of', 'json', str(path)])
+    streams = json.loads(r.stdout or '{}').get('streams') or []
+    if not streams:
+        raise EncodeError(f'No audio found in {Path(path).name}.')
+    return int(streams[0].get('channels') or 1), int(streams[0].get('sample_rate') or 44100)
+
+
+def to_mono(channels):
+    """Filter that averages the channels into one (no level change when both sides carry the same voice)."""
+    if channels == 1:
+        return 'anull'
+    if channels == 2:
+        return 'pan=mono|c0=0.5*c0+0.5*c1'
+    return 'aformat=channel_layouts=mono'
+
+
+def measure(path, total=None, on_progress=None, lo=0, hi=0, mono_filter='anull'):
+    """Loudness and true peak of the (mono) audio, via ffmpeg loudnorm's analysis. Returns ffmpeg's JSON fields."""
+    cmd = ['ffmpeg', '-hide_banner', '-i', str(path), '-vn',
+           '-af', f'{mono_filter},loudnorm=print_format=json', '-f', 'null', '-']
     code, err = _ffmpeg_with_progress(cmd, total, on_progress, lo, hi)
     m = re.search(r'\{[^{}]*"input_i"[^{}]*\}', err)
     if code != 0 or not m:
@@ -112,32 +142,48 @@ def measure(path, total=None, on_progress=None, lo=0, hi=0):
     return json.loads(m.group(0))
 
 
+def treatment(mono_filter, gain_db, rate, limit_db=LIMIT_DB):
+    """mono → one volume change → oversampled peak limiter → back to the output sample rate."""
+    return (f'{mono_filter},volume={gain_db:.2f}dB,aresample={rate * 4}:filter_size=64,'
+            f'alimiter=limit={10 ** (limit_db / 20):.4f}:attack=1:release=50:level=disabled:asc=1,'
+            f'aresample={rate}:filter_size=64')
+
+
 def chapters_written(path):
     r = run(['ffprobe', '-v', 'error', '-show_chapters', '-of', 'json', str(path)])
     return len(json.loads(r.stdout or '{}').get('chapters', []))
 
 
-def encode_file(src, dest, chapters, bitrate=96, title=None, on_progress=None):
-    """Encodes src → dest (mono MP3, -16 LUFS, -1 dB peaks, chapters). chapters: [(start_s, title)].
+def encode_file(src, dest, chapters, bitrate=DEFAULT_BITRATE, title=None, on_progress=None):
+    """Encodes src → dest (mono MP3, -16 LUFS as heard, peaks ≤ -1 dB, chapters). chapters: [(start_s, title)].
     on_progress(percent) is called along the way. Returns a summary dict."""
     src, dest = Path(src), Path(dest)
     total = duration_seconds(src)
+    channels, source_rate = audio_info(src)
+    rate = source_rate if source_rate in (44100, 48000) else 44100
+    mono = to_mono(channels)
     chapters = sorted((max(0.0, float(s)), str(t).strip() or f'Chapter {i + 1}') for i, (s, t) in enumerate(chapters) if float(s) < total)
-    before = measure(src, total, on_progress, 0, 35)
-    loudnorm = (f'loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}'
-                f':measured_I={before["input_i"]}:measured_TP={before["input_tp"]}:measured_LRA={before["input_lra"]}'
-                f':measured_thresh={before["input_thresh"]}:offset={before["target_offset"]}:linear=true')
+    before = measure(src, total, on_progress, 0, 30, mono)
+    if float(before['input_i']) < -70:
+        raise EncodeError(f'{src.name} is silent or almost silent.')
+    gain = MONO_I - float(before['input_i'])
     meta = metadata_file(chapters, total, title or src.stem)
     tmp = dest.with_name(dest.stem + '.part.mp3')
-    cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-i', meta,
-           '-map', '0:a:0', '-map_metadata', '1', '-map_chapters', '1',
-           '-af', loudnorm, '-ac', '1', '-ar', '44100',
-           '-c:a', 'libmp3lame', '-b:a', f'{bitrate}k', '-id3v2_version', '3', '-write_xing', '1', str(tmp)]
+    limit = LIMIT_DB
     try:
-        code, err = _ffmpeg_with_progress(cmd, total, on_progress, 35, 85)
-        if code != 0:
-            raise EncodeError(f'Encoding failed for {src.name}: {err[-500:]}')
-        after = measure(tmp, total, on_progress, 85, 99)
+        for attempt in range(3):
+            cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(src), '-i', meta,
+                   '-map', '0:a:0', '-map_metadata', '1', '-map_chapters', '1',
+                   '-af', treatment(mono, gain, rate, limit), '-ac', '1', '-ar', str(rate),
+                   '-c:a', 'libmp3lame', '-b:a', f'{bitrate}k', '-id3v2_version', '3', '-write_xing', '1', str(tmp)]
+            code, err = _ffmpeg_with_progress(cmd, total, on_progress, 30 + attempt * 5, 85)
+            if code != 0:
+                raise EncodeError(f'Encoding failed for {src.name}: {err[-500:]}')
+            after = measure(tmp, total, on_progress, 85, 99)
+            # The encoder can push a peak a little above the limiter: lower the ceiling by the excess and redo.
+            if float(after['input_tp']) <= TARGET_TP or attempt == 2:
+                break
+            limit -= float(after['input_tp']) - TARGET_TP + 0.2
         written = chapters_written(tmp)
         tmp.replace(dest)
     finally:
@@ -146,17 +192,17 @@ def encode_file(src, dest, chapters, bitrate=96, title=None, on_progress=None):
     if on_progress:
         on_progress(100)
     return {
-        'path': str(dest), 'bytes': dest.stat().st_size, 'duration': total, 'bitrate': bitrate,
-        'loudness_before': float(before['input_i']), 'peak_before': float(before['input_tp']),
-        'loudness_after': float(after['input_i']), 'peak_after': float(after['input_tp']),
+        'path': str(dest), 'bytes': dest.stat().st_size, 'duration': total, 'bitrate': bitrate, 'sample_rate': rate,
+        'loudness_before': float(before['input_i']) + AS_HEARD, 'peak_before': float(before['input_tp']),
+        'loudness_after': float(after['input_i']) + AS_HEARD, 'peak_after': float(after['input_tp']),
         'chapters': written, 'chapters_expected': len(chapters),
     }
 
 
 def main():
-    p = argparse.ArgumentParser(description='Mono MP3, -16 LUFS, chapters embedded. Batch.')
+    p = argparse.ArgumentParser(description='Mono MP3, -16 LUFS as heard, chapters embedded. Batch.')
     p.add_argument('inputs', nargs='+', type=Path, help='audio or video files')
-    p.add_argument('--bitrate', type=int, default=96, choices=[64, 80, 96, 112, 128], help='kbps, default 96')
+    p.add_argument('--bitrate', type=int, default=DEFAULT_BITRATE, choices=BITRATES, help=f'kbps, default {DEFAULT_BITRATE}')
     p.add_argument('--out', type=Path, help='output folder (default: "ready" next to the first input)')
     args = p.parse_args()
 
@@ -176,8 +222,8 @@ def main():
             chapters = read_chapters(chapter_file, total) if chapter_file.exists() else []
             print(f'{src.name}: {total / 60:.1f} min, {len(chapters)} chapter(s)')
             r = encode_file(src, dest, chapters, args.bitrate)
-            print(f'  loudness before: {r["loudness_before"]:.1f} LUFS, peak {r["peak_before"]:.1f} dB')
-            print(f'  → {dest}  ({r["bytes"] / 1048576:.1f} MB, {args.bitrate} kbps mono, {r["loudness_after"]:.1f} LUFS, '
+            print(f'  loudness before: {r["loudness_before"]:.1f} LUFS as heard, peak {r["peak_before"]:.1f} dB')
+            print(f'  → {dest}  ({r["bytes"] / 1048576:.1f} MB, {args.bitrate} kbps mono, {r["loudness_after"]:.1f} LUFS as heard, '
                   f'peak {r["peak_after"]:.1f} dB, {r["chapters"]} chapter(s) embedded)')
             if r['chapters'] != r['chapters_expected']:
                 print('  WARNING: not all chapters were written')

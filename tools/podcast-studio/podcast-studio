@@ -4,7 +4,7 @@
 #   podcast-studio status | list
 #   podcast-studio transcript <file>               transcript, long pauses and chapters, for suggesting chapters
 #   podcast-studio set-chapters <file> <json|->    replace a file's chapters
-#   podcast-studio export <file>|--all [--bitrate 96]
+#   podcast-studio export <file>|--all [--bitrate 128]
 #   podcast-studio update [--check] [--force]      install the latest version from GitHub (keeps your work)
 #   podcast-studio version
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
