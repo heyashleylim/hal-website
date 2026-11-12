@@ -96,3 +96,15 @@ test('what the pages get for a score', () => {
   assert.deepEqual(publicScore({ state: 'scored', score: 2.3456, level: 'top', compared: 30, open: { rate: 0.3, usual: 0.212345, z: 2.111 }, click: null, legacy: 1.23456 }),
     { state: 'scored', score: 2.35, level: 'top', compared: 30, open: { usual: 0.2123, z: 2.11 }, click: null, legacy: 1.23 });
 });
+
+// Translations written in a working session and saved with tools/emails/translations.js
+test('a translated batch file is read block by block; a broken block names its email', () => {
+  const { parseBatch, fingerprint } = require('../../tools/emails/translations.js');
+  const text = '=====EMAIL import:abc:0123=====\n<subject>Hello 💝</subject>\n<body>\nLine 1\n\nLine 2 {{contact.first_name}}\n</body>\n\n=====EMAIL ac:77:4567=====\n<subject></subject>\n<body>\nOnly a body\n</body>\n';
+  assert.deepEqual(parseBatch(text), [
+    { key: 'import:abc:0123', subject: 'Hello 💝', body: 'Line 1\n\nLine 2 {{contact.first_name}}' },
+    { key: 'ac:77:4567', subject: '', body: 'Only a body' },
+  ]);
+  assert.throws(() => parseBatch('=====EMAIL ac:1:x=====\n<subject>S</subject>\nno body tag'), /email ac:1:x/);
+  assert.equal(fingerprint('제목', '본문'), require('../../api/_lib/emails/translate.js').fingerprint('제목', '본문'));
+});

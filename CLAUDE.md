@@ -29,7 +29,7 @@ hal-website/
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
 ├── tools/podcast/         ← podcast database migration script (npm run db:migrate)
 ├── tools/shop/            ← dev-server.js: the site with its API and FAKE payment providers on this computer, inside a rolled-back transaction ("shop-admin" preview); e2e.js: `npm run test:shop`
-├── tools/emails/          ← fake-ac.js: made-up ActiveCampaign campaigns for the local server and the tests
+├── tools/emails/          ← fake-ac.js: made-up ActiveCampaign campaigns for the local server and the tests; translations.js: export the emails to translate / save translations written in a Claude session
 ├── tools/podcast-studio/  ← source of Podcast Studio, a standalone Mac app shared as a zip (bash tools/build-podcast-studio-zip.sh → ~/Downloads/Podcast-Studio.zip). Not deployed; not part of the site
 ├── .env.example           ← names of the env vars the function needs (values live in Vercel only)
 ├── .gitignore
@@ -242,6 +242,12 @@ Every email Ashley has sent, in the admin: find one, read it again, and spot the
   on "Translate now" and in the daily job. The model is reached through Vercel AI Gateway with plain `fetch` (no package):
   `AI_GATEWAY_API_KEY`, else the deployment's OIDC token; `EMAILS_TRANSLATE_MODEL` overrides the model. Only email text is
   sent, never subscriber data. The reader shows English next to the Korean original; lists show both subjects.
+- **How translations are actually made (Alex, 2026-11-12): by Claude in a working session, not by the paid service.**
+  AI Gateway needs a credit card on the Vercel account, which Alex did not want. So: `node --env-file-if-exists=.env.local
+  tools/emails/translations.js export <folder outside the repo>` writes the waiting emails in batches, Claude translates
+  each batch into `batch-NN.out.txt`, and `… translations.js import <folder>` (then again with `--preview`) saves them.
+  Same columns, so the admin shows them the same way. New emails stay untranslated until this is run again: the Overview
+  says how many are waiting. `translate.js` stays for the day a card is added (then it runs by itself).
 - Local testing: the `shop-admin` preview serves the section too, with made-up AC campaigns (`tools/emails/fake-ac.js`)
   and a stand-in translator (each line prefixed `[EN]`).
 
