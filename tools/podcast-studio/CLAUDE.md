@@ -3,7 +3,7 @@
 This folder is **Podcast Studio**: a local app (Python server + browser page at http://127.0.0.1:8792) that
 prepares podcast episodes. The user adds audio files; the Studio transcribes them in Korean with Whisper on
 this Mac; **you suggest chapters** from the transcript; the user checks them while listening; the Studio exports
-**mono MP3 · 96 kbps · −16 LUFS · true peak ≤ −1 dB · ID3 chapters** to `~/Downloads/Podcast Studio`.
+**mono MP3 · 128 kbps · −16 LUFS as heard · true peak ≤ −1 dB · ID3 chapters** to `~/Downloads/Podcast Studio`.
 Nothing leaves the Mac, and no API key or account is involved: the AI part is you, in this session.
 
 The user is not technical. Do the work yourself, keep explanations short, and never ask them to edit files.
@@ -79,6 +79,6 @@ says whether an update exists; `./podcast-studio version` prints the installed v
 - Work files (copies of the audio, transcripts, chapters): `~/.cache/podcast-studio/projects`; ✕ on a file in
   the page deletes its work folder. The Whisper model is in `~/.cache/podcast-studio/models`. Exports are never
   deleted by the Studio.
-- Code: `app/studio.py` (server + commands), `app/encode.py` (the export, ffmpeg two-pass loudness),
+- Code: `app/studio.py` (server + commands), `app/encode.py` (the export: mono, one volume change to −16 LUFS as heard, a light peak limiter; no compression),
   `app/ui/` (the page), `app/updater.py` (update), `setup.sh` (also installs the
   `/update-podcast-studio` command from `claude-command.md` into `~/.claude/commands`), `Podcast Studio.command` (double-click launcher).

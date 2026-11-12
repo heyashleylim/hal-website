@@ -1,7 +1,7 @@
 PODCAST STUDIO
 Prepares podcast episodes on your Mac: transcribes them, suggests chapters,
 lets you check the chapters while listening, and exports the final MP3
-(mono, 96 kbps, -16 LUFS, chapters inside). Everything stays on your Mac.
+(mono, 128 kbps, -16 LUFS, chapters inside). Everything stays on your Mac.
 
 
 1. INSTALL (once)
