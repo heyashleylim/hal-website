@@ -95,9 +95,17 @@ test('the real service: key, model and what is sent', async () => {
     assert.equal(calls[0].body.model, t.DEFAULT_MODEL);
     assert.match(calls[0].body.messages[1].content, /<subject>제목<\/subject>\n<body>\n안녕하세요 \{\{contact.first_name\}\}님\n<\/body>/);
     assert.equal(emails[0].body_en, 'Hello {{contact.first_name}}');
+    process.env.VERCEL_OIDC_TOKEN = 'old-token-from-the-build';      // the request's own token wins over a stored one
+    emails[0].body_text += '!';
+    await t.run({ token: 'oidc-token' });
+    assert.equal(calls[1].auth, 'Bearer oidc-token');
     emails[0].body_text += '!';
     process.env.AI_GATEWAY_API_KEY = ' key ';                         // a key wins over the token
     await t.run({ token: 'oidc-token' });
-    assert.equal(calls[1].auth, 'Bearer key');
+    assert.equal(calls[2].auth, 'Bearer key');
+    // a refusal is reported with what the service said
+    global.fetch = async () => ({ ok: false, status: 403, json: async () => ({ error: { message: 'AI Gateway requires a valid credit card on file' } }) });
+    emails[0].body_text += '!';
+    assert.equal((await t.run()).error, 'the translation service refused the key (it said: AI Gateway requires a valid credit card on file)');
   } finally { global.fetch = realFetch; }
 });

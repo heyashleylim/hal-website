@@ -4,7 +4,8 @@
  *
  * The translation is written by a language model reached through Vercel AI Gateway (plain fetch, no package):
  *   AI_GATEWAY_API_KEY          an AI Gateway key (Vercel → AI Gateway → API keys), or
- *   VERCEL_OIDC_TOKEN           what Vercel gives a deployment by itself (also sent as the x-vercel-oidc-token header)
+ *   the deployment's OIDC token   what Vercel gives each request by itself (the x-vercel-oidc-token header; it is
+ *                               renewed every hour, so the request's own token is used, not a stored one)
  *   EMAILS_TRANSLATE_MODEL      optional: another model id from https://ai-gateway.vercel.sh/v1/models
  * Only the email's subject and text are sent, never anything about subscribers.
  *
@@ -38,7 +39,8 @@ Answer with exactly this, and nothing else:
 let client = null;
 function setClient(fn) { client = fn; }
 
-const credential = (token) => (process.env.AI_GATEWAY_API_KEY || '').trim() || (process.env.VERCEL_OIDC_TOKEN || '').trim() || String(token || '').trim();
+// A key first; else the token Vercel sent with this request; VERCEL_OIDC_TOKEN only exists for local runs (`vercel env pull`).
+const credential = (token) => (process.env.AI_GATEWAY_API_KEY || '').trim() || String(token || '').trim() || (process.env.VERCEL_OIDC_TOKEN || '').trim();
 const configured = (token) => Boolean(client) || Boolean(credential(token));
 
 // The fingerprint of what was translated (the same expression is used in SQL: md5(subject || E'\n' || body_text)).
@@ -111,7 +113,13 @@ async function run({ budgetMs = 40000, token = '', concurrency = 4, retry = fals
           [e.id, en.subject, en.body, fingerprint(e.subject, e.body_text)]);
         translated++;
       } catch (err) {
-        if (STOPS[err.status]) { stop = STOPS[err.status]; break; }
+        if (STOPS[err.status]) {
+          // what the service itself said goes with it: it names the cause (no credit card, key revoked…)
+          const said = String(err.message || '').split(': ').slice(1).join(': ');
+          stop = STOPS[err.status] + (said ? ` (it said: ${said})` : '');
+          console.error('emails translate: stopped,', err.message);
+          break;
+        }
         failed++;
         await db.query(`UPDATE emails SET translate_tries = translate_tries + 1, translate_error = $2 WHERE id = $1`, [e.id, String(err.message || err).slice(0, 300)]);
       }
