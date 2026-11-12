@@ -215,7 +215,7 @@ button.email-name:hover,a.email-name:hover{color:var(--accent);text-decoration:u
 .vs{display:block;color:var(--muted);font-size:12px;white-space:nowrap}
 .score{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .score .num{font-weight:700}
-.reader{width:min(860px,calc(100vw - 32px));max-height:calc(100vh - 48px);padding:0;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);color:var(--ink);overflow:hidden}
+.reader{width:min(1180px,calc(100vw - 32px));max-height:calc(100vh - 48px);padding:0;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);color:var(--ink);overflow:hidden}
 .reader[open]{display:flex;flex-direction:column}
 .reader::backdrop{background:rgba(20,30,30,.45)}
 .reader__bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 24px;border-bottom:1px solid var(--line)}
@@ -227,11 +227,38 @@ button.email-name:hover,a.email-name:hover{color:var(--accent);text-decoration:u
 .reader__mark label{display:flex;flex-direction:column;gap:4px;font:600 13px/1.4 var(--font-body);color:var(--ink-2)}
 .reader__mark select,.reader__mark input{min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);font:400 14px/1.4 var(--font-body);color:var(--ink)}
 .reader__mark .grow{flex:1;min-width:200px}
-.reader__subject{font:700 18px/1.6 var(--font-body);margin:0 0 4px;word-break:keep-all}
-.reader__text{white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere;font:400 16px/1.8 var(--font-body);padding:24px;border:1px solid var(--line-soft);border-radius:var(--r-sm);margin-top:16px;max-width:640px}
+.reader__subject{font:700 17px/1.6 var(--font-body);margin:0;word-break:keep-all;overflow-wrap:anywhere}
+.reader__pre{margin-top:4px;font-size:14px}
+.reader__text{white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere;font:400 15px/1.8 var(--font-body);padding:20px 22px;border:1px solid var(--line-soft);border-radius:var(--r-sm);margin-top:14px}
 .reader__html{width:100%;height:70vh;border:1px solid var(--line-soft);border-radius:var(--r-sm);margin-top:16px;background:#fff}
 .reader__tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:20px}
 .explain{font-size:15px;line-height:1.7;max-width:760px}
 .explain li{margin:6px 0 6px 20px}
 .import-problems{margin:12px 0 0 20px;font-size:14px;line-height:1.6;color:var(--bad-fg)}
 @media (max-width:720px){.reader__body{padding:20px 16px 32px}.reader__bar{padding:12px 16px}.reader__text{padding:16px}}
+
+/* Emails: English next to Korean in the reader; marks, notes and multi-select in the table */
+.bi{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}
+.bi--single{grid-template-columns:minmax(0,680px)}
+.bi__col{min-width:0}
+.bi__label{font:700 12px/1.4 var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);padding-bottom:8px;margin-bottom:12px;border-bottom:2px solid var(--line)}
+.bi__label .muted{font-weight:500;letter-spacing:0;text-transform:none}
+.bi__col:first-child:not(:last-child) .bi__label{border-bottom-color:var(--accent)}
+@media (max-width:900px){.bi{grid-template-columns:minmax(0,1fr);gap:32px}}
+.email-subject--ko{color:var(--muted);font-size:12px}
+.emails-table .pick{width:36px;padding-right:0}
+.emails-table .pick input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent);cursor:pointer}
+.email-row.is-selected td{background:var(--bg-blush)}
+.mark-cell{width:210px;min-width:190px;cursor:default}
+.mark-resend,.mark-note{display:block;width:100%;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);font:400 13px/1.5 var(--font-body)}
+.mark-resend{min-height:36px;padding:4px 8px;font-weight:600}
+.mark-resend.is-yes{background:var(--proof-bg);color:var(--proof-fg);border-color:transparent}
+.mark-resend.is-maybe,.mark-resend.is-done{background:var(--bg-butter);border-color:transparent}
+.mark-resend.is-no{background:var(--bg-alt);color:var(--ink-2);border-color:transparent}
+.mark-note{margin-top:6px;padding:6px 8px;min-height:34px;resize:none;overflow:hidden;word-break:keep-all;overflow-wrap:anywhere}
+.mark-note:placeholder-shown:not(:focus){border-color:transparent;background:transparent}
+.email-row:hover .mark-note:placeholder-shown{border-color:var(--line)}
+.mark-out{display:block;min-height:0;color:var(--muted)}
+.bulk label{display:flex;align-items:center;gap:8px;font:600 13px/1.4 var(--font-body);color:var(--ink-2)}
+.bulk__note{flex:1;min-width:220px}
+.bulk__note input{flex:1;min-width:0;min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);font:400 14px/1.4 var(--font-body);color:var(--ink)}

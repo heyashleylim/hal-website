@@ -67,7 +67,8 @@
           o.last_run && o.last_run.ok === false ? '<span class="is-error">The last ActiveCampaign sync failed: ' + Admin.esc(o.last_run.error || '') + '</span> (<a href="/admin/emails/sync">details</a>)' :
           o.last_ok_at ? 'ActiveCampaign stats refreshed ' + Admin.kst(o.last_ok_at) + ' (every day at 09:10, or with “Sync now”).' :
           'ActiveCampaign has not been synced yet: <a href="/admin/emails/sync">sync now</a>.') +
-        (o.body_pending ? ' ' + o.body_pending + ' ActiveCampaign email(s) still wait for their text: the next sync reads them.' : '');
+        (o.body_pending ? ' ' + o.body_pending + ' ActiveCampaign email(s) still wait for their text: the next sync reads them.' : '') +
+        (o.untranslated ? ' ' + o.untranslated + ' email(s) have no English translation yet: <a href="/admin/emails/sync">translate them</a>.' : '');
     }
     var box = document.getElementById('again');
     if (!r.candidates.length) {
@@ -77,7 +78,7 @@
     box.innerHTML = '<table class="admin-table emails-table"><thead><tr><th>Sent</th><th>Email</th><th>To</th><th>Opened</th><th>Clicked</th><th>Score</th><th>Send again?</th></tr></thead><tbody>' +
       r.candidates.map(function (e) {
         return '<tr class="email-row" data-id="' + e.id + '"><td class="num">' + E.day(e.sent_at) + '</td>' +
-          '<td class="email-cell"><a class="email-name" href="/admin/emails/browse?level=good&amp;sort=score&amp;open=' + e.id + '">' + Admin.esc(e.name) + '</a><span class="email-subject" lang="ko">' + Admin.esc(e.subject) + '</span></td>' +
+          '<td class="email-cell"><a class="email-name" href="/admin/emails/browse?level=good&amp;sort=score&amp;open=' + e.id + '">' + Admin.esc(e.name) + '</a>' + E.subjects(e) + '</td>' +
           '<td class="num">' + e.sent.toLocaleString('en-US') + '</td>' +
           '<td class="num">' + E.versus(e.open_rate, e.score.open) + '</td><td class="num">' + (e.score.click ? E.versus(e.click_rate, e.score.click) : '<span class="muted">no link</span>') + '</td>' +
           '<td>' + E.score(e.score) + '</td><td>' + E.resend(e.resend) + '</td></tr>';

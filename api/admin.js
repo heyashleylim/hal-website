@@ -17,6 +17,7 @@ const automation = require('./_lib/automation.js');
 const shopOrders = require('./_lib/shop/orders.js');
 const shopSync = require('./_lib/shop/sync.js');
 const emailsSync = require('./_lib/emails/ac-sync.js');
+const emailsTranslate = require('./_lib/emails/translate.js');
 
 // Shop daily job: unpaid orders older than a day expire; ActiveCampaign updates still waiting are sent.
 async function shopJob() {
@@ -93,6 +94,10 @@ module.exports = async function handler(req, res) {
       try {
         result.emails = await emailsSync.sync({ trigger: 'cron', budgetMs: 120 * 1000 });
         if (!result.emails.skipped) await log('cron', 'emails', 'daily-sync', 'ActiveCampaign emails', result.emails);
+        // New emails get their English translation (saved once; see _lib/emails/translate.js).
+        const translated = await emailsTranslate.run({ budgetMs: 100 * 1000, token: req.headers['x-vercel-oidc-token'] });
+        result.emails_translated = translated;
+        if (translated.translated || (translated.error && !translated.skipped)) await log('cron', 'emails', 'daily-translate', 'English translations', translated);
       } catch (err) {
         console.error('admin cron: emails sync', err);
         result.emails = { error: 'emails sync failed' };

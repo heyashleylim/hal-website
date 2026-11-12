@@ -31,8 +31,8 @@
 
   <section class="admin-card" aria-labelledby="import-title">
     <h2 id="import-title">Spreadsheet</h2>
-    <p class="muted" style="margin-bottom:8px">For the emails that were not sent from ActiveCampaign. Choose the Excel file (<code>.xlsx</code>; from Google Sheets: File → Download → Microsoft Excel). The first row must hold the column titles <code>Date</code>, <code>Campaign name</code>, <code>Subject</code>, <code>Body</code>, <code>Resend</code>, <code>Sent</code>, <code>Opened</code>, <code>Clicked</code>, <code>Unsubscribed</code>. Dates are read as Seoul time. <code>Perf</code> and the rate columns are ignored: the admin computes them.</p>
-    <p class="muted" style="margin-bottom:16px">Importing the same file again adds nothing twice: an email with the same date and campaign name is updated. A “send again” choice made here in the admin is kept.</p>
+    <p class="muted" style="margin-bottom:8px">For the emails that were not sent from ActiveCampaign. Choose the Excel file (<code>.xlsx</code>; from Google Sheets: File → Download → Microsoft Excel). The first row must hold the column titles <code>Date</code>, <code>Campaign name</code>, <code>Subject</code>, <code>Body</code>, <code>Sent</code>, <code>Opened</code>, <code>Clicked</code>, <code>Unsubscribed</code>. Dates are read as Seoul time. <code>Perf</code>, <code>Resend</code> and the rate columns are ignored: the admin has its own score, and “send again” is only decided here.</p>
+    <p class="muted" style="margin-bottom:16px">Importing the same file again adds nothing twice: an email with the same date and campaign name is updated. “Send again” choices and notes are never touched by an import.</p>
     <div class="admin-actions">
       <label class="sr-only" for="file">Spreadsheet file (.xlsx)</label>
       <input type="file" id="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
@@ -41,6 +41,16 @@
     <div class="progress" id="bar" hidden style="margin-top:16px"><span></span></div>
     <p id="import-out" role="status" style="margin-top:12px"></p>
     <ul class="import-problems" id="problems"></ul>
+  </section>
+
+  <section class="admin-card" aria-labelledby="tr-title">
+    <h2 id="tr-title">English translations</h2>
+    <p class="muted" style="margin-bottom:16px">Each email’s subject and text are translated into English once, and saved: reading an email never translates anything. New emails are translated right after an import or a sync, and by the daily job. An email is translated again only if its Korean text changes.</p>
+    <ul class="checklist" id="tr-status" aria-live="polite"><li class="muted">Checking…</li></ul>
+    <p style="margin-top:20px">
+      <button data-tip="Translate the emails that have no English version yet, and retry the ones that failed" class="btn-sm" type="button" id="tr-now">Translate now</button>
+      <span class="muted" id="tr-out" role="status" style="margin-left:8px"></span>
+    </p>
   </section>
 </main>
 <script src="/assets/js/admin/admin.js"></script>
@@ -65,6 +75,14 @@
         li(true, c.ac + ' emails from ActiveCampaign and ' + c.imported + ' from the spreadsheet in the archive', true) +
         (c.body_pending ? li(true, c.body_pending + ' ActiveCampaign email(s) still wait for their subject and text. Each sync reads as many as it can: click “Sync now” again, or let the daily sync finish.', true) : '');
       document.getElementById('sync-now').disabled = !r.connected;
+      var t = r.translation;
+      waiting = t.pending;
+      canTranslate = t.ready;
+      document.getElementById('tr-status').innerHTML =
+        li(t.ready, t.ready ? 'The translation service is connected' : 'Translation is not set up here: add <code>AI_GATEWAY_API_KEY</code> in Vercel for this environment (Vercel → AI Gateway → API keys), then redeploy') +
+        li(!t.pending, t.translated + ' email(s) translated' + (t.pending ? ', ' + t.pending + ' waiting' : ''), !t.pending) +
+        (t.failed ? li(false, t.failed + ' email(s) could not be translated after 5 tries (“Translate now” tries again): ' + t.failures.map(function (f) { return esc(f.name) + ' <span class="small muted">(' + esc(f.translate_error || '') + ')</span>'; }).join('; ')) : '');
+      document.getElementById('tr-now').disabled = busy || !t.ready || !(t.pending + t.failed);
       document.getElementById('runs').innerHTML = r.runs.length ?
         '<table class="admin-table"><thead><tr><th>When</th><th>Started by</th><th>Result</th></tr></thead><tbody>' + r.runs.map(function (x) {
           return '<tr><td class="num">' + Admin.kst(x.started_at) + '</td><td>' + (x.trigger === 'cron' ? 'Daily job' : 'Sync now') + '</td><td>' +
@@ -76,6 +94,32 @@
     });
   }
 
+  // ---- translations: 40 seconds of work per call, repeated while some are left
+  var waiting = 0, canTranslate = false, busy = false;
+  var trBtn = document.getElementById('tr-now'), trOut = document.getElementById('tr-out');
+  function translateAll(retry) {
+    if (busy || !canTranslate) return;
+    busy = true;
+    trBtn.disabled = true;
+    var done = 0;
+    (function again(first) {
+      Admin.say(trOut, 'Translating… ' + done + ' done' + (waiting ? ', ' + waiting + ' to go' : '') + '. You can leave this page: the daily job finishes what is left.');
+      Admin.post('emails-translate-run', { retry: first && retry }).then(function (r) {
+        var x = r.result;
+        done += x.translated;
+        waiting = x.left || 0;
+        if (x.ok && x.left && x.translated) return again(false);
+        busy = false;
+        if (x.error) Admin.say(trOut, 'Stopped after ' + done + ' email(s): ' + x.error + '.', true);
+        else Admin.say(trOut, 'Done: ' + done + ' email(s) translated' + (x.failed ? ', ' + x.failed + ' failed (see above)' : '') + '.');
+        status();
+      }).catch(function (err) { busy = false; Admin.say(trOut, err.message, true); status(); });
+    })(true);
+  }
+  trBtn.addEventListener('click', function () { translateAll(true); });
+  // After an import or a sync, new emails are translated straight away.
+  function afterNewEmails() { return status().then(function () { if (waiting) translateAll(false); }); }
+
   var syncBtn = document.getElementById('sync-now'), syncOut = document.getElementById('sync-out');
   syncBtn.addEventListener('click', function () {
     syncBtn.disabled = true;
@@ -83,7 +127,7 @@
     Admin.post('emails-sync-run').then(function (r) {
       if (r.result.ok) Admin.say(syncOut, 'Done: ' + describe(r.result) + '.');
       else Admin.say(syncOut, 'The sync failed: ' + r.result.error, true);
-    }).catch(function (err) { Admin.say(syncOut, err.message, true); }).then(status);
+    }).catch(function (err) { Admin.say(syncOut, err.message, true); }).then(afterNewEmails);
   });
 
   // ---- spreadsheet
@@ -124,7 +168,7 @@
         Admin.say(out, 'Done: ' + sum.added + ' email(s) added, ' + sum.updated + ' updated' + (errors.length ? ', ' + errors.length + ' skipped (listed below)' : '') + '. See them in All emails.');
         showProblems(errors);
         file.disabled = false;
-        status();
+        afterNewEmails();
         return;
       }
       Admin.say(out, 'Importing… ' + start + ' of ' + total);

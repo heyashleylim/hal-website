@@ -3,22 +3,24 @@
  *   emails-overview   counts, last sync, the emails worth sending again
  *   emails-list       search and filters (the score is computed here, on every read: ../emails/score.js)
  *   emails-get        one email with its text
- *   emails-update     "send again?" mark and note
+ *   emails-update     "send again?" mark and/or note, for one email or several at once
  *   emails-import     rows read from the spreadsheet by the browser (site/assets/js/admin/xlsx.js), 100 at a time
  *   emails-sync       sync history;  emails-sync-run  copies ActiveCampaign's emails and stats now
+ *   emails-translate-run   saves the English translation of the emails that don't have one yet (../emails/translate.js)
  */
 const crypto = require('node:crypto');
 const db = require('../db.js');
 const scoring = require('../emails/score.js');
 const acSync = require('../emails/ac-sync.js');
+const translate = require('../emails/translate.js');
 const { userError, text, int, date } = require('./util.js');
 
 const RESEND = ['', 'yes', 'maybe', 'no', 'done'];
 const SORTS = ['newest', 'oldest', 'score', 'open', 'click', 'sent'];
 const LEVELS = ['top', 'good', 'low', 'unscored']; // good = top + above
 
-const LIGHT = `id, source, kind, name, subject, sent_at, last_sent_at, sent, opened, clicked, unsubscribed, bounced, has_link, resend,
-  (note <> '') AS has_note, (source = 'ac' AND body_synced_at IS NULL) AS body_pending`;
+const LIGHT = `id, source, kind, name, subject, subject_en, sent_at, last_sent_at, sent, opened, clicked, unsubscribed, bounced, has_link, resend,
+  note, (source = 'ac' AND body_synced_at IS NULL) AS body_pending`;
 
 const rate = (part, whole) => (whole > 0 ? part / whole : null);
 const round = (n, digits = 4) => (n == null ? null : Number(n.toFixed(digits)));
@@ -37,7 +39,7 @@ function present(e, scores) {
 // Every email (without its text) and the score of each.
 async function loadAll(q = '') {
   const rows = await db.query(
-    `SELECT ${LIGHT}, ($1 = '' OR position(lower($1) in lower(name || ' ' || subject || ' ' || body_text)) > 0) AS matches
+    `SELECT ${LIGHT}, ($1 = '' OR position(lower($1) in lower(name || ' ' || subject || ' ' || subject_en || ' ' || body_text || ' ' || body_en || ' ' || note)) > 0) AS matches
        FROM emails ORDER BY sent_at DESC, id DESC`, [q]);
   return { rows, scores: scoring.score(rows) };
 }
@@ -47,15 +49,6 @@ function seoulInstant(value, label) {
   const s = String(value || '');
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) || Number.isNaN(Date.parse(s + ':00+09:00'))) throw userError(`${label}: the date is not readable`);
   return new Date(s + ':00+09:00').toISOString();
-}
-
-function resendMark(value) {
-  const s = String(value || '').trim().toLowerCase();
-  if (s === 'yes' || s === 'y') return 'yes';
-  if (s === 'maybe') return 'maybe';
-  if (s === 'no' || s === 'n') return 'no';
-  if (s === 'done' || s === 'resent' || s === 'sent') return 'done';
-  return '';
 }
 
 // One spreadsheet row → the columns to store. Throws a message naming the row when something is wrong.
@@ -74,7 +67,6 @@ function importRow(r, label) {
     opened: count(r.opened, 'Opened'),
     clicked: count(r.clicked, 'Clicked'),
     unsubscribed: count(r.unsubscribed, 'Unsubscribed'),
-    resend: resendMark(r.resend),
   };
   if (row.body_text.length > 200000) throw userError(`${label}: the body is too long`);
   if (row.opened > sent || row.clicked > sent) throw userError(`${label}: more opens or clicks than emails sent`);
@@ -83,8 +75,9 @@ function importRow(r, label) {
 
 const actions = {
   async 'emails-overview'() {
-    const [{ rows, scores }, lastRun, lastOk] = await Promise.all([
+    const [{ rows, scores }, tr, lastRun, lastOk] = await Promise.all([
       loadAll(),
+      translate.counts(),
       db.one(`SELECT started_at, finished_at, trigger, ok, summary, error FROM email_sync_runs ORDER BY id DESC LIMIT 1`),
       db.one(`SELECT finished_at FROM email_sync_runs WHERE ok ORDER BY id DESC LIMIT 1`),
     ]);
@@ -105,6 +98,7 @@ const actions = {
         top: scored.filter((e) => e.score.level === 'top').length,
         above: scored.filter((e) => e.score.level === 'above').length,
         marked: all.filter((e) => e.resend === 'yes' || e.resend === 'maybe').length,
+        untranslated: tr.pending + tr.failed,
         resent: all.filter((e) => e.resend === 'done').length,
         body_pending: all.filter((e) => e.body_pending).length,
         ac_connected: acSync.configured(),
@@ -158,7 +152,7 @@ const actions = {
   async 'emails-get'(input) {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     const email = await db.one(
-      `SELECT ${LIGHT}, preheader, body_text, (body_html IS NOT NULL AND body_html <> '') AS has_html, note, stats_at FROM emails WHERE id = $1`, [id]);
+      `SELECT ${LIGHT}, preheader, body_text, body_en, translated_at, (body_html IS NOT NULL AND body_html <> '') AS has_html, stats_at FROM emails WHERE id = $1`, [id]);
     if (!email) throw userError('email not found', 404);
     const { scores } = await loadAll();
     return { email: present(email, scores) };
@@ -172,18 +166,30 @@ const actions = {
     return { html: row.body_html || '' };
   },
 
+  // Sets the "send again?" mark and/or the note of one email (id) or of several at once (ids).
+  // Only what is sent is changed: a bulk change of the mark leaves each email's note alone, and the other way round.
   async 'emails-update'(input) {
-    const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
-    const resend = String(input.resend == null ? '' : input.resend);
-    if (!RESEND.includes(resend)) throw userError('unknown "send again" value');
-    const note = text(input.note, { max: 2000, label: 'note' });
-    const row = await db.one(`UPDATE emails SET resend = $2, note = $3, updated_at = now() WHERE id = $1 RETURNING id, name, resend, note`, [id, resend, note]);
-    if (!row) throw userError('email not found', 404);
-    return { email: row, target: row.name, log: { id, resend, note: note ? 'yes' : '' } };
+    const list = Array.isArray(input.ids) ? input.ids : [input.id];
+    if (!list.length || list.length > 2000) throw userError('choose between 1 and 2,000 emails');
+    const ids = [...new Set(list.map((v) => int(v, { min: 1, max: 2147483647, label: 'id' })))];
+    const hasResend = input.resend !== undefined && input.resend !== null;
+    const hasNote = input.note !== undefined && input.note !== null;
+    if (!hasResend && !hasNote) throw userError('nothing to change');
+    const resend = hasResend ? String(input.resend) : null;
+    if (hasResend && !RESEND.includes(resend)) throw userError('unknown "send again" value');
+    const note = hasNote ? text(input.note, { max: 2000, label: 'note' }) : null;
+    const rows = await db.query(
+      `UPDATE emails SET resend = COALESCE($2, resend), note = COALESCE($3, note), updated_at = now() WHERE id = ANY($1::int[]) RETURNING id, name, resend, note`,
+      [ids, resend, note]);
+    if (!rows.length) throw userError('email not found', 404);
+    const log = { emails: rows.length };
+    if (hasResend) log.resend = resend;
+    if (hasNote) log.note = note ? 'set' : 'cleared';
+    return { emails: rows, email: rows[0], target: rows.length === 1 ? rows[0].name : `${rows.length} emails`, log };
   },
 
   // Adds the spreadsheet's emails, or refreshes them when imported again (same send time and campaign name).
-  // A "send again" mark already set in the admin is kept.
+  // The sheet's Resend column is not read: "send again" only holds choices made in the admin, and an import never touches them.
   async 'emails-import'(input) {
     const rows = Array.isArray(input.rows) ? input.rows : null;
     if (!rows || !rows.length) throw userError('no rows to import');
@@ -204,13 +210,12 @@ const actions = {
     let added = 0;
     if (good.size) {
       const res = await db.query(
-        `INSERT INTO emails (source, source_ref, kind, name, subject, body_text, sent_at, sent, opened, clicked, unsubscribed, resend, stats_at)
-         SELECT 'import', r.source_ref, 'campaign', r.name, r.subject, r.body_text, r.sent_at, r.sent, r.opened, r.clicked, r.unsubscribed, r.resend, now()
-           FROM jsonb_to_recordset($1::jsonb) AS r(source_ref text, name text, subject text, body_text text, sent_at timestamptz, sent int, opened int, clicked int, unsubscribed int, resend text)
+        `INSERT INTO emails (source, source_ref, kind, name, subject, body_text, sent_at, sent, opened, clicked, unsubscribed, stats_at)
+         SELECT 'import', r.source_ref, 'campaign', r.name, r.subject, r.body_text, r.sent_at, r.sent, r.opened, r.clicked, r.unsubscribed, now()
+           FROM jsonb_to_recordset($1::jsonb) AS r(source_ref text, name text, subject text, body_text text, sent_at timestamptz, sent int, opened int, clicked int, unsubscribed int)
          ON CONFLICT (source, source_ref) DO UPDATE SET
            subject = EXCLUDED.subject, body_text = EXCLUDED.body_text, sent = EXCLUDED.sent, opened = EXCLUDED.opened,
-           clicked = EXCLUDED.clicked, unsubscribed = EXCLUDED.unsubscribed, stats_at = now(), updated_at = now(),
-           resend = CASE WHEN emails.resend = '' THEN EXCLUDED.resend ELSE emails.resend END
+           clicked = EXCLUDED.clicked, unsubscribed = EXCLUDED.unsubscribed, stats_at = now(), updated_at = now()
          RETURNING (xmax = 0) AS inserted`,
         [JSON.stringify([...good.values()])]);
       added = res.filter((x) => x.inserted).length;
@@ -219,14 +224,18 @@ const actions = {
     return { ...summary, errors, target: 'spreadsheet import', log: summary }; // never the emails themselves in the activity log
   },
 
-  async 'emails-sync'() {
-    const [runs, counts] = await Promise.all([
+  async 'emails-sync'(input, ctx) {
+    const [translation, runs, counts] = await Promise.all([
+      translate.counts(),
       db.query(`SELECT started_at, finished_at, trigger, ok, summary, error FROM email_sync_runs ORDER BY id DESC LIMIT 15`),
       db.one(`SELECT count(*) FILTER (WHERE source = 'ac')::int AS ac, count(*) FILTER (WHERE source = 'import')::int AS imported,
                      count(*) FILTER (WHERE source = 'ac' AND body_synced_at IS NULL AND ac_message_id IS NOT NULL)::int AS body_pending,
                      max(stats_at) FILTER (WHERE source = 'ac') AS stats_at FROM emails`),
     ]);
-    return { connected: acSync.configured(), runs, counts };
+    const token = ctx && ctx.req ? ctx.req.headers['x-vercel-oidc-token'] : '';
+    const failures = translation.failed ? await db.query(
+      `SELECT name, translate_error FROM emails WHERE translate_tries >= $1 ORDER BY sent_at DESC LIMIT 5`, [translate.MAX_TRIES]) : [];
+    return { connected: acSync.configured(), runs, counts, translation: { ...translation, ready: translate.configured(token), failures } };
   },
 
   async 'emails-sync-run'() {
@@ -234,6 +243,15 @@ const actions = {
     if (result.skipped) throw userError(result.error, 409);
     return { result, target: 'ActiveCampaign emails', log: result };
   },
+
+  // Translates the emails still waiting for their English version, for up to 40 seconds: the page calls it again
+  // while some are left. Emails that failed five times get another chance.
+  async 'emails-translate-run'(input, ctx) {
+    const token = ctx && ctx.req ? ctx.req.headers['x-vercel-oidc-token'] : '';
+    const result = await translate.run({ budgetMs: 40000, token, retry: Boolean(input.retry) });
+    if (result.skipped) throw userError(result.error, 409);
+    return { result, target: 'English translations', log: result.translated || result.error ? result : null };
+  },
 };
 
-module.exports = { section: 'emails', actions, writes: ['emails-update', 'emails-import', 'emails-sync-run'], importRow, resendMark, publicScore };
+module.exports = { section: 'emails', actions, writes: ['emails-update', 'emails-import', 'emails-sync-run', 'emails-translate-run'], importRow, publicScore };
