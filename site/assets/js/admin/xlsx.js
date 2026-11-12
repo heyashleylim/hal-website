@@ -3,10 +3,10 @@
 
    AdminXlsx.read(arrayBuffer)  → Promise of the first sheet as rows: [{ row: 2, cells: { A: 45427.33, B: 'text' } }, …]
                                   (numbers as numbers, text as text, formulas as their last calculated value)
-   AdminXlsx.emails(rows)       → { emails: [{ row, sent_at: '2024-05-15T08:00', name, subject, body, resend, sent,
+   AdminXlsx.emails(rows)       → { emails: [{ row, sent_at: '2024-05-15T08:00', name, subject, body, sent,
                                   opened, clicked, unsubscribed }], problems: ['Row 7: …'] } for the emails spreadsheet
-                                  (columns found by their header: Date, Campaign name, Subject, Body, Resend, Sent,
-                                  Opened, Clicked, Unsubscribed; Perf and the rates are ignored: the admin computes them). */
+                                  (columns found by their header: Date, Campaign name, Subject, Body, Sent, Opened,
+                                  Clicked, Unsubscribed; Perf, Resend and the rates are ignored: the admin has its own). */
 (function (root) {
   var utf8 = new TextDecoder('utf-8');
 
@@ -114,7 +114,7 @@
     return m ? m[1] + '-' + m[2] + '-' + m[3] + 'T' + (m[4] || '00') + ':' + (m[5] || '00') : null;
   }
 
-  var HEADERS = { date: 'sent_at', 'campaign name': 'name', subject: 'subject', body: 'body', resend: 'resend', sent: 'sent', opened: 'opened', clicked: 'clicked', unsubscribed: 'unsubscribed' };
+  var HEADERS = { date: 'sent_at', 'campaign name': 'name', subject: 'subject', body: 'body', sent: 'sent', opened: 'opened', clicked: 'clicked', unsubscribed: 'unsubscribed' };
   var REQUIRED = ['sent_at', 'name', 'sent', 'opened', 'clicked'];
 
   function emails(rows) {
@@ -140,7 +140,7 @@
       var n = function (f) { var v = get(f); return v == null ? 0 : Number(v); };
       if ([n('sent'), n('opened'), n('clicked'), n('unsubscribed')].some(function (v) { return isNaN(v) || v < 0; })) { problems.push('Row ' + r.row + ': Sent, Opened, Clicked and Unsubscribed must be numbers'); return; }
       var s = function (f) { var v = get(f); return v == null ? '' : String(v); };
-      out.push({ row: r.row, sent_at: sentAt, name: String(name).trim(), subject: s('subject'), body: s('body'), resend: s('resend'), sent: n('sent'), opened: n('opened'), clicked: n('clicked'), unsubscribed: n('unsubscribed') });
+      out.push({ row: r.row, sent_at: sentAt, name: String(name).trim(), subject: s('subject'), body: s('body'), sent: n('sent'), opened: n('opened'), clicked: n('clicked'), unsubscribed: n('unsubscribed') });
     });
     return { emails: out, problems: problems };
   }

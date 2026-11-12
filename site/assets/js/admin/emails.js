@@ -34,6 +34,17 @@ window.AdminEmails = (function () {
   function resend(value) {
     return value ? '<span class="badge ' + (RESEND_TONE[value] || '') + '">' + RESEND[value] + '</span>' : '<span class="muted">–</span>';
   }
+  // <option>s of a "send again?" menu, with `value` chosen.
+  function resendOptions(value) {
+    return Object.keys(RESEND).map(function (k) {
+      return '<option value="' + k + '"' + (k === (value || '') ? ' selected' : '') + '>' + (k ? RESEND[k] : 'Not decided') + '</option>';
+    }).join('');
+  }
+  // The subject under an email's name in a list: English first (when translated), Korean under it.
+  function subjects(e) {
+    return (e.subject_en ? '<span class="email-subject">' + esc(e.subject_en) + '</span>' : '') +
+      (e.subject ? '<span class="email-subject' + (e.subject_en ? ' email-subject--ko' : '') + '" lang="ko">' + esc(e.subject) + '</span>' : '');
+  }
   function source(e) {
     return (e.source === 'ac' ? 'ActiveCampaign' : 'Spreadsheet') + (e.kind === 'automation' ? ' · automation' : '');
   }
@@ -46,5 +57,5 @@ window.AdminEmails = (function () {
     return score(s) + ' &nbsp;' + parts.join(' · ') + '. Compared with the ' + s.compared + ' closest sends to a similar audience.' +
       (s.legacy != null ? ' <span class="muted">Spreadsheet formula (Perf): ' + s.legacy.toFixed(2) + '</span>' : '');
   }
-  return { RESEND: RESEND, day: day, pct: pct, signed: signed, score: score, versus: versus, resend: resend, source: source, why: why };
+  return { RESEND: RESEND, day: day, pct: pct, signed: signed, score: score, versus: versus, resend: resend, resendOptions: resendOptions, subjects: subjects, source: source, why: why };
 })();

@@ -21,8 +21,8 @@ hal-website/
 ├── api/podcast-*.js       ← private podcast functions for students and AC (docs/podcast-plan.md); shared code in api/_lib/ (not endpoints)
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
-├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006), emails (007), applied with `npm run db:migrate`
+├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006), emails (007–008), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -221,11 +221,12 @@ pay in full) are built. The site's payment links still go to WordPress until go-
 
 Every email Ashley has sent, in the admin: find one, read it again, and spot the ones worth sending again.
 - Admin section `/admin/emails/` (Overview, `browse/` = All emails with the reader, `sync/` = Import & sync); API module
-  `api/_lib/admin/emails.js`, actions prefixed `emails-`. Tables `emails` and `email_sync_runs` (migration 007).
+  `api/_lib/admin/emails.js`, actions prefixed `emails-`. Tables `emails` and `email_sync_runs` (migrations 007–008).
   The emails are never in the repo (it is public).
 - Two sources. **Spreadsheet** (`source = 'import'`): the emails not sent from ActiveCampaign, uploaded as .xlsx on the
   Import & sync page; the browser reads the file itself (`site/assets/js/admin/xlsx.js`, no library) and posts the rows.
-  Importing again updates (same date + campaign name), never duplicates, and keeps a "send again" mark set in the admin.
+  Importing again updates (same date + campaign name), never duplicates. The sheet's `Resend` and `Perf` columns are not
+  read: "send again" marks and notes only come from the admin (set in the table, one email or several at once, or in the reader).
   Spreadsheet dates are Seoul time. **ActiveCampaign** (`source = 'ac'`): `api/_lib/emails/ac-sync.js` lists every
   campaign (the list carries the numbers, so all stats are refreshed each run) and fetches subject + body once per email.
   It only reads from AC. It runs in the daily job (`/api/admin?action=cron`, after podcast and shop) and on "Sync now".
@@ -235,7 +236,14 @@ Every email Ashley has sent, in the admin: find one, read it again, and spot the
   double its size): z-score of its open rate and, when it has a link, of its click rate; score = their average.
   ≥ +2 = outlier, ≥ +1 = above usual. Change the rules there and in `tests/emails/score.test.js` only. `legacy()` keeps the
   old spreadsheet formula ("Perf") for comparison.
-- Local testing: the `shop-admin` preview serves the section too, with made-up AC campaigns (`tools/emails/fake-ac.js`).
+- **English translations are saved, never made while reading**: `api/_lib/emails/translate.js` translates each email's
+  subject and body once (`subject_en`, `body_en`) and again only when the Korean changes (`translated_of` = md5 of what was
+  translated). It runs after an import or a sync (the Import & sync page loops on `emails-translate-run`, 40 s per call),
+  on "Translate now" and in the daily job. The model is reached through Vercel AI Gateway with plain `fetch` (no package):
+  `AI_GATEWAY_API_KEY`, else the deployment's OIDC token; `EMAILS_TRANSLATE_MODEL` overrides the model. Only email text is
+  sent, never subscriber data. The reader shows English next to the Korean original; lists show both subjects.
+- Local testing: the `shop-admin` preview serves the section too, with made-up AC campaigns (`tools/emails/fake-ac.js`)
+  and a stand-in translator (each line prefixed `[EN]`).
 
 ## Page configuration
 

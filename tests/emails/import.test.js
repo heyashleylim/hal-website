@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const zlib = require('node:zlib');
 const xlsx = require('../../site/assets/js/admin/xlsx.js');
-const { importRow, resendMark, publicScore } = require('../../api/_lib/admin/emails.js');
+const { importRow, publicScore } = require('../../api/_lib/admin/emails.js');
 
 // A minimal zip (one deflated entry per file), enough for an .xlsx.
 function zip(files) {
@@ -57,8 +57,8 @@ test('reads the first sheet of an .xlsx: text, numbers, formulas as their value'
 test('rows become emails by column title; unreadable rows are listed, not imported', async () => {
   const { emails, problems } = xlsx.emails(await xlsx.read(book()));
   assert.deepEqual(emails, [
-    { row: 2, sent_at: '2024-05-15T08:00', name: 'Launch & open', subject: '제목 <1>', body: '안녕하세요 님!\n \n본문 💝', resend: 'Yes', sent: 796, opened: 167, clicked: 36, unsubscribed: 6 },
-    { row: 3, sent_at: '2026-09-09T18:00', name: 'rich text', subject: '', body: 'inline body', resend: '', sent: 167, opened: 50, clicked: 0, unsubscribed: 0 },
+    { row: 2, sent_at: '2024-05-15T08:00', name: 'Launch & open', subject: '제목 <1>', body: '안녕하세요 님!\n \n본문 💝', sent: 796, opened: 167, clicked: 36, unsubscribed: 6 },
+    { row: 3, sent_at: '2026-09-09T18:00', name: 'rich text', subject: '', body: 'inline body', sent: 167, opened: 50, clicked: 0, unsubscribed: 0 },
   ]);
   assert.deepEqual(problems, ['Row 5: the date is not readable']);
   assert.deepEqual(xlsx.emails([{ row: 1, cells: { A: 'Date', B: 'Subject' } }]).problems, ['The first row must have these column titles: Campaign name, Sent, Opened, Clicked.']);
@@ -81,14 +81,13 @@ test('spreadsheet dates are Seoul time', () => {
 test('import rules: same date and name → same email; impossible numbers are refused', () => {
   const base = { sent_at: '2026-08-21T07:50', name: ' NSMB 1 - WAITLIST Launch ', subject: '제목', body: 'a\r\nb\n', resend: 'Maybe', sent: 247.0, opened: 120, clicked: 12, unsubscribed: '' };
   const row = importRow(base, 'Row 9');
-  assert.deepEqual({ ...row, source_ref: null }, { source_ref: null, name: 'NSMB 1 - WAITLIST Launch', subject: '제목', body_text: 'a\nb', sent_at: '2026-08-20T22:50:00.000Z', sent: 247, opened: 120, clicked: 12, unsubscribed: 0, resend: 'maybe' });
+  assert.deepEqual({ ...row, source_ref: null }, { source_ref: null, name: 'NSMB 1 - WAITLIST Launch', subject: '제목', body_text: 'a\nb', sent_at: '2026-08-20T22:50:00.000Z', sent: 247, opened: 120, clicked: 12, unsubscribed: 0 }); // Resend is not read
   assert.equal(importRow({ ...base, opened: 1, body: 'changed' }, 'Row 9').source_ref, row.source_ref);
   assert.notEqual(importRow({ ...base, sent_at: '2026-08-21T07:51' }, 'Row 9').source_ref, row.source_ref);
   assert.throws(() => importRow({ ...base, opened: 300 }, 'Row 9'), /Row 9: more opens or clicks than emails sent/);
   assert.throws(() => importRow({ ...base, sent_at: '21/08/2026' }, 'Row 9'), /Row 9: the date is not readable/);
   assert.throws(() => importRow({ ...base, name: '' }, 'Row 9'), /Row 9: campaign name is required/);
   assert.throws(() => importRow({ ...base, sent: -1 }, 'Row 9'), /Row 9: Sent must be/);
-  assert.deepEqual(['Yes', ' maybe ', 'NO', 'Resent', '', 'perhaps', null].map(resendMark), ['yes', 'maybe', 'no', 'done', '', '', '']);
 });
 
 test('what the pages get for a score', () => {
