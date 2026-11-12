@@ -208,7 +208,7 @@
         fact('Last app activity', s.last_seen_at ? Admin.kst(s.last_seen_at) : '–') +
         fact('Apps', s.apps.length ? Admin.esc(s.apps.join(', ')) : '–') +
         fact('Download networks', (n.networks_7d || 0) + ' in the last 7 days · ' + (n.networks_all || 0) + ' in total' + (n.countries && n.countries.length ? ' · ' + Admin.esc(n.countries.join(', ')) : '') +
-          (n.networks_7d > 6 ? ' <span class="badge badge--warn">possible link sharing</span>' : '')) +
+          (r.sharing && r.sharing.suspect ? ' <span class="badge badge--warn">possible link sharing</span><br><span class="small muted">Last 7 days: ' + Admin.esc(r.sharing.reasons.join(' · ')) + '</span>' : '')) +
         fact('Added', Admin.kst(s.created_at, false) + (s.ac_contact_id ? ' · AC contact ' + Admin.esc(s.ac_contact_id) : '')) +
         (s.notes ? fact('Notes', Admin.esc(s.notes)) : '');
       $('d-enrollments').innerHTML = enrollmentRows(s);

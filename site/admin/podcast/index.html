@@ -23,6 +23,16 @@
     <ul class="checklist" id="attention" aria-live="polite"></ul>
   </section>
 
+  <section class="admin-card" aria-labelledby="sharing-title">
+    <h2 id="sharing-title">Possible link sharing <span class="muted small">(last 7 days)</span></h2>
+    <p class="muted small">Students whose personal link was used from more than 2 networks, more than 1 country or more than
+      1 podcast app, or with one episode downloaded from more than 1 network. A single phone can trip these (home Wi-Fi and
+      mobile data are 2 networks), so they are reasons to look, not proof: open the student, then reset their link if needed
+      (they get the new one by email, and the old link stops working at once).</p>
+    <div id="sharing" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+    <p class="admin-form__result" id="sharing-out" role="status"></p>
+  </section>
+
   <div class="home-grid">
     <a class="home-card" href="/admin/podcast/episodes"><h2>Episodes</h2><p class="muted">Upload and schedule each program’s modules.</p></a>
     <a class="home-card" href="/admin/podcast/cohorts"><h2>Cohorts</h2><p class="muted">Start dates, AC tags and each cohort’s release schedule.</p></a>
@@ -46,8 +56,35 @@
     var items = [];
     if (o.ac_failed) items.push('<li><span class="status status--bad">Check</span><span>' + o.ac_failed + ' ActiveCampaign update(s) failed: <a href="/admin/podcast/automation">Automation</a> → Retry failed.</span></li>');
     if (o.ac_pending) items.push('<li><span class="status status--info">Info</span><span>' + o.ac_pending + ' ActiveCampaign update(s) waiting to be sent.</span></li>');
+    if (o.sharing) items.push('<li><span class="status status--bad">Check</span><span>' + o.sharing + ' student(s) may be sharing their link: see <a href="#sharing-title">Possible link sharing</a> below.</span></li>');
     document.getElementById('attention').innerHTML = items.join('');
   }).catch(function (err) { document.getElementById('stats').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+
+  var box = document.getElementById('sharing'), out = document.getElementById('sharing-out');
+  function loadSharing() {
+    return Admin.get('podcast-sharing').then(function (r) {
+      if (!r.students.length) { box.innerHTML = '<p class="admin-empty">Nothing unusual in the last 7 days.</p>'; return; }
+      box.innerHTML = '<div class="admin-scroll"><table class="admin-table"><thead><tr><th scope="col">Student</th><th scope="col">Signals</th>' +
+        '<th scope="col" class="num">Downloads</th><th scope="col">Last activity</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+        r.students.map(function (s) {
+          return '<tr><td><strong>' + Admin.esc(s.name || '–') + '</strong><br><span class="small muted">' + Admin.esc(s.email) + '</span></td>' +
+            '<td class="badges">' + s.sharing.reasons.map(function (x) { return '<span class="badge badge--warn">' + Admin.esc(x) + '</span>'; }).join(' ') + '</td>' +
+            '<td class="num">' + s.downloads + '</td><td class="small">' + Admin.kst(s.last_at) + '</td>' +
+            '<td><div class="admin-actions"><a class="btn-ghost" data-tip="Open this student’s details: listening history, networks and apps" href="/admin/podcast/students/#' + s.id + '">Open</a>' +
+            '<button class="btn-ghost" type="button" data-tip="Give this student a new personal link. The old link stops working at once; AC emails them the new one" data-reset="' + s.id + '" data-email="' + Admin.esc(s.email) + '">Reset link</button></div></td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }).catch(function (err) { box.innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+  box.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-reset]');
+    if (!b) return;
+    if (!confirm('Give ' + b.dataset.email + ' a new personal link? The old link and every podcast already added to their apps stop working; they must subscribe again with the new link.')) return;
+    b.disabled = true;
+    Admin.post('student-reset-link', { id: Number(b.dataset.reset) })
+      .then(function (r) { Admin.say(out, 'New link created for ' + b.dataset.email + '.' + (r.ac ? ' ActiveCampaign has the new link and the tag podcast_link_reset.' : ' ActiveCampaign isn’t connected: send the new link yourself.')); return loadSharing(); })
+      .catch(function (err) { b.disabled = false; Admin.say(out, err.message, true); });
+  });
+  loadSharing();
 })();
 </script>
 </body>
