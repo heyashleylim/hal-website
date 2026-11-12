@@ -10,6 +10,7 @@ const auth = require('../auth.js');
 const ac = require('../ac.js');
 const release = require('../release.js');
 const automation = require('../automation.js');
+const sharing = require('../sharing.js');
 const { userError, getShow, text, int, date, email, friendlyUnique } = require('./util.js');
 
 const MAX_IDS = 1000;
@@ -22,6 +23,39 @@ async function notifyNew(pairs, input) {
   return automation.acConfigured() ? automation.processOutbox({ budgetMs: 8000 }) : { skipped: 'ActiveCampaign is not configured: the updates wait in the queue' };
 }
 const NOT_A_PERSON = `e.app NOT IN ('Bot', 'Web browser', 'Unknown', 'Other') AND e.app NOT LIKE '%(server)'`;
+
+// Sharing signals over the last 7 days (api/_lib/sharing.js), for every student with activity or for one ($1).
+// Networks and countries count downloads only (feed checks can come from an app's own servers).
+function sharingSql(oneStudent) {
+  return `
+  WITH ev AS (
+    SELECT e.student_id, e.episode_id, e.kind, e.app, e.ip_hash, e.country, e.at FROM events e
+     WHERE e.at > now() - interval '${sharing.LIMITS.windowDays} days' AND ${NOT_A_PERSON}${oneStudent ? ' AND e.student_id = $1' : ''}
+       -- after a link reset, only the new link's activity counts
+       AND e.at > COALESCE((SELECT max(l.at) FROM admin_log l WHERE l.action = 'student-reset-link' AND l.target = 'student ' || e.student_id),
+                           '-infinity'::timestamptz)),
+  per AS (
+    SELECT student_id,
+           count(DISTINCT ip_hash) FILTER (WHERE kind = 'download')::int AS networks,
+           COALESCE(array_remove(array_agg(DISTINCT country) FILTER (WHERE kind = 'download'), NULL), '{}') AS countries,
+           COALESCE(array_remove(array_agg(DISTINCT app), NULL), '{}') AS apps,
+           count(*) FILTER (WHERE kind = 'download')::int AS downloads,
+           max(at) AS last_at
+      FROM ev GROUP BY student_id),
+  ep AS (
+    SELECT student_id, max(n)::int AS episode_networks
+      FROM (SELECT student_id, episode_id, count(DISTINCT ip_hash) AS n FROM ev
+             WHERE kind = 'download' AND episode_id IS NOT NULL GROUP BY student_id, episode_id) x
+     GROUP BY student_id)
+  SELECT s.id, s.email, s.name, s.status, per.networks, per.countries, per.apps, per.downloads, per.last_at,
+         COALESCE(ep.episode_networks, 0) AS episode_networks
+    FROM per JOIN students s ON s.id = per.student_id LEFT JOIN ep ON ep.student_id = per.student_id`;
+}
+
+async function sharingList() {
+  const rows = await db.query(sharingSql(false));
+  return rows.map((r) => ({ ...r, sharing: sharing.assess(r) })).filter((r) => r.sharing.suspect && r.status === 'active').sort(sharing.rank);
+}
 
 function baseUrl(req) {
   return `https://${req.headers['x-forwarded-host'] || req.headers.host}`;
@@ -164,7 +198,7 @@ const actions = {
   async student(input, { req }) {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     const [row, ctx] = await Promise.all([loadRow(id), context()]);
-    const [events, networks, outbox, history] = await Promise.all([
+    const [events, networks, outbox, history, recent] = await Promise.all([
       db.query(
         `SELECT e.kind, e.at, e.app, e.country, sh.title AS show_title, ep.kind AS episode_kind, ep.number, ep.title
            FROM events e LEFT JOIN episodes ep ON ep.id = e.episode_id LEFT JOIN shows sh ON sh.id = e.show_id
@@ -177,8 +211,9 @@ const actions = {
            FROM events e WHERE student_id = $1 AND kind = 'download' AND ${NOT_A_PERSON}`, [id]),
       db.query(`SELECT op, payload, status, attempts, last_error, created_at, done_at FROM ac_outbox WHERE student_id = $1 ORDER BY created_at DESC LIMIT 50`, [id]),
       db.query(`SELECT at, admin, action, details FROM admin_log WHERE target = $1 ORDER BY at DESC LIMIT 50`, [`student ${id}`]),
+      db.one(sharingSql(true), [id]),
     ]);
-    return { student: describe(ctx, row, req), events, networks, outbox, history };
+    return { student: describe(ctx, row, req), events, networks, outbox, history, sharing: sharing.assess(recent || {}) };
   },
 
   // Create (no id) or update a student. On create, `cohort_id` (optional) enrols them at once.
@@ -421,7 +456,13 @@ actions['podcast-overview'] = async function podcastOverview() {
             (SELECT count(*)::int FROM ac_outbox WHERE status = 'failed') AS ac_failed,
             (SELECT max(at) FROM webhook_log) AS last_webhook,
             (SELECT max(at) FROM events WHERE kind = 'download') AS last_download`);
+  row.sharing = (await sharingList()).length;
   return { overview: row };
+};
+
+// Students whose last 7 days look like a shared link (Overview page). Read-only.
+actions['podcast-sharing'] = async function podcastSharing() {
+  return { students: await sharingList(), limits: sharing.LIMITS };
 };
 
 const writes = ['student-save', 'students-status', 'students-enroll', 'enrollment-save', 'enrollments-status', 'enrollment-delete',
