@@ -99,6 +99,8 @@ test('CiderPay: a notice is read the same from a form post or JSON', () => {
     assert.equal(n.token, order.token);
   }
   assert.deepEqual(ciderpay.parseBody('', ''), {});
+  // a repeated key keeps its first value (never "220000,1000")
+  assert.deepEqual(ciderpay.parseBody('price=1000&price=220000', ''), { price: '1000' });
   assert.deepEqual(ciderpay.parseBody('{"a":[1]}', 'application/json'), { a: '1' });
 });
 
@@ -122,6 +124,7 @@ test('CiderPay: a notice is only believed with the order’s token and our signa
   assert.match(ok({ var2: ciderpay.signature({ ...order, due_today: 1000 }, env) }), /signature/); // signed for another amount
   assert.match(ok({ var1: 'zbcdefghijklmnopqrstuv' }), /token/);
   assert.match(ok({ memberID: 'someone-else' }), /merchant/);
+  assert.match(ok({ memberID: '' }), /no merchant id/);   // a notice without our merchant id is never believed
   assert.match(ok({ orderNo: '' }), /order number/);
   // a signature made with another secret is worthless
   assert.match(ok({ var2: ciderpay.signature(order, { ...env, SHOP_SECRET: 'another-secret-another-secret-another!' }) }), /signature/);

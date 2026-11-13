@@ -16,9 +16,9 @@ const config = require('./config.js');
 // Instalment plans are built in phase 3 (docs/commerce-plan.md). Until then the checkout only sells pay-in-full.
 const INSTALMENTS_ENABLED = false;
 
-// Per 10 minutes. Mobile carriers put many buyers behind one address, so the network limit is generous; the
-// email limit only stops one address being hammered (a buyer retrying a declined card stays well under it).
-const RATE_LIMIT = { perNetwork: 30, perEmail: 10, minutes: 10 };
+// Orders started from one network per 10 minutes. Mobile carriers put many buyers behind one address, so it is
+// generous. There is deliberately no limit per email: anyone could type a buyer's email to lock them out.
+const RATE_LIMIT = { perNetwork: 30, minutes: 10 };
 
 // A checkout problem with a stable code (copy.ko.js `problems`), safe to show to the buyer.
 class CheckoutError extends Error {
@@ -32,9 +32,11 @@ class CheckoutError extends Error {
 const providerFor = (currency) => (currency === 'USD' ? 'paypal' : 'ciderpay');
 
 // The ways this product can be bought right now (currency + plan), priced.
-function offers(product) {
+// `providers`: the payment providers this deployment has keys for (default: both, for tests and pricing).
+function offers(product, providers = ['ciderpay', 'paypal']) {
   return pricing.options(product)
     .filter((o) => o.plan === 'full' || INSTALMENTS_ENABLED)
+    .filter((o) => providers.includes(providerFor(o.currency)))
     .map((o) => ({ ...pricing.quote(product, o), provider: providerFor(o.currency) }));
 }
 
@@ -52,13 +54,13 @@ async function createOrder({ product, currency, plan, billing, source = {}, ipHa
   const offer = offers(product).find((o) => o.currency === currency && o.plan === plan);
   if (!offer) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
 
-  const recent = await db.one(
-    `SELECT count(*) FILTER (WHERE o.ip_hash = $1)::int AS network, count(*) FILTER (WHERE c.email = $2)::int AS email
-       FROM shop_orders o JOIN shop_customers c ON c.id = o.customer_id
-      WHERE o.created_at > now() - ($3 || ' minutes')::interval AND (o.ip_hash = $1 OR c.email = $2)`,
-    [ipHash, billing.email, String(RATE_LIMIT.minutes)],
-  );
-  if (recent.network >= RATE_LIMIT.perNetwork || recent.email >= RATE_LIMIT.perEmail) throw new CheckoutError('too_many');
+  if (ipHash) {
+    const recent = await db.one(
+      `SELECT count(*)::int AS n FROM shop_orders WHERE ip_hash = $1 AND created_at > now() - ($2 || ' minutes')::interval`,
+      [ipHash, String(RATE_LIMIT.minutes)],
+    );
+    if (recent.n >= RATE_LIMIT.perNetwork) throw new CheckoutError('too_many');
+  }
 
   // The customer row is created from this form, but an existing customer's details are only replaced once a
   // payment is confirmed (afterPaid): typing someone else's email must not rewrite their record.
@@ -104,7 +106,7 @@ const UNPAID = ['created', 'awaiting_payment', 'expired', 'cancelled'];
 /*
  * What to do with a confirmed payment for `order` (pure). `payment`: { provider, currency, amount, ref }.
  *   { action: 'accept' }            the expected payment
- *   { action: 'extra' }             valid, but the order is already paid: record it and alert (refund needed)
+ *   { action: 'extra' }             valid, but the order is already paid: held for a person (not recorded), alert
  *   { action: 'reject', reason }    not what this order expects: nothing is recorded as paid
  */
 function decide(order, payment) {
@@ -185,6 +187,23 @@ async function markTracked(token) {
   return Boolean(row);
 }
 
+// Paid orders whose ActiveCampaign updates were never queued (the queueing step failed after the payment was
+// recorded). Used by the daily job and shown in the admin, so a buyer never silently misses their purchase tag.
+async function paidWithoutSync() {
+  return db.query(
+    `SELECT o.* FROM shop_orders o
+      WHERE o.paid_at IS NOT NULL AND o.status = 'paid'
+        AND NOT EXISTS (SELECT 1 FROM shop_outbox x WHERE x.order_id = o.id)
+      ORDER BY o.id LIMIT 200`);
+}
+
+// Another order of the same customer for the same product, paid in the last 24 hours (a probable double payment).
+async function samePurchaseRecently(order) {
+  return db.one(
+    `SELECT number FROM shop_orders WHERE customer_id = $1 AND product_id = $2 AND id <> $3 AND paid_at > now() - interval '24 hours' ORDER BY id DESC LIMIT 1`,
+    [order.customer_id, order.product_id, order.id]);
+}
+
 async function payments(orderId) {
   return db.query(`SELECT * FROM shop_payments WHERE order_id = $1 ORDER BY at, id`, [orderId]);
 }
@@ -192,4 +211,5 @@ async function payments(orderId) {
 module.exports = {
   INSTALMENTS_ENABLED, RATE_LIMIT, CheckoutError, providerFor, offers, productBySlug, createOrder, awaitPayment, abandon,
   byToken, byProviderRequest, decide, recordPayment, refreshCustomer, logCallback, expireStale, markTracked, payments, UNPAID,
+  paidWithoutSync, samePurchaseRecently,
 };

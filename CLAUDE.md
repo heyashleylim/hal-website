@@ -199,7 +199,10 @@ pay in full) are built. The site's payment links still go to WordPress until go-
   CiderPay has no test mode and no payment lookup: a notice is believed only with the address key, the order token and
   our signature (`pay/ciderpay.js`), and the exact amount (`orders.decide`).
 - A payment is recorded once, with its ledger line and the order state, by one statement (`orders.recordPayment`;
-  unique `(provider, kind, provider_ref)`). Opening the thank-you page never marks an order paid.
+  unique `(provider, kind, provider_ref)`). Opening the thank-you page never marks an order paid. A second, different
+  payment for an already-paid order is held (logged as `extra` in `shop_callbacks`, Slack alert), never recorded.
+- Production always uses PayPal live (`PAYPAL_ENV` only applies to previews). The shop refuses to run on a preview
+  without its own database (`db.separateFromProduction()`). Only payment methods with keys present are offered.
 - `shop_ledger` is the tax record: one permanent line per payment or refund (supply + VAT), built by
   `api/_lib/shop/ledger.js`. A database trigger refuses edits and deletes (only a USD line's exchange-rate columns can
   change); a correction is a new line. Orders, payments and ledger lines are never deleted automatically.

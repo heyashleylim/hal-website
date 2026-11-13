@@ -60,7 +60,10 @@ test('production always talks to the real providers', () => {
   assert.equal(config.paypalBase(tampered), 'https://api-m.paypal.com');
   assert.equal(config.paypalBase(preview), 'https://api-m.sandbox.paypal.com');
   assert.equal(config.paypalBase({ ...preview, PAYPAL_ENV: 'live' }), 'https://api-m.paypal.com');
-  assert.equal(config.paypalBase({ ...prod, PAYPAL_ENV: 'sandbox' }), 'https://api-m.sandbox.paypal.com');
+  // production is always live: a sandbox setting there would let test money count as paid
+  assert.equal(config.paypalBase({ ...prod, PAYPAL_ENV: 'sandbox' }), 'https://api-m.paypal.com');
+  assert.equal(config.paypalMode({ ...prod, PAYPAL_ENV: 'sandbox' }), 'live');
+  assert.equal(config.paypalMode({ ...preview, PAYPAL_ENV: 'nonsense' }), 'sandbox');
   assert.equal(config.ciderpayBase({ ...preview, CIDERPAY_API_BASE: 'http://localhost:8793/__fake/ciderpay' }), 'http://localhost:8793/__fake/ciderpay');
 });
 

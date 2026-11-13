@@ -19,11 +19,13 @@ const shopSync = require('./_lib/shop/sync.js');
 const emailsSync = require('./_lib/emails/ac-sync.js');
 const emailsTranslate = require('./_lib/emails/translate.js');
 
-// Shop daily job: unpaid orders older than a day expire; ActiveCampaign updates still waiting are sent.
+// Shop daily job: unpaid orders older than a day expire; paid orders missing their ActiveCampaign updates get them;
+// updates still waiting are sent.
 async function shopJob() {
   const expired = await shopOrders.expireStale();
+  const requeued = await require('./_lib/shop/flow.js').repairSync();
   const sent = await shopSync.process({ budgetMs: 60 * 1000 });
-  return { expired, sent };
+  return { expired, requeued, sent };
 }
 
 const MODULES = [

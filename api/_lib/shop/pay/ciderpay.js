@@ -96,7 +96,9 @@ function parseBody(raw, contentType = '') {
       if (data && typeof data === 'object' && !Array.isArray(data)) return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v == null ? '' : String(v)]));
     } catch (_) { /* fall through to form parsing */ }
   }
-  return Object.fromEntries(new URLSearchParams(text));
+  const out = {};
+  for (const [k, v] of new URLSearchParams(text)) if (!(k in out)) out[k] = v; // a repeated key keeps its first value
+  return out;
 }
 
 // Whole won from what CiderPay sends ("220000", 220000, "220,000"); anything else → null.
@@ -137,7 +139,8 @@ function readNotice(p) {
 // Is this notice really about `order`, from our CiderPay account? → null when fine, else the reason.
 function noticeProblem(notice, order, env = process.env) {
   const { memberId } = credentials(env);
-  if (notice.memberId && notice.memberId !== memberId) return 'another merchant id';
+  if (!notice.memberId) return 'no merchant id';
+  if (notice.memberId !== memberId) return 'another merchant id';
   if (!config.safeEqual(notice.token, order.token)) return 'token does not match the order';
   if (!config.safeEqual(notice.signature, signature(order, env))) return 'bad signature';
   if (!notice.orderNo) return 'no CiderPay order number';

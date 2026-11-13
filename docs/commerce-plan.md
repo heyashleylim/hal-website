@@ -593,8 +593,14 @@ the daily schedule check).
   are checked with PayPal before anything is believed.
 - A payment is recorded once (unique provider reference), together with its tax ledger line and the order's
   state, in one database statement. A repeated notice changes nothing.
-- Money really received is never dropped: a valid payment for an expired order is accepted; a second payment for
-  a paid order is recorded and flagged for a refund.
+- A valid payment for an expired order is accepted. A second, different payment for an order that is already
+  paid is **held, not recorded**: it is kept with its full notice in `shop_callbacks` (outcome `extra`) and a Slack
+  alert goes out. If it is real, refund it at the provider. Recording it would write a permanent tax line, and a
+  replayed notice could then inflate the reported sales. Only two payments arriving at the very same instant are
+  both recorded (and flagged).
+- A paid buyer never silently misses their ActiveCampaign tags: a provider's repeated notice queues them again, the
+  daily job queues them for any paid order that has none, the admin Overview counts such orders, and "Send to
+  ActiveCampaign now" on the order queues and sends them.
 
 **The page (redesigned 2026-11-11 after Alex's review: ThriveCart / ClickFunnels order form, not WooCommerce)**
 
@@ -629,10 +635,29 @@ the daily schedule check).
 - The `shop-admin` preview runs the same thing in a browser: `/checkout/<product>` leads to a fake payment page
   with a button for each case.
 - **Not testable without Alex**: a real CiderPay payment (no test mode exists) and a PayPal sandbox payment.
-- **Independent review: not done yet.** A separate reviewer was started on 2026-11-11 to attack the payment code
-  and stopped on a usage limit before reporting anything. To run again before go-live. A second pass by the
-  author found and fixed four points (broken request bodies, rate limits too tight for shared mobile networks,
-  two racing payments not flagged as a double payment, strangers able to add rows to the notice log).
+- **Independent review: done 2026-11-13** (a separate reviewer attacking the deployed code; no PayPal path lets an
+  outsider mark an order paid). Fixed after it:
+  - a paid buyer could end up with no ActiveCampaign tags and nobody told (see above);
+  - a second payment for a paid order wrote a permanent tax line, so a replayed notice could inflate sales (now held);
+  - production honoured `PAYPAL_ENV=sandbox` (now always live there);
+  - on Vercel the request body was re-serialised before PayPal's signature check (now the exact text is read first);
+  - a CiderPay notice without our merchant id was accepted (now refused); a repeated form field keeps its first value;
+  - the thank-you page refused a return by form POST and broke on junk after the token (both handled);
+  - PayPal holding a payment, the same buyer paying twice for one product, and refused CiderPay notices that reached
+    our secret address now send a Slack alert;
+  - anyone could block a buyer by typing their email 10 times (the per-email limit is gone; per-network stays);
+  - a preview without its own database could write into production's tables (the shop now refuses there);
+  - USD or KRW was offered even without that provider's keys (now only what this deployment can take);
+  - ActiveCampaign calls could hang a payment notice (20-second limit, shorter budget in the notice).
+  An earlier pass by the author had fixed broken request bodies, rate limits too tight for shared mobile networks,
+  two racing payments not flagged, and strangers able to add rows to the notice log.
+- **Still open from the review** (need the real CiderPay to answer):
+  - CiderPay's authenticity rests on the secret key in our notice address staying secret. During the first real
+    payment (step 6), check the CiderPay page does not show our address: see step 6.
+  - CiderPay's `taxPrice` (taxable amount) is not sent yet; their VAT document may then disagree with our ledger.
+    Ask CiderPay whether it must be sent, and whether it includes VAT.
+  - Minor, accepted for now: the "purchase sent to GTM" flag is set even if an ad blocker stopped GTM; the secret key
+    sits in Vercel's request logs (only visible to the Vercel account).
 - **WordPress, urgent and separate:** Kakao closes `t1.daumcdn.net` on 2026-11-30. The WordPress snippet "Add Kakao
   postcode button…" loads the address search from there: change that address to `t1.kakaocdn.net` in the snippet
   before that date, or the "우편번호 찾기" button on the current checkout stops working.
@@ -651,6 +676,9 @@ the daily schedule check).
 6. Open `/checkout/test` on a phone, pay ₩1,000 with a real card. Expected: back on the thank-you page within
    seconds; Slack message starting with `[TEST]`; in the admin the order is Paid with one payment, one tax line
    (₩909 + ₩91) and a notice "paid"; in ActiveCampaign the contact has the tag `test_shop_purchase`.
+   **Also, on a computer before paying:** on CiderPay's payment page, right-click → View page source, and search
+   (Cmd+F) for `shop-callback` and for `k=`. Neither should appear. If either does, stop and tell Claude: the notice
+   address would then be visible to buyers, and the CiderPay check must be changed before real sales.
 7. Refund the ₩1,000 in CiderPay's dashboard. Expected: a Slack alert that CiderPay reports a cancellation (the
    order itself stays Paid until phase 3).
 8. PayPal: create a REST app at developer.paypal.com (sandbox), add `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` for

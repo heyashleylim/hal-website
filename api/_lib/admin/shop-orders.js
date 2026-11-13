@@ -26,6 +26,8 @@ const actions = {
                      (SELECT count(*)::int FROM shop_orders WHERE status = 'awaiting_payment' AND created_at < now() - interval '1 hour') AS unpaid,
                      (SELECT count(*)::int FROM shop_outbox WHERE status = 'failed') AS ac_failed,
                      (SELECT count(*)::int FROM shop_outbox WHERE status = 'pending') AS ac_pending,
+                     (SELECT count(*)::int FROM shop_orders o WHERE o.paid_at IS NOT NULL AND o.status = 'paid'
+                        AND NOT EXISTS (SELECT 1 FROM shop_outbox x WHERE x.order_id = o.id)) AS ac_missing,
                      (SELECT count(*)::int FROM shop_callbacks WHERE outcome IN ('rejected', 'error', 'extra') AND at > now() - interval '14 days') AS notices`),
     ]);
     return { overview: { products, orders, last30days: ledger.totals(money), attention } };
@@ -79,6 +81,12 @@ const actions = {
   // Sends the ActiveCampaign updates still waiting (all of them, or one order's), and retries the failed ones.
   async 'shop-sync-run'(input) {
     const orderId = input.order ? int(input.order, { min: 1, max: 2147483647, label: 'order' }) : null;
+    // A paid order that never got its updates queued gets them now (idempotent).
+    if (orderId) {
+      const order = await db.one('SELECT * FROM shop_orders WHERE id = $1', [orderId]);
+      if (!order) throw userError('order not found', 404);
+      await require('../shop/flow.js').ensureSynced(order);
+    } else await require('../shop/flow.js').repairSync();
     await db.query(`UPDATE shop_outbox SET status = 'pending', next_attempt_at = now() WHERE status IN ('failed', 'pending') AND ($1::int IS NULL OR order_id = $1)`, [orderId]);
     const result = await sync.process({ budgetMs: 20000, orderId });
     return { result, target: orderId ? `order ${orderId}` : 'all pending updates', log: result };

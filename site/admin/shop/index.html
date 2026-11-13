@@ -53,6 +53,7 @@
       [a.instalments, 'instalment(s) failed or overdue', 'No failed or overdue instalment'],
       [a.refunds, 'refund(s) requested and not yet confirmed by the payment provider', 'No refund waiting for confirmation'],
       [a.unpaid, 'order(s) started more than an hour ago and still unpaid', 'No unpaid order waiting'],
+      [a.ac_missing, 'paid order(s) never sent to ActiveCampaign: the buyer has no purchase tag yet. The daily job fixes it; to do it now, open the order', 'Every paid order was sent to ActiveCampaign'],
       [a.notices, 'notice(s) from a payment provider refused or unusual in the last 14 days (open the order to see why)', 'No refused or unusual payment notice'],
       [a.ac_failed, 'ActiveCampaign update(s) failed after 8 tries (open the order, then “Send to ActiveCampaign now”)', a.ac_pending ? a.ac_pending + ' ActiveCampaign update(s) waiting to be sent' : 'ActiveCampaign is up to date'],
     ];

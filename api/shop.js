@@ -33,7 +33,7 @@ async function order(req, res) {
     if (wantsJson) return sendJson(res, status, { error: code, fields: fields || undefined });
     // Without JavaScript: the same page again, with what was typed and what to fix.
     if (!product || product.status === 'draft') return sendHtml(res, 404, page.notFoundPage());
-    const offers = orders.offers(product);
+    const offers = orders.offers(product, flow.providers());
     const sale = pricing.saleState(product);
     if (!sale.open || !offers.some((o) => o.currency === currency)) return sendHtml(res, status === 422 ? 409 : status, page.closedPage({ product, reason: sale.reason || 'closed' }));
     return sendHtml(res, status, page.checkoutPage({ product, offers, currency, values: data, errors: fields, problem: code, settings: await settings.read(), query: data }));

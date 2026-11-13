@@ -14,6 +14,7 @@ let fieldCacheAt = 0;
 async function ac(path, options = {}) {
   if (!process.env.AC_API_URL || !process.env.AC_API_KEY) throw new Error('AC_API_URL / AC_API_KEY not set');
   const res = await fetch(process.env.AC_API_URL.trim().replace(/\/$/, '') + '/api/3' + path, {
+    signal: AbortSignal.timeout(20000), // a stuck ActiveCampaign call must not hold up a payment notice or the daily job
     ...options,
     headers: { 'Api-Token': process.env.AC_API_KEY.trim(), 'Content-Type': 'application/json', Accept: 'application/json' },
   });

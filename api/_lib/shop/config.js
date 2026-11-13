@@ -97,10 +97,11 @@ function ciderpayBase(env = process.env) {
 }
 
 // PayPal: live on production, sandbox everywhere else, unless PAYPAL_ENV says otherwise ("live" or "sandbox").
+// Production is ALWAYS live: sandbox money must never count as paid there, whatever PAYPAL_ENV says.
 function paypalMode(env = process.env) {
+  if (isProduction(env)) return 'live';
   const mode = (env.PAYPAL_ENV || '').trim().toLowerCase();
-  if (mode === 'live' || mode === 'sandbox') return mode;
-  return isProduction(env) ? 'live' : 'sandbox';
+  return mode === 'live' ? 'live' : 'sandbox';
 }
 
 function paypalBase(env = process.env) {

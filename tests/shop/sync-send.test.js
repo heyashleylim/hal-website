@@ -128,3 +128,31 @@ test('a form or request from another site is refused', () => {
   assert.equal(http.sameOrigin(req({ origin: 'not a url', host: 'www.ashleylim.com' })), false);
   assert.equal(http.sameOrigin(req({ host: 'www.ashleylim.com' })), true);                    // not a browser
 });
+
+test('request bodies: a repeated field keeps its first value, on every path', () => {
+  assert.deepEqual(http.parse('a=1&a=2', 'application/x-www-form-urlencoded'), { a: '1' });
+  assert.deepEqual(http.flat({ a: ['1', '2'], b: 'x', c: { d: 1 } }), { a: '1', b: 'x', c: { d: 1 } });
+});
+
+test('reading a body: the exact text first, Vercel’s parsed body as fallback', async () => {
+  const { Readable } = require('node:stream');
+  // A stream not yet read: the text comes back exactly as sent, even if a parsed req.body also exists.
+  const raw = '{"a":"\\u00e9","b":1.0}';
+  const req1 = Object.assign(Readable.from([Buffer.from(raw)]), { headers: { 'content-type': 'application/json' } });
+  Object.defineProperty(req1, 'body', { get() { throw new Error('must not be read when the stream is available'); } });
+  const r1 = await http.readBody(req1);
+  assert.equal(r1.text, raw);
+  assert.deepEqual(r1.data, { a: 'é', b: 1 });
+  // The stream already consumed by the platform: Vercel's parsed body is used.
+  const req2 = Object.assign(Readable.from([]), { headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: { price: ['220000', '1000'], var1: 't' } });
+  const r2 = await http.readBody(req2);
+  assert.equal(r2.text, null);
+  assert.deepEqual(r2.data, { price: '220000', var1: 't' });
+  // Broken JSON on Vercel (the getter throws): an empty body, never a crash.
+  const req3 = Object.assign(Readable.from([]), { headers: { 'content-type': 'application/json' } });
+  Object.defineProperty(req3, 'body', { get() { throw new SyntaxError('bad json'); } });
+  assert.deepEqual(await http.readBody(req3), { text: null, data: {} });
+  // Too large.
+  const big = Object.assign(Readable.from([Buffer.alloc(70 * 1024, 97)]), { headers: {} });
+  await assert.rejects(http.readBody(big), (e) => e.status === 413);
+});

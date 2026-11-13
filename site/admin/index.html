@@ -61,7 +61,7 @@
   }).catch(function () { document.getElementById('podcast-stats').innerHTML = ''; });
 
   Admin.get('shop-overview').then(function (r) {
-    var o = r.overview, need = o.attention.instalments + o.attention.refunds + o.attention.unpaid + o.attention.notices + o.attention.ac_failed;
+    var o = r.overview, need = o.attention.instalments + o.attention.refunds + o.attention.unpaid + o.attention.notices + o.attention.ac_failed + (o.attention.ac_missing || 0);
     document.getElementById('shop-stats').innerHTML =
       '<div><dt>Products on sale</dt><dd>' + o.products.open + '</dd></div>' +
       '<div><dt>Paid orders</dt><dd>' + o.orders.paid + '</dd></div>' +

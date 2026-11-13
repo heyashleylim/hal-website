@@ -21,6 +21,12 @@ const order = {
 };
 const dataOf = (html) => JSON.parse(/<script type="application\/json" id="co-data">([\s\S]*?)<\/script>/.exec(html)[1]);
 
+test('only the payment methods this deployment has keys for are offered', () => {
+  assert.deepEqual(orders.offers(product, ['ciderpay']).map((o) => o.currency), ['KRW']);
+  assert.deepEqual(orders.offers(product, ['paypal']).map((o) => o.currency), ['USD']);
+  assert.deepEqual(orders.offers(product, []), []);
+});
+
 test('until instalments are built, the checkout only offers pay-in-full', () => {
   assert.equal(orders.INSTALMENTS_ENABLED, false);
   assert.deepEqual(offers.map((o) => `${o.currency} ${o.plan} ${o.provider} ${o.dueToday}`), ['KRW full ciderpay 2690000', 'USD full paypal 229900']);

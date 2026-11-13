@@ -39,6 +39,7 @@ async function fromCiderpay(req, res, url, state) {
   const problem = ciderpay.noticeProblem(notice, order);
   if (problem) {
     await orders.logCallback({ provider: 'ciderpay', outcome: 'rejected', reason: problem, orderId: order.id, payload });
+    await notify.attention('a CiderPay notice was refused', [`Order ${order.number} (${order.product_name})`, problem, 'It reached our secret address but failed the order check. Nothing was recorded as paid.']).catch(() => {});
     return sendJson(res, 400, { status: 'error', message: 'rejected' });
   }
 

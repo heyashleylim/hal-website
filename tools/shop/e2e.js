@@ -205,15 +205,41 @@ async function main() {
     o = await orderOf('buyer1@example.com');
     eq('still one payment, one ledger line, same total, same AC updates', [await count('shop_payments', 'order_id = $1', [o.id]), await count('shop_ledger', 'order_id = $1', [o.id]), o.paid_total, await count('shop_outbox', 'order_id = $1', [o.id])], [1, 1, 220000, 4]);
     n = await fake.notifyCiderpay(rid, { orderNo: 'CP-SECOND', approvalNo: '30099999' });
-    eq('a second, different payment for a paid order: recorded and flagged', [n.status, JSON.parse(n.body).outcome], [200, 'extra']);
+    eq('a second, different payment for a paid order: flagged for a person', [n.status, JSON.parse(n.body).outcome], [200, 'extra']);
     o = await orderOf('buyer1@example.com');
-    eq('the ledger shows both (money received is never dropped)', [await count('shop_ledger', 'order_id = $1', [o.id]), o.paid_total, o.status, await count('shop_outbox', 'order_id = $1', [o.id])], [2, 440000, 'paid', 4]);
+    eq('…held, not recorded: no second payment, no permanent tax line', [await count('shop_payments', 'order_id = $1', [o.id]), await count('shop_ledger', 'order_id = $1', [o.id]), o.paid_total, o.status, await count('shop_outbox', 'order_id = $1', [o.id])], [1, 1, 220000, 'paid', 4]);
+    eq('…and kept with its full notice for the review', (await one(`SELECT payload->>'orderNo' AS no FROM shop_callbacks WHERE order_id = $1 AND outcome = 'extra'`, [o.id])).no, 'CP-SECOND');
+    n = await fake.notifyCiderpay(rid, { orderNo: 'CP-SECOND', approvalNo: '30099999' });
+    eq('the same second payment again: flagged again, still nothing recorded', [JSON.parse(n.body).outcome, await count('shop_ledger', 'order_id = $1', [o.id])], ['extra', 1]);
+
+    group('A buyer never misses their ActiveCampaign tags');
+    await sql('DELETE FROM shop_outbox WHERE order_id = $1', [o.id]); // as if queueing failed right after the payment was recorded
+    n = await fake.notifyCiderpay(rid);
+    eq('the provider’s retry (a duplicate) queues them again', [JSON.parse(n.body).outcome, await count('shop_outbox', 'order_id = $1', [o.id])], ['duplicate', 4]);
+    await sql('DELETE FROM shop_outbox WHERE order_id = $1', [o.id]);
+    const flowLib = require('../../api/_lib/shop/flow.js');
+    check('the daily job finds paid orders without updates', (await flowLib.repairSync()) >= 1);
+    eq('…and queues them', await count('shop_outbox', 'order_id = $1', [o.id]), 4);
+    eq('…once (running it again adds nothing)', [await flowLib.repairSync(), await count('shop_outbox', 'order_id = $1', [o.id])], [0, 4]);
+    await sql('DELETE FROM shop_outbox WHERE order_id = $1', [o.id]);
+    let ov = (await (await fetch(`${base}/api/admin?action=shop-overview`)).json()).overview;
+    check('the admin overview shows a paid order missing its updates', ov.attention.ac_missing >= 1);
+    await admin('shop-sync-run', { order: o.id });
+    eq('“Send to ActiveCampaign now” on the order queues them', await count('shop_outbox', 'order_id = $1', [o.id]), 4);
+    ov = (await (await fetch(`${base}/api/admin?action=shop-overview`)).json()).overview;
+    eq('…and the overview is clear again', ov.attention.ac_missing, 0);
 
     group('Thank-you page');
     r = await get(`/checkout/complete?o=${o.token}`);
     html = await r.text();
     check('paid: thanks, order number, amount, receipt', html.includes('결제가 완료되었어요') && html.includes(String(o.number)) && html.includes('₩220,000') && html.includes('https://example.com/receipt/' + rid) && html.includes('김지연님'));
     check('offers the purchase event to GTM', html.includes('"transaction_id":"' + o.number + '"'));
+    r = await fetch(`${base}/checkout/complete?o=${o.token}`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'payState=COMPLETE&orderNo=X' });
+    check('a payment page returning with a form POST gets the thank-you page', r.status === 200 && (await r.text()).includes('결제가 완료되었어요'));
+    r = await get(`/checkout/complete?o=${o.token}?payState=1&x=2`);
+    check('junk a payment page appends after the token is ignored', r.status === 200 && (await r.text()).includes('결제가 완료되었어요'));
+    eq('no token at all (a reload after it was hidden): 200, the page finds the order itself', (await get('/checkout/complete')).status, 200);
+    eq('POST to the checkout page itself is still refused', (await fetch(base + '/checkout/e2e-eft', { method: 'POST' })).status, 405);
     r = await postJson('/api/shop?action=after', { o: o.token, tracked: true });
     eq('browser reports the event as sent', r.status, 200);
     html = await (await get(`/checkout/complete?o=${o.token}`)).text();
@@ -250,8 +276,8 @@ async function main() {
     for (let i = 0; i < limit.perNetwork + 2; i++) codes.push((await postJson('/api/shop?action=order', buyer(100 + i), flood)).status);
     eq(`after ${limit.perNetwork} orders from one network in ten minutes, the next are refused`, [codes.slice(0, limit.perNetwork).every((x) => x === 200), codes[limit.perNetwork], codes[limit.perNetwork + 1]], [true, 429, 429]);
     codes = [];
-    for (let i = 0; i < limit.perEmail + 1; i++) codes.push((await postJson('/api/shop?action=order', buyer(200), from())).status);
-    eq(`after ${limit.perEmail} orders for one email, the next is refused`, [codes.slice(0, limit.perEmail).every((x) => x === 200), codes[limit.perEmail]], [true, 429]);
+    for (let i = 0; i < 12; i++) codes.push((await postJson('/api/shop?action=order', buyer(200), from())).status);
+    eq('nobody can lock a buyer out by typing their email many times', codes.every((x) => x === 200), true);
     eq('another buyer is not affected', (await postJson('/api/shop?action=order', buyer(300), from())).status, 200);
 
     // ---------- PayPal ----------
@@ -344,10 +370,10 @@ async function main() {
     group('Admin view');
     const paid = { id: paidId };
     const detail = await (await fetch(`${base}/api/admin?action=shop-order&id=${paid.id}`)).json();
-    check('order page shows payments, tax lines, AC updates and notices', detail.payments.length === 2 && detail.ledger.length === 2 && detail.outbox.length === 4 && detail.notices.length >= 9);
+    check('order page shows payments, tax lines, AC updates and notices', detail.payments.length === 1 && detail.ledger.length === 1 && detail.outbox.length === 4 && detail.notices.length >= 9);
     const overview = (await (await fetch(`${base}/api/admin?action=shop-overview`)).json()).overview;
     check('overview counts the notices needing attention and the AC updates waiting', overview.attention.notices > 0 && overview.attention.ac_pending > 0);
-    check('overview totals come from the ledger', overview.last30days.KRW.net.amount >= 440000 && overview.last30days.USD.net.amount === 229900 * 3);
+    check('overview totals come from the ledger', overview.last30days.KRW.net.amount >= 220000 && overview.last30days.USD.net.amount === 229900 * 3);
     const run = await admin('shop-sync-run', {});
     check('"send AC updates now" reports that ActiveCampaign is not configured here', /not configured/.test(JSON.stringify(run)));
 

@@ -21,7 +21,7 @@ async function checkout(req, res, url) {
   const product = await orders.productBySlug(url.searchParams.get('slug'));
   if (!product || product.status === 'draft') return sendHtml(res, 404, page.notFoundPage());
   const sale = pricing.saleState(product);
-  const offers = orders.offers(product);
+  const offers = orders.offers(product, flow.providers());
   if (!sale.open || !offers.length) return sendHtml(res, 200, page.closedPage({ product, reason: sale.reason || 'closed' }));
   const wanted = String(url.searchParams.get('currency') || '').toUpperCase();
   const currency = offers.some((o) => o.currency === wanted) ? wanted : offers[0].currency;
@@ -31,9 +31,18 @@ async function checkout(req, res, url) {
   }));
 }
 
+// The order token from the address. Some payment pages append their own "?…" to the return address, which can
+// leave junk after it ("abc…xyz?payState=1"): only the first 22 characters are the token.
+function tokenFrom(url) {
+  const m = /^[A-Za-z0-9_-]{22}/.exec(url.searchParams.get('o') || '');
+  return m ? m[0] : '';
+}
+
 async function complete(req, res, url) {
-  let order = await orders.byToken(url.searchParams.get('o'));
-  if (!order) return sendHtml(res, 404, page.completePage({ order: null }));
+  const token = tokenFrom(url);
+  let order = await orders.byToken(token);
+  // No token at all: the page reloaded after hiding it; its script brings the buyer back to their order.
+  if (!order) return sendHtml(res, token || url.searchParams.has('o') ? 404 : 200, page.completePage({ order: null }));
   const product = await flow.productOf(order);
 
   // Back from PayPal: capture what the buyer approved. A failure here is not final (the webhook and a reload retry).
@@ -53,13 +62,17 @@ async function complete(req, res, url) {
 }
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    res.setHeader('Allow', 'GET, HEAD');
+  const url = new URL(req.url, 'http://local');
+  const view = url.searchParams.get('view');
+  // A payment page may send the buyer back with a form POST: the thank-you page answers it like a GET (it only
+  // reads the order from the address; nothing in the posted body is used).
+  const allowed = view === 'complete' ? ['GET', 'HEAD', 'POST'] : ['GET', 'HEAD'];
+  if (!allowed.includes(req.method)) {
+    res.setHeader('Allow', allowed.join(', '));
     return sendHtml(res, 405, page.errorPage());
   }
-  const url = new URL(req.url, 'http://local');
   try {
-    if (url.searchParams.get('view') === 'complete') return await complete(req, res, url);
+    if (view === 'complete') return await complete(req, res, url);
     return await checkout(req, res, url);
   } catch (err) {
     console.error('shop-page', err);

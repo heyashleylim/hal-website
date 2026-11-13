@@ -7,16 +7,10 @@ const MAX_BODY = 64 * 1024;
 // `data` is the parsed object (JSON or form fields); `text` the body as received, when we still have it.
 async function readBody(req) {
   const type = String(req.headers['content-type'] || '');
+  // 1. The bytes as sent, when the stream can still be read. Read BEFORE touching `req.body`: on Vercel that
+  //    getter parses the body, and PayPal's signature check needs the exact text, not a re-serialised copy.
   let text = null;
-  let parsed;
-  // On Vercel `req.body` is already parsed (and reading it throws when the body is broken JSON).
-  try { parsed = req.body; } catch (_) { return { text: null, data: {} }; }
-  if (parsed !== undefined && parsed !== null) {
-    if (Buffer.isBuffer(parsed)) text = parsed.toString('utf8');
-    else if (typeof parsed === 'string') text = parsed;
-    else if (typeof parsed === 'object') return { text: null, data: Array.isArray(parsed) ? {} : parsed };
-  }
-  if (text === null) {
+  if (typeof req[Symbol.asyncIterator] === 'function' && !req.readableEnded && !req.complete) {
     const chunks = [];
     let size = 0;
     for await (const chunk of req) {
@@ -24,10 +18,26 @@ async function readBody(req) {
       if (size > MAX_BODY) throw Object.assign(new Error('body too large'), { status: 413 });
       chunks.push(chunk);
     }
-    text = Buffer.concat(chunks).toString('utf8');
+    if (size > 0) text = Buffer.concat(chunks).toString('utf8');
+  }
+  // 2. Otherwise what the platform already read (Vercel's `req.body`; reading it throws on broken JSON).
+  if (text === null) {
+    let parsed;
+    try { parsed = req.body; } catch (_) { return { text: null, data: {} }; }
+    if (Buffer.isBuffer(parsed)) text = parsed.toString('utf8');
+    else if (typeof parsed === 'string') text = parsed;
+    else if (parsed && typeof parsed === 'object') return { text: null, data: Array.isArray(parsed) ? {} : flat(parsed) };
+    else text = '';
   }
   if (text.length > MAX_BODY) throw Object.assign(new Error('body too large'), { status: 413 });
   return { text, data: parse(text, type) };
+}
+
+// A parsed body as plain fields: a repeated form key (an array) keeps its first value, never "a,b".
+function flat(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) out[k] = Array.isArray(v) ? v[0] : v;
+  return out;
 }
 
 // JSON when the body says or looks like JSON, form fields otherwise. Always a plain object.
@@ -40,7 +50,14 @@ function parse(text, type = '') {
     } catch (_) { /* not JSON after all */ }
     if (isJson) return {};
   }
-  return Object.fromEntries(new URLSearchParams(text));
+  return firstValues(new URLSearchParams(text));
+}
+
+// Form fields; a repeated key keeps its first value (the same rule as flat()).
+function firstValues(params) {
+  const out = {};
+  for (const [k, v] of params) if (!(k in out)) out[k] = v;
+  return out;
 }
 
 function sendJson(res, status, body) {
@@ -81,4 +98,4 @@ function sameOrigin(req) {
   }
 }
 
-module.exports = { readBody, parse, sendJson, sendHtml, redirect, sameOrigin, MAX_BODY };
+module.exports = { readBody, parse, flat, sendJson, sendHtml, redirect, sameOrigin, MAX_BODY };
