@@ -3,8 +3,8 @@
  *
  *   POST order    the checkout form (JSON from checkout.js, or a plain form post without JavaScript)
  *                 → the provider's payment page: { redirect } as JSON, or a 303 for a form post.
- *                 The only inputs that matter are the product, the currency, the plan and the buyer's
- *                 details: every amount is computed here from the product.
+ *                 The only inputs that matter are the product, the currency, the plan, the add-ons ticked
+ *                 (addon_<id>) and the buyer's details: every amount is computed here from the products.
  *   GET  status   ?o=<order token> → { status: 'paid' | 'pending' | 'ended' | 'refunded' | 'unknown' }
  *                 (the thank-you page asks until the provider's confirmation has arrived)
  *   POST after    { o, tracked } from the thank-you page: remembers that the purchase event reached GTM,
@@ -20,7 +20,7 @@ const page = require('./_lib/shop/page.js');
 const { readBody, sendJson, sendHtml, redirect, sameOrigin } = require('./_lib/shop/http.js');
 const { CheckoutError } = orders;
 
-const STATUS = { invalid: 422, closed: 409, unavailable: 409, too_many: 429, provider: 502, not_configured: 503, server: 500 };
+const STATUS = { invalid: 422, closed: 409, unavailable: 409, addon_unavailable: 409, too_many: 429, provider: 502, not_configured: 503, server: 500 };
 
 async function order(req, res) {
   const wantsJson = /json/i.test(String(req.headers['content-type'] || ''));
@@ -32,14 +32,16 @@ async function order(req, res) {
     const status = STATUS[code] || 500;
     if (wantsJson) return sendJson(res, status, { error: code, fields: fields || undefined });
     // Without JavaScript: the same page again, with what was typed and what to fix.
-    if (!product || product.status === 'draft') return sendHtml(res, 404, page.notFoundPage());
+    if (!product || product.status === 'draft' || product.addon_only) return sendHtml(res, 404, page.notFoundPage());
     const offers = orders.offers(product, flow.providers());
     const sale = pricing.saleState(product);
     if (!sale.open || !offers.some((o) => o.currency === currency)) return sendHtml(res, status === 422 ? 409 : status, page.closedPage({ product, reason: sale.reason || 'closed' }));
-    return sendHtml(res, status, page.checkoutPage({ product, offers, currency, values: data, errors: fields, problem: code, settings: await settings.read(), query: data }));
+    const addons = await orders.addonChoices(product, currency);
+    return sendHtml(res, status, page.checkoutPage({ product, offers, currency, addons, values: data, errors: fields, problem: code, settings: await settings.read(), query: data }));
   };
 
-  if (!product || product.status === 'draft') return wantsJson ? sendJson(res, 404, { error: 'closed' }) : sendHtml(res, 404, page.notFoundPage());
+  // An add-on is only sold with the product that offers it, never on its own.
+  if (!product || product.status === 'draft' || product.addon_only) return wantsJson ? sendJson(res, 404, { error: 'closed' }) : sendHtml(res, 404, page.notFoundPage());
   if (!config.configured()) {
     console.error('shop: SHOP_SECRET is not set, orders cannot be taken');
     return fail('not_configured');

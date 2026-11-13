@@ -1,8 +1,9 @@
 /* =========================================================
    Checkout and thank-you pages (/checkout/…), rendered by api/_lib/shop/page.js.
-   An order form in the ThriveCart / ClickFunnels manner, in Ashley's design system (docs/DESIGN.md,
-   brand.css tokens): the product as the headline, numbered steps in one card, the order and its total
-   right above one large button, and beside the form what the buyer gets, the guarantee and reviews.
+   Laid out like the Copy Cure checkout (SamCart; Alex, 2026-11-13), in Ashley's design system (docs/DESIGN.md,
+   brand.css tokens): on a computer the product on the left (name, price, what's included, guarantee, reviews)
+   and the order form in a white card on the right; on a phone the name and price, then the form, then the rest.
+   Add-ons sit between the payment method and the order, as cards with a "+ 추가" toggle (Marie Forleo's checkouts).
    Site header and footer: header.css, footer.css. Phone first; two columns from 960px.
    ========================================================= */
 .co{
@@ -13,12 +14,17 @@
   min-height:100vh;display:flex;flex-direction:column;font-size:16px;line-height:1.6
 }
 .co [hidden]{display:none!important}
-.co-main{flex:1;width:100%;padding:32px var(--gutter) 64px}
+.co-main{
+  /* Squarer corners than the rest of the site (Alex, 2026-11-13): an order form, not a sales page.
+     The brand radius tokens are redefined for the checkout content only; header and footer keep theirs. */
+  --r-sm:6px;--r-md:8px;--r-lg:10px;--r-xl:12px;
+  flex:1;width:100%;padding:32px var(--gutter) 64px
+}
 .co-main a{text-underline-offset:3px}
-.co-wrap{max-width:1040px;margin:0 auto}
+.co-wrap{max-width:1080px;margin:0 auto}
 
-/* ---------- The product is the headline ---------- */
-.co-hero{text-align:center;margin:0 auto 28px;max-width:var(--w-text)}
+/* ---------- The product: name, one line, price ---------- */
+.co-head{text-align:center;max-width:var(--w-text);margin:0 auto}
 .co-badge{display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;padding:6px 16px;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--surface);font:400 13px/1.6 var(--font-body);color:var(--ink-2)}
 .co-title{font:500 28px/1.4 var(--font-head);margin:0}
 .co-sub{margin-top:10px;font-size:16px;line-height:1.6;color:var(--ink-2)}
@@ -28,6 +34,7 @@
 .co-price span{font-size:13px;color:var(--muted)}
 
 .co-grid{display:flex;flex-direction:column;gap:24px}
+.co-grid > .co-head{margin-bottom:4px}
 
 /* ---------- The order form: one card, numbered steps ---------- */
 .co-form{min-width:0;padding:24px 20px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);display:flex;flex-direction:column;gap:28px}
@@ -75,6 +82,38 @@
 .co-switch{margin-top:10px;font-size:14px}
 .co-switch a{display:inline-block;padding:12px 0;color:var(--ink-2)}
 
+/* ---------- Add-ons: a card each, "+ 추가" toggles a real checkbox ---------- */
+.co-addons{display:grid;gap:12px}
+.co-addons__title{font:700 17px/1.4 var(--font-body);margin:0}
+.co-addons__list{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+.co-addon{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;align-items:start;padding:16px;border:1px solid var(--accent);border-radius:var(--r-md);background:var(--bg-blush)}
+.co-addon__check{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+.co-addon__body{min-width:0}
+.co-addon__name{font:700 16px/1.5 var(--font-body);color:var(--ink)}
+.co-addon__sum{margin-top:2px;font-size:14px;line-height:1.6;color:var(--ink-2)}
+.co-addon__price{margin-top:6px;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;font-variant-numeric:tabular-nums}
+.co-addon__price s{font-size:14px;color:var(--ink-2)}
+.co-addon__price strong{font:700 17px/1.4 var(--font-body);color:var(--accent)}
+.co-addon__more{margin-top:4px;font-size:14px;line-height:1.7;color:var(--ink)}
+.co-addon__more summary{display:inline-flex;align-items:center;min-height:44px;color:var(--ink-2);font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer;list-style:none}
+.co-addon__more summary::-webkit-details-marker{display:none}
+.co-addon__more summary::after{content:"";width:6px;height:6px;margin:-3px 0 0 8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+.co-addon__more[open] summary::after{margin-top:3px;transform:rotate(-135deg)}
+.co-addon__more p{margin:0 0 10px}
+.co-addon__note{font-weight:700}
+.co-addon__toggle{display:inline-flex;align-items:center;justify-content:center;min-width:88px;min-height:44px;padding:0 14px;border:1.5px solid var(--accent);border-radius:var(--r-sm);background:var(--surface);color:var(--accent);font:700 15px/1 var(--font-body);cursor:pointer;white-space:nowrap;user-select:none}
+.co-addon__toggle:hover{background:var(--bg)}
+.co-addon__toggle svg{margin-right:6px;flex:none}
+.co-addon__on{display:none}
+.co-addon__off,.co-addon__on{align-items:center}
+.co-addon__off{display:inline-flex}
+.co-addon__check:checked ~ .co-addon__toggle{background:var(--accent);color:var(--surface)}
+.co-addon__check:checked ~ .co-addon__toggle .co-addon__off{display:none}
+.co-addon__check:checked ~ .co-addon__toggle .co-addon__on{display:inline-flex}
+.co-addon__check:checked ~ .co-addon__toggle .co-tick{color:currentColor;margin-top:0}
+.co-addon:has(.co-addon__check:checked){background:var(--surface);box-shadow:0 0 0 1px var(--accent)}
+.co-addon__check:focus-visible ~ .co-addon__toggle{outline:3px solid var(--accent);outline-offset:3px}
+
 /* The order, right above the button */
 .co-order{padding:20px;border-radius:var(--r-lg);background:var(--bg-alt)}
 .co-order__title{font:700 15px/1.4 var(--font-body);color:var(--ink-2);margin:0 0 10px}
@@ -82,6 +121,9 @@
 .co-order__row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:6px 0}
 .co-order__row dt{min-width:0}
 .co-order__row dd{margin:0;flex:none;text-align:right;font-variant-numeric:tabular-nums}
+.co-order__row--addon dt{display:flex;flex-wrap:wrap;align-items:center;gap:0 6px}
+.co-order__remove{display:inline-flex;align-items:center;gap:4px;min-height:44px;margin:-12px 0;padding:0 6px;border:0;background:none;color:var(--ink-2);font:600 13px/1 var(--font-body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.co-order__remove:hover{color:var(--accent)}
 .co-order__row--total{margin-top:8px;padding-top:14px;border-top:1px solid var(--line)}
 .co-order__row--total dt{font-weight:700}
 .co-order__row--total strong{display:block;font:700 30px/1.2 var(--font-head);color:var(--accent)}
@@ -141,7 +183,7 @@
 
 @media (min-width:600px){
   .co-main{padding-top:44px}
-  .co-title{font-size:34px}
+  .co-title{font-size:32px}
   .co-form{padding:36px 32px;gap:32px}
   .co-fields{grid-template-columns:1fr 1fr}
   .co-field--wide,.co-postcode,.co-kakao{grid-column:1/-1}
@@ -150,10 +192,32 @@
   .co-box{padding:28px 24px}
 }
 @media (min-width:960px){
-  .co-hero{margin-bottom:36px}
-  .co-title{font-size:38px}
-  .co-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:32px;align-items:start}
+  .co-title{font-size:36px}
+  /* Copy Cure: the product on the left, the form card on the right, from the top of the page */
+  .co-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,540px);grid-template-rows:auto 1fr;grid-template-areas:"head form" "side form";column-gap:48px;row-gap:28px;align-items:start}
+  .co-grid > .co-head{grid-area:head;margin:0;text-align:left;padding-top:8px}
+  .co-head .co-price{justify-content:flex-start}
+  .co-grid > .co-form{grid-area:form}
+  .co-grid > .co-side{grid-area:side}
+  .co-grid .co-help{text-align:left}
+  /* The form card is narrower than the page: one field per row, so the phone number keeps its width */
+  .co-grid .co-fields{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){
   .co-spinner{animation-duration:3s}
 }
+
+/* ---------- Phone: country code + number ----------
+   Without JS the country list is a plain select beside the number; checkout.js adds .is-compact,
+   which shows only "+82" with the real select laid invisibly over it (still the focus target). */
+.co-phone{display:flex;gap:8px;align-items:stretch}
+.co-phone input{flex:1;min-width:0}
+.co-phone__cc{position:relative;flex:none;max-width:45%}
+.co-phone__cc select{height:100%}
+.co-phone__shown{display:none}
+.co-phone.is-compact .co-phone__cc{width:96px}
+.co-phone.is-compact .co-phone__cc select{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer}
+.co-phone.is-compact .co-phone__shown{display:flex;align-items:center;height:100%;min-height:52px;padding:0 30px 0 14px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);font:400 16px/1 var(--font-body);font-variant-numeric:tabular-nums;position:relative;pointer-events:none}
+.co-phone.is-compact .co-phone__shown::after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;margin-top:-5px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+.co-phone.is-compact .co-phone__cc:focus-within .co-phone__shown{outline:3px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+.co-field.is-invalid .co-phone__shown{border-color:var(--accent)}

@@ -19,15 +19,16 @@ async function send(text, { fetchImpl = fetch, env = process.env } = {}) {
   return results.length;
 }
 
-// The message sent for a payment received (same spirit as the WooCommerce one).
-function paidText(order, method) {
+// The message sent for a payment received (same spirit as the WooCommerce one). Add-ons are listed after the product.
+function paidText(order, method, items = []) {
   const name = (order.billing || {}).name || '';
-  return `You've got MONEY!\nYAY!! Paid ${pricing.formatMoney(order.due_today, order.currency)} 🎉${method ? ` (${method})` : ''}\n${name} - ${order.product_name} [${order.number}]`;
+  const extras = (items || []).filter((i) => i.kind === 'addon').map((i) => ` + ${i.name}`).join('');
+  return `You've got MONEY!\nYAY!! Paid ${pricing.formatMoney(order.due_today, order.currency)} 🎉${method ? ` (${method})` : ''}\n${name} - ${order.product_name}${extras} [${order.number}]`;
 }
 
-async function paid(order, method, settings, opts) {
+async function paid(order, method, settings, opts, items = []) {
   if (settings && settings.notifications && settings.notifications.paid === false) return 0;
-  return send(paidText(order, method), opts);
+  return send(paidText(order, method, items), opts);
 }
 
 // Something a person must look at: a notice we refused, a second payment for one order, a refund made at the provider…

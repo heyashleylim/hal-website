@@ -125,7 +125,8 @@ One page, one job. No site navigation, no footer menu, nothing to click except p
      PayPal lets the buyer split the payment (3.2).
 4. **쿠폰** collapsed behind "쿠폰이 있으신가요?". A code arriving in the link (`?coupon=…`, as AC emails will
    send it) is applied without typing.
-5. **Order bump** (optional, later): one ticked-box add-on above the button.
+5. **Add-ons / order bump**: built 2026-11-13, ahead of phase 6 (Alex). Cards with "+ 추가" between the payment
+   method and the order, up to 6 per product (see CLAUDE.md → Shop → Add-ons).
 6. **Consent line + pay button** with the amount on it: `₩930,000 결제하기`. Under it: the guarantee line and the
    secure-payment note (wording by Ashley).
 

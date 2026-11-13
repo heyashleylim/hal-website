@@ -45,7 +45,7 @@ function paymentRequest({ order, productName, billing }, env = process.env) {
     memberID: memberId,
     price: order.due_today,
     goodName: goodName(productName, order.number),
-    mobile: billing.phone,
+    mobile: String(billing.phone || '').replace(/\D/g, ''), // '821012345678': digits with the country code, as the WooCommerce plugin sent it
     customName: billing.name,
     email: billing.email,
     feedbackurl: config.callbackUrl('ciderpay', env),

@@ -49,6 +49,12 @@ test('checkout page: the product, the price and a form that works without JavaSc
     assert.match(html, new RegExp(`<input id="co-${name}" name="${name}"`), name);
   }
   assert.ok(!html.includes('name="country"'), 'no country list for Korean buyers');
+  // The phone's country: a labelled list, Korea chosen, the number field beside it.
+  assert.match(html, /<label class="sr-only" for="co-phone_cc">국가 번호<\/label>\s*<select id="co-phone_cc" name="phone_cc"/);
+  assert.match(html, /<option value="KR" data-dial="82" selected>대한민국 \+82<\/option>/);
+  assert.match(html, /<option value="US" data-dial="1">/);
+  assert.match(html, /<option value="AU" data-dial="61">/);
+  assert.equal((html.match(/ selected>/g) || []).length, 1, 'one country chosen');
   assert.ok(html.includes(copy.consent), 'the published consent line is the default');
   assert.match(html, /<meta name="robots" content="noindex, nofollow, noarchive">/);
   assert.ok(html.includes('GTM-MK4FNWNV'));
@@ -97,6 +103,11 @@ test('what the buyer typed comes back after an error, with the message next to t
   assert.ok(html.includes('value="김지연"'));
   assert.ok(html.includes(copy.errors.email_invalid));
   assert.ok(html.includes(copy.errors.phone_invalid));
+  // A buyer who chose another country gets it back with their number.
+  const again = page.checkoutPage({ product, offers, currency: 'KRW', values: { phone_cc: 'AU', phone: '0412' }, errors: { phone: 'phone_invalid_intl' }, problem: 'invalid' });
+  assert.match(again, /<option value="AU" data-dial="61" selected>/);
+  assert.ok(!/<option value="KR"[^>]* selected>/.test(again));
+  assert.ok(again.includes('<span class="co-phone__shown" aria-hidden="true">+61</span>'));
   assert.ok(html.includes(copy.problems.invalid));
   assert.match(html, /<input id="co-email"[^>]*aria-invalid="true"/);
   assert.doesNotMatch(html, /<input id="co-name"[^>]*aria-invalid/);

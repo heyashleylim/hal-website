@@ -23,12 +23,12 @@ function seoul(at) {
  *   fx:      optional { rate, source } for USD lines (won per dollar)
  * Sales are positive, refunds negative; supply + vat = amount on every line.
  */
-function line({ payment, order, product, fx = null, note = '' }) {
+function line({ payment, order, product, rule: givenRule = null, fx = null, note = '' }) {
   if (!Number.isInteger(payment.amount) || payment.amount <= 0) throw new Error('a payment amount must be a positive whole number');
   const refund = payment.kind === 'refund';
   const sign = refund ? -1 : 1;
   const amount = sign * payment.amount;
-  const rule = pricing.vatRule(product, order.currency);
+  const rule = givenRule || pricing.vatRule(product, order.currency);
   const { supply, vat } = pricing.vatSplit(amount, rule);
   const out = {
     at: payment.at,
@@ -46,6 +46,30 @@ function line({ payment, order, product, fx = null, note = '' }) {
   };
   if (order.currency === 'USD' && fx && fx.rate) Object.assign(out, wonValue(amount, fx.rate), { fx_source: fx.source || '' });
   return out;
+}
+
+/*
+ * The ledger lines for one payment or refund of an order whose items fall under one or more VAT rules
+ * (an add-on can be taxed differently from the product). One line per rule, with the payment split across the
+ * rules in proportion to the order's items; the last line takes the rounding rest, so the lines add up to the
+ * payment exactly. A payment of the whole order gives each rule exactly its items' total.
+ *   items: [{ amount, vat_rule | vatRule }]   (the order's items as sold)
+ * The provider fee, when known, is on the first line only.
+ */
+function lines({ payment, order, items, fx = null, note = '' }) {
+  if (!Number.isInteger(payment.amount) || payment.amount <= 0) throw new Error('a payment amount must be a positive whole number');
+  const groups = pricing.vatGroups((items || []).map((i) => ({ amount: i.amount, vatRule: i.vat_rule || i.vatRule })));
+  if (!groups.length) throw new Error('an order needs at least one item to be recorded');
+  const whole = groups.reduce((s, g) => s + g.amount, 0);
+  let left = payment.amount;
+  return groups.map((g, i) => {
+    const last = i === groups.length - 1;
+    const share = last ? left : whole > 0 ? Math.round((payment.amount * g.amount) / whole) : 0;
+    left -= share;
+    if (share <= 0) return null;
+    const l = line({ payment: { ...payment, amount: share, fee: i === 0 ? payment.fee : null }, order, product: null, rule: g.vatRule, fx, note });
+    return l;
+  }).filter(Boolean);
 }
 
 // The won value of a USD amount (cents) at `rate` won per dollar, rounded to the won. A refund rounds like
@@ -74,4 +98,4 @@ function totals(lines) {
   return out;
 }
 
-module.exports = { seoul, line, wonValue, totals };
+module.exports = { seoul, line, lines, wonValue, totals };

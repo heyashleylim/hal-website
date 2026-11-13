@@ -71,35 +71,94 @@ function options(product) {
 /*
  * The price of one purchase.
  *   quote(product, { currency: 'KRW', plan: 'instalment' })
- * → { currency, plan, subtotal, discount, total, dueToday, vatRule, supply, vat, payments: [{ number, amount }] }
+ *   quote(product, { currency: 'KRW', addons: [addonProduct, …] })   (pay in full only)
+ * → { currency, plan, subtotal, discount, total, dueToday, vatRule, supply, vat, payments: [{ number, amount }],
+ *     items: [{ kind, product_id, name, amount, vatRule }], groups: [{ vatRule, amount, supply, vat }] }
  * `total` is everything the customer will pay; `dueToday` what is charged at checkout; `payments` lists each
- * charge in order (one entry for pay-in-full). A discount applies to pay-in-full only for now.
+ * charge in order (one entry for pay-in-full). A discount applies to the product, in pay-in-full only for now.
+ * `vatRule` is the product's; with add-ons under another rule, `groups` has one entry per rule.
  */
-function quote(product, { currency = 'KRW', plan = 'full', discount = 0 } = {}) {
+function quote(product, { currency = 'KRW', plan = 'full', discount = 0, addons = [] } = {}) {
   if (!CURRENCIES.includes(currency)) throw new PricingError('bad_currency', `unknown currency "${currency}"`);
   if (plan !== 'full' && plan !== 'instalment') throw new PricingError('bad_plan', `unknown plan "${plan}"`);
   if (!isAmount(discount)) throw new PricingError('bad_discount', 'discount must be a whole number, zero or more');
+  if (!Array.isArray(addons)) throw new PricingError('bad_addon', 'addons must be a list of products');
 
-  const price = currency === 'KRW' ? product.price_krw : product.price_usd;
+  const price = priceIn(product, currency);
   if (price == null) throw new PricingError('no_price', `this product has no ${currency} price`);
 
   const rule = vatRule(product, currency);
   let subtotal = price;
+  let mainAmount = price;
   let payments;
   if (plan === 'instalment') {
     const p = currency === 'KRW' ? instalmentPlan(product) : null;
     if (!p) throw new PricingError('no_plan', currency === 'KRW' ? 'this product has no instalment plan' : 'instalments are only available in KRW');
     if (discount) throw new PricingError('discount_plan', 'a discount cannot be combined with the instalment plan yet');
+    if (addons.length) throw new PricingError('addon_plan', 'add-ons cannot be combined with the instalment plan yet');
     subtotal = p.total;
+    mainAmount = p.total;
     payments = [{ number: 1, amount: p.first }];
     for (let i = 1; i <= p.count; i++) payments.push({ number: i + 1, amount: p.monthly });
   } else {
-    if (discount > subtotal) throw new PricingError('discount_too_big', 'the discount is larger than the price');
-    payments = [{ number: 1, amount: subtotal - discount }];
+    if (discount > price) throw new PricingError('discount_too_big', 'the discount is larger than the price');
+    mainAmount = price - discount;
+  }
+
+  // What the order holds: the product (less any discount), then each add-on at its price in this currency.
+  const items = [{ kind: 'main', product_id: product.id == null ? null : product.id, name: product.name, amount: mainAmount, vatRule: rule }];
+  const seen = new Set([product.id]);
+  for (const a of addons) {
+    if (!a || a.id == null || seen.has(a.id)) throw new PricingError('bad_addon', 'an add-on is missing, repeated or the product itself');
+    seen.add(a.id);
+    const amount = priceIn(a, currency);
+    if (amount == null) throw new PricingError('no_price', `the add-on "${a.name}" has no ${currency} price`);
+    items.push({ kind: 'addon', product_id: a.id, name: a.name, amount, vatRule: vatRule(a, currency) });
+    subtotal += amount;
   }
   const total = subtotal - discount;
-  const { supply, vat } = vatSplit(total, rule);
-  return { currency, plan, subtotal, discount, total, dueToday: payments[0].amount, vatRule: rule, supply, vat, payments };
+  if (!payments) payments = [{ number: 1, amount: total }];
+
+  // VAT is split once per VAT rule (normally one: the whole order), so the order's lines add up exactly.
+  const groups = vatGroups(items);
+  const supply = groups.reduce((s, g) => s + g.supply, 0);
+  const vat = groups.reduce((s, g) => s + g.vat, 0);
+  return { currency, plan, subtotal, discount, total, dueToday: payments[0].amount, vatRule: rule, supply, vat, payments, items, groups };
+}
+
+const priceIn = (product, currency) => (currency === 'KRW' ? product.price_krw : product.price_usd);
+const compareIn = (product, currency) => (currency === 'KRW' ? product.compare_krw : product.compare_usd);
+
+// Items → one entry per VAT rule: [{ vatRule, amount, supply, vat }] ('taxable' first). Items need { amount, vatRule }.
+function vatGroups(items) {
+  const sums = new Map();
+  for (const it of items) {
+    const rule = it.vatRule || it.vat_rule;
+    if (rule !== 'taxable' && rule !== 'zero') throw new PricingError('bad_rule', `unknown VAT rule "${rule}"`);
+    if (!isAmount(it.amount)) throw new PricingError('bad_amount', 'an item amount must be a whole number, zero or more');
+    sums.set(rule, (sums.get(rule) || 0) + it.amount);
+  }
+  return ['taxable', 'zero'].filter((r) => sums.has(r)).map((r) => ({ vatRule: r, amount: sums.get(r), ...vatSplit(sums.get(r), r) }));
+}
+
+/*
+ * The add-ons the checkout of `product` offers in `currency` at `now`, in the order set in the admin:
+ * [{ product, amount, compare, vatRule }]. `all` is a list of products (at least those in product.addon_ids).
+ * An add-on is left out when it is the product itself, not on sale, or has no price in this currency.
+ * `compare` (the regular price, shown crossed out) is null unless it is higher than the price.
+ */
+function addonChoices(product, all, currency, now = new Date()) {
+  const byId = new Map((all || []).map((p) => [p.id, p]));
+  const out = [];
+  for (const id of [...new Set(product.addon_ids || [])]) {
+    const a = byId.get(id);
+    if (!a || a.id === product.id || !saleState(a, now).open) continue;
+    const amount = priceIn(a, currency);
+    if (amount == null) continue;
+    const compare = compareIn(a, currency);
+    out.push({ product: a, amount, compare: compare != null && compare > amount ? compare : null, vatRule: vatRule(a, currency) });
+  }
+  return out;
 }
 
 function pad(n) {
@@ -144,4 +203,4 @@ function formatMoney(amount, currency) {
   return `${sign}₩${abs.toLocaleString('en-US')}`;
 }
 
-module.exports = { CURRENCIES, VAT_RATE, PricingError, vatSplit, vatRule, instalmentPlan, saleState, options, quote, schedule, formatMoney };
+module.exports = { CURRENCIES, VAT_RATE, PricingError, vatSplit, vatRule, vatGroups, instalmentPlan, saleState, options, quote, addonChoices, schedule, formatMoney };

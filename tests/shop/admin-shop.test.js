@@ -70,7 +70,7 @@ test('a USD-only product without a plan is fine', () => {
   const p = products.productInput({ name: 'X', slug: 'x', price_usd: '99', price_krw: '', instalment_first: '', instalment_monthly: '', instalment_count: '' });
   assert.equal(p.price_krw, null);
   assert.equal(p.status, 'draft');
-  assert.deepEqual(p.content, { summary: '', included: [], image: '', thanks: '', page: '', guarantee: '', testimonials: [] });
+  assert.deepEqual(p.content, { summary: '', included: [], image: '', thanks: '', page: '', guarantee: '', testimonials: [], addon_details: '', addon_note: '' });
 });
 
 test('guarantee and reviews are kept exactly as typed', () => {

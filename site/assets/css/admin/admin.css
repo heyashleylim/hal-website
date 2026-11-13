@@ -264,3 +264,9 @@ button.email-name:hover,a.email-name:hover{color:var(--accent);text-decoration:u
 .bulk label{display:flex;align-items:center;gap:8px;font:600 13px/1.4 var(--font-body);color:var(--ink-2)}
 .bulk__note{flex:1;min-width:220px}
 .bulk__note input{flex:1;min-width:0;min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);font:400 14px/1.4 var(--font-body);color:var(--ink)}
+
+/* Products → Add-ons: the other products as tick boxes */
+.addon-pick{border:0;margin:0;padding:0;min-width:0}
+.addon-pick legend{padding:0;margin-bottom:10px;font-weight:600}
+.addon-pick legend .hint{display:block;font-weight:400}
+.addon-pick #addon-list{display:grid;gap:2px}

@@ -12,7 +12,7 @@ const env = {
 };
 const order = { id: 5, number: 100042, token: 'abcdefghijklmnopqrstuv', currency: 'KRW', plan: 'full', due_today: 220000, total: 220000, provider: 'ciderpay', status: 'awaiting_payment' };
 const usdOrder = { ...order, id: 6, number: 100043, currency: 'USD', due_today: 229900, total: 229900, provider: 'paypal' };
-const billing = { name: '김지연', email: 'jiyeon@example.com', phone: '01012345678' };
+const billing = { name: '김지연', email: 'jiyeon@example.com', phone: '+821012345678' };
 
 // A fetch that answers from a script and records what it was asked.
 function scripted(...answers) {
@@ -35,7 +35,7 @@ test('CiderPay: the request carries our amount, our order and our signature, nev
   assert.equal(req.memberID, 'merchant1');
   assert.equal(req.price, 220000);
   assert.equal(req.goodName, 'EFT 태핑 마스터클래스 [100042]');
-  assert.equal(req.mobile, '01012345678');
+  assert.equal(req.mobile, '821012345678'); // digits with the country code, as the WooCommerce plugin sent it
   assert.equal(req.smsuse, 'N');
   assert.equal(req.var1, order.token);
   assert.equal(req.var2, ciderpay.signature(order, env));

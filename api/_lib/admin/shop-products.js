@@ -58,6 +58,13 @@ function lines(value, { max, label }) {
   return s;
 }
 
+// Text in paragraphs: line breaks and single empty lines kept, trimmed, at most `max` characters.
+function lines2(value, { max, label }) {
+  const s = String(value == null ? '' : value).replace(/\r/g, '').split('\n').map((x) => x.trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (s.length > max) throw userError(`${label} is too long (max ${max} characters)`);
+  return s;
+}
+
 // Reviews for the checkout, typed as blocks separated by an empty line; a last line starting with a dash is
 // the name ("— 김00, 회사원"). The text is kept exactly as typed (CLAUDE.md: testimonials are verbatim).
 function testimonials(value) {
@@ -108,6 +115,16 @@ function productInput(input) {
   const extra_tags = list(input.extra_tags, { max: 20, each: 100, label: 'Extra tags' });
   const legacy_ids = list(input.legacy_ids, { max: 10, each: 9, label: 'WooCommerce ids' }).map((x) => int(x, { min: 1, max: 2147483647, label: 'WooCommerce id' }));
 
+  // Add-ons: which add-ons this product's checkout offers (ids, in order), whether this product is sold only as
+  // an add-on, and its regular price (shown crossed out next to the add-on price).
+  const addon_ids = list(input.addon_ids, { max: 6, each: 10, label: 'Add-ons' }).map((x) => int(x, { min: 1, max: 2147483647, label: 'add-on' }));
+  const addon_only = input.addon_only === true || input.addon_only === 'true' || input.addon_only === 'on';
+  if (addon_only && addon_ids.length) throw userError('A product sold only as an add-on can’t offer add-ons itself');
+  const compare_krw = won(input.compare_krw, 'Regular KRW price');
+  const compare_usd = cents(input.compare_usd, 'Regular USD price');
+  if (compare_krw != null && price_krw == null) throw userError('A regular KRW price needs a KRW price');
+  if (compare_usd != null && price_usd == null) throw userError('A regular USD price needs a USD price');
+
   const c = input.content && typeof input.content === 'object' ? input.content : {};
   const image = text(c.image, { max: 300, label: 'Image' });
   if (image && !/^\/[A-Za-z0-9/_.-]+\.(webp|jpg|jpeg|png)$/.test(image)) throw userError('Image must be a site path to a picture, like /assets/img/shop/nsmb.webp');
@@ -121,9 +138,11 @@ function productInput(input) {
     page,
     guarantee: lines(c.guarantee, { max: 800, label: 'Guarantee' }),
     testimonials: testimonials(c.testimonials),
+    addon_details: lines2(c.addon_details, { max: 2000, label: 'Add-on description' }),
+    addon_note: text(c.addon_note, { max: 300, label: 'Add-on note' }),
   };
 
-  return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content };
+  return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content, addon_ids, addon_only, compare_krw, compare_usd };
 }
 
 // Every way the product can be bought, priced: [{ currency, plan, total, dueToday, vat, payments, label }].
@@ -135,20 +154,31 @@ function priced(product) {
 }
 
 // Things worth a second look before opening a product (shown in the admin, never blocking).
-function warnings(product) {
+function warnings(product, all = []) {
   const out = [];
   const plan = pricing.instalmentPlan(product);
   if (plan && product.price_krw != null && plan.total < product.price_krw) out.push('The instalment plan adds up to less than the pay-in-full price.');
   if (product.status === 'open' && !product.purchase_tag) out.push('No purchase tag: buyers would not be tagged in ActiveCampaign.');
+  if (product.compare_krw != null && product.price_krw != null && product.compare_krw <= product.price_krw) out.push('The regular KRW price is not higher than the price, so it is not shown.');
+  if (product.compare_usd != null && product.price_usd != null && product.compare_usd <= product.price_usd) out.push('The regular USD price is not higher than the price, so it is not shown.');
+  // Add-ons that the checkout would leave out right now (pass the other products as `all`).
+  for (const id of product.addon_ids || []) {
+    const a = all.find((x) => x.id === id);
+    if (!a) continue;
+    if (!pricing.saleState(a).open) out.push(`Add-on “${a.name}” is not on sale, so it is not offered.`);
+    else for (const [cur, has] of [['KRW', product.price_krw != null], ['USD', product.price_usd != null]]) {
+      if (has && (cur === 'KRW' ? a.price_krw : a.price_usd) == null) out.push(`Add-on “${a.name}” has no ${cur} price, so it is not offered on the ${cur} checkout.`);
+    }
+  }
   return out;
 }
 
-function shape(row, now) {
-  return { ...row, sale: pricing.saleState(row, now), options: priced(row), warnings: warnings(row) };
+function shape(row, now, all = []) {
+  return { ...row, sale: pricing.saleState(row, now), options: priced(row), warnings: warnings(row, all) };
 }
 
-const COLUMNS = ['name', 'slug', 'status', 'sale_starts_at', 'sale_ends_at', 'price_krw', 'price_usd', 'instalment_first', 'instalment_monthly', 'instalment_count', 'usd_vat', 'purchase_tag', 'extra_tags', 'legacy_ids', 'content'];
-const CAST = { extra_tags: '::text[]', legacy_ids: '::int[]', content: '::jsonb', sale_starts_at: '::timestamptz', sale_ends_at: '::timestamptz' };
+const COLUMNS = ['name', 'slug', 'status', 'sale_starts_at', 'sale_ends_at', 'price_krw', 'price_usd', 'instalment_first', 'instalment_monthly', 'instalment_count', 'usd_vat', 'purchase_tag', 'extra_tags', 'legacy_ids', 'content', 'addon_ids', 'addon_only', 'compare_krw', 'compare_usd'];
+const CAST = { extra_tags: '::text[]', legacy_ids: '::int[]', addon_ids: '::int[]', addon_only: '::boolean', content: '::jsonb', sale_starts_at: '::timestamptz', sale_ends_at: '::timestamptz' };
 
 async function getProduct(id) {
   const row = await db.one('SELECT * FROM shop_products WHERE id = $1', [id]);
@@ -172,32 +202,45 @@ const readSettings = settings.read;
 const actions = {
   async 'shop-products'() {
     const rows = await db.query(
-      `SELECT p.*, count(o.id)::int AS orders, count(o.id) FILTER (WHERE o.paid_at IS NOT NULL)::int AS paid_orders
+      `SELECT p.*, count(o.id)::int AS orders, count(o.id) FILTER (WHERE o.paid_at IS NOT NULL)::int AS paid_orders,
+              (SELECT count(*)::int FROM shop_order_items i JOIN shop_orders x ON x.id = i.order_id
+                WHERE i.product_id = p.id AND i.kind = 'addon' AND x.paid_at IS NOT NULL) AS paid_addon_sales
          FROM shop_products p LEFT JOIN shop_orders o ON o.product_id = p.id
         GROUP BY p.id ORDER BY (p.status = 'open') DESC, p.name`,
     );
     const now = new Date();
-    return { products: rows.map((r) => shape(r, now)) };
+    return { products: rows.map((r) => shape(r, now, rows)) };
   },
 
   async 'shop-product-save'(input) {
     const id = input.id ? int(input.id, { min: 1, max: 2147483647, label: 'id' }) : null;
     if (id) await getProduct(id);
     const p = productInput(input);
+    if (id && p.addon_ids.includes(id)) throw userError('A product can’t be its own add-on');
+    if (p.addon_ids.length) {
+      const found = await db.query('SELECT id, name, addon_only, addon_ids FROM shop_products WHERE id = ANY($1::int[])', [p.addon_ids]);
+      if (found.length !== p.addon_ids.length) throw userError('One of the chosen add-ons no longer exists: reload the page');
+    }
     const values = COLUMNS.map((c) => (c === 'content' ? JSON.stringify(p[c]) : p[c]));
     const sql = id
       ? `UPDATE shop_products SET ${COLUMNS.map((c, i) => `${c} = $${i + 2}${CAST[c] || ''}`).join(', ')}, updated_at = now() WHERE id = $1 RETURNING *`
       : `INSERT INTO shop_products (${COLUMNS.join(', ')}) VALUES (${COLUMNS.map((c, i) => `$${i + 1}${CAST[c] || ''}`).join(', ')}) RETURNING *`;
     const row = await friendlyUnique(db.one(sql, id ? [id, ...values] : values), { shop_products_slug_key: `another product already uses the address "${p.slug}"` });
-    return { product: shape(row, new Date()), target: `product ${row.id} (${row.slug})` };
+    const all = await db.query('SELECT * FROM shop_products');
+    return { product: shape(row, new Date(), all), target: `product ${row.id} (${row.slug})` };
   },
 
   // Only a product that was never ordered can be deleted; otherwise close it (its orders and tax lines stay).
   async 'shop-product-delete'(input) {
     const product = await getProduct(int(input.id, { min: 1, max: 2147483647, label: 'id' }));
-    const { n } = await db.one('SELECT count(*)::int AS n FROM shop_orders WHERE product_id = $1', [product.id]);
-    if (n > 0) throw userError(`this product has ${n} order(s), so it can't be deleted: set its status to Closed instead`);
-    await db.query('DELETE FROM shop_products WHERE id = $1', [product.id]);
+    const { n } = await db.one(
+      `SELECT (SELECT count(*) FROM shop_orders WHERE product_id = $1) + (SELECT count(*) FROM shop_order_items WHERE product_id = $1 AND kind = 'addon') AS n`, [product.id]);
+    if (Number(n) > 0) throw userError(`this product has ${n} order(s), so it can't be deleted: set its status to Closed instead`);
+    // No checkout keeps offering a product that is gone.
+    await db.tx([
+      ['UPDATE shop_products SET addon_ids = array_remove(addon_ids, $1), updated_at = now() WHERE $1 = ANY(addon_ids)', [product.id]],
+      ['DELETE FROM shop_products WHERE id = $1', [product.id]],
+    ]);
     return { deleted: product.id, target: `product ${product.id} (${product.slug})` };
   },
 

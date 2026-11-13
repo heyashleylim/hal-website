@@ -10,7 +10,7 @@ const { userError, text, int } = require('./util.js');
 const STATUSES = ['created', 'awaiting_payment', 'paid', 'refund_requested', 'partially_refunded', 'refunded', 'expired', 'cancelled'];
 
 const ORDER_COLUMNS = `o.id, o.number, o.product_id, o.product_name, o.currency, o.plan, o.subtotal, o.discount, o.total,
-  o.paid_total, o.refunded_total, o.status, o.plan_status, o.origin, o.legacy_id, o.created_at, o.paid_at, o.provider, o.due_today,
+  o.paid_total, o.refunded_total, (SELECT count(*)::int FROM shop_order_items i WHERE i.order_id = o.id AND i.kind = 'addon') AS addon_count, o.status, o.plan_status, o.origin, o.legacy_id, o.created_at, o.paid_at, o.provider, o.due_today,
   c.email, c.name AS customer_name`;
 
 const actions = {
@@ -44,7 +44,7 @@ const actions = {
          FROM shop_orders o JOIN shop_customers c ON c.id = o.customer_id
         WHERE ($1 = '' OR o.number::text = $1 OR c.email ILIKE '%' || $1 || '%' OR c.name ILIKE '%' || $1 || '%')
           AND ($2 = '' OR o.status = $2)
-          AND ($3::int IS NULL OR o.product_id = $3)
+          AND ($3::int IS NULL OR o.product_id = $3 OR EXISTS (SELECT 1 FROM shop_order_items i WHERE i.order_id = o.id AND i.product_id = $3))
         ORDER BY o.created_at DESC, o.id DESC LIMIT $4`,
       [q, status, product, limit],
     );
@@ -58,7 +58,8 @@ const actions = {
       `SELECT ${ORDER_COLUMNS}, o.billing, o.source, o.note, c.phone, c.country, c.postcode, c.address1, c.address2
          FROM shop_orders o JOIN shop_customers c ON c.id = o.customer_id WHERE o.id = $1`, [id]);
     if (!order) throw userError('order not found', 404);
-    const [payments, instalments, lines, outbox, notices] = await Promise.all([
+    const [items, payments, instalments, lines, outbox, notices] = await Promise.all([
+      db.query(`SELECT position, kind, product_id, name, amount, vat_rule FROM shop_order_items WHERE order_id = $1 ORDER BY position`, [id]),
       db.query(`SELECT id, provider, kind, currency, amount, fee, instalment_no, provider_ref, approval_no, method, receipt_url, at
                   FROM shop_payments WHERE order_id = $1 ORDER BY at, id`, [id]),
       db.query(`SELECT number, to_char(due_date, 'YYYY-MM-DD') AS due_date, amount, status, error FROM shop_instalments WHERE order_id = $1 ORDER BY number`, [id]),
@@ -66,7 +67,7 @@ const actions = {
       db.query(`SELECT op, payload, status, attempts, last_error, created_at, done_at FROM shop_outbox WHERE order_id = $1 ORDER BY id`, [id]),
       db.query(`SELECT at, provider, outcome, reason FROM shop_callbacks WHERE order_id = $1 ORDER BY at, id`, [id]),
     ]);
-    return { order, payments, instalments, ledger: lines, outbox, notices };
+    return { order, items, payments, instalments, ledger: lines, outbox, notices };
   },
 
   // Provider notices that were refused, failed, or brought a second payment: the ones a person should look at.

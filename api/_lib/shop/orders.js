@@ -45,14 +45,40 @@ async function productBySlug(slug) {
   return db.one('SELECT * FROM shop_products WHERE slug = $1', [slug]);
 }
 
+// The add-ons `product`'s checkout offers in `currency` right now (pricing.addonChoices), read from the database.
+async function addonChoices(product, currency, now = new Date()) {
+  const ids = [...new Set(product.addon_ids || [])];
+  if (!ids.length) return [];
+  const rows = await db.query('SELECT * FROM shop_products WHERE id = ANY($1::int[])', [ids]);
+  return pricing.addonChoices(product, rows, currency, now);
+}
+
+// The add-on ids a checkout form asked for: fields named addon_<id> that are ticked (at most 10).
+function requestedAddons(input) {
+  const ids = [];
+  for (const [k, v] of Object.entries(input || {})) {
+    const m = /^addon_(\d{1,9})$/.exec(k);
+    if (m && ['1', 'on', 'true', 'yes'].includes(String(v).toLowerCase())) ids.push(Number(m[1]));
+  }
+  return [...new Set(ids)].sort((a, b) => a - b).slice(0, 11);
+}
+
 /*
  * Creates the order for one purchase. `billing` is the cleaned form (validate.checkoutInput).
+ * `addons`: the add-on products the buyer ticked, each one of addonChoices() (checked by the caller).
+ * The order and its items are written by one statement.
  * Throws CheckoutError('closed' | 'unavailable' | 'too_many').
  */
-async function createOrder({ product, currency, plan, billing, source = {}, ipHash = null, now = new Date() }) {
+async function createOrder({ product, currency, plan, billing, addons = [], source = {}, ipHash = null, now = new Date() }) {
   if (!pricing.saleState(product, now).open) throw new CheckoutError('closed');
-  const offer = offers(product).find((o) => o.currency === currency && o.plan === plan);
-  if (!offer) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
+  if (!offers(product).some((o) => o.currency === currency && o.plan === plan)) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
+  let offer;
+  try {
+    offer = { ...pricing.quote(product, { currency, plan, addons }), provider: providerFor(currency) };
+  } catch (err) {
+    if (err instanceof pricing.PricingError) throw new CheckoutError(err.code === 'addon_plan' || err.code === 'bad_addon' || err.code === 'no_price' ? 'addon_unavailable' : 'unavailable', err.message);
+    throw err;
+  }
 
   if (ipHash) {
     const recent = await db.one(
@@ -69,13 +95,31 @@ async function createOrder({ product, currency, plan, billing, source = {}, ipHa
      ON CONFLICT (email) DO UPDATE SET updated_at = shop_customers.updated_at RETURNING id`,
     [billing.email, billing.name, billing.phone, billing.country, billing.postcode, billing.address1, billing.address2],
   );
+  const it = offer.items;
   const order = await db.one(
-    `INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14) RETURNING *`,
+    `WITH o AS (
+       INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14) RETURNING *),
+     i AS (
+       INSERT INTO shop_order_items (order_id, position, kind, product_id, name, amount, vat_rule)
+       SELECT o.id, x.position - 1, x.kind, x.product_id, x.name, x.amount, x.vat_rule
+         FROM o, unnest($15::text[], $16::int[], $17::text[], $18::int[], $19::text[]) WITH ORDINALITY AS x(kind, product_id, name, amount, vat_rule, position)
+       RETURNING 1)
+     SELECT o.*, (SELECT count(*)::int FROM i) AS item_count FROM o`,
     [config.newToken(), customer.id, product.id, product.name, offer.currency, offer.plan, offer.subtotal, offer.discount, offer.total, offer.dueToday,
-      offer.provider, JSON.stringify(billing), JSON.stringify(source), ipHash],
+      offer.provider, JSON.stringify(billing), JSON.stringify(source), ipHash,
+      it.map((x) => x.kind), it.map((x) => x.product_id), it.map((x) => x.name), it.map((x) => x.amount), it.map((x) => x.vatRule)],
   );
+  if (!order || order.item_count !== it.length) throw new Error('the order and its items were not saved together');
+  delete order.item_count;
   return order;
+}
+
+// An order's items, in order (the product first). Orders from before add-ons have their one item since migration 009.
+async function items(orderId) {
+  return db.query(
+    `SELECT i.position, i.kind, i.product_id, p.slug, i.name, i.amount, i.vat_rule
+       FROM shop_order_items i JOIN shop_products p ON p.id = i.product_id WHERE i.order_id = $1 ORDER BY i.position`, [orderId]);
 }
 
 // The provider accepted our request: the buyer is on their way to pay.
@@ -124,10 +168,11 @@ function decide(order, payment) {
  */
 async function recordPayment(order, product, payment) {
   const at = new Date();
-  const line = ledger.line({
-    payment: { kind: 'payment', amount: payment.amount, fee: payment.fee == null ? null : payment.fee, provider: payment.provider, method: payment.method || '', at },
-    order, product,
-  });
+  // One tax line per VAT rule of the order's items (normally one). An order without items (none since migration
+  // 009) falls back to its product's rule.
+  const sold = await items(order.id);
+  const base = { kind: 'payment', amount: payment.amount, fee: payment.fee == null ? null : payment.fee, provider: payment.provider, method: payment.method || '', at };
+  const ls = sold.length ? ledger.lines({ payment: base, order, items: sold }) : [ledger.line({ payment: base, order, product })];
   const row = await db.one(
     `WITH pay AS (
        INSERT INTO shop_payments (order_id, provider, kind, currency, amount, fee, instalment_no, provider_ref, approval_no, refund_token, method, receipt_url, raw, at)
@@ -136,7 +181,8 @@ async function recordPayment(order, product, payment) {
        RETURNING id),
      led AS (
        INSERT INTO shop_ledger (at, order_id, payment_id, kind, provider, method, currency, amount, supply, vat, vat_rule, fee)
-       SELECT $12::timestamptz, $1::int, pay.id, $13::text, $2::text, $9::text, $3::text, $4::int, $14::int, $15::int, $16::text, $5::int FROM pay
+       SELECT $12::timestamptz, $1::int, pay.id, l.kind, $2::text, $9::text, $3::text, l.amount, l.supply, l.vat, l.rule, l.fee
+         FROM pay, unnest($13::text[], $14::int[], $15::int[], $16::int[], $17::text[], $18::int[]) AS l(kind, amount, supply, vat, rule, fee)
        RETURNING id),
      ord AS (
        UPDATE shop_orders
@@ -145,10 +191,11 @@ async function recordPayment(order, product, payment) {
               paid_at = COALESCE(paid_at, $12::timestamptz), updated_at = now()
         WHERE id = $1::int AND EXISTS (SELECT 1 FROM pay)
         RETURNING id)
-     SELECT (SELECT id FROM pay) AS payment_id, (SELECT id FROM led) AS ledger_id, (SELECT id FROM ord) AS order_id`,
+     SELECT (SELECT id FROM pay) AS payment_id, (SELECT count(*)::int FROM led) AS ledger_lines, (SELECT id FROM ord) AS order_id`,
     [order.id, payment.provider, order.currency, payment.amount, payment.fee == null ? null : payment.fee, String(payment.ref),
       payment.approvalNo || null, payment.refundToken || null, payment.method || '', payment.receiptUrl || null,
-      JSON.stringify(payment.raw || {}), at.toISOString(), line.kind, line.supply, line.vat, line.vat_rule],
+      JSON.stringify(payment.raw || {}), at.toISOString(),
+      ls.map((l) => l.kind), ls.map((l) => l.amount), ls.map((l) => l.supply), ls.map((l) => l.vat), ls.map((l) => l.vat_rule), ls.map((l) => l.fee)],
   );
   const fresh = await db.one('SELECT * FROM shop_orders WHERE id = $1', [order.id]);
   return { recorded: Boolean(row && row.payment_id), paymentId: row ? row.payment_id : null, order: fresh };
@@ -210,6 +257,6 @@ async function payments(orderId) {
 
 module.exports = {
   INSTALMENTS_ENABLED, RATE_LIMIT, CheckoutError, providerFor, offers, productBySlug, createOrder, awaitPayment, abandon,
-  byToken, byProviderRequest, decide, recordPayment, refreshCustomer, logCallback, expireStale, markTracked, payments, UNPAID,
+  byToken, byProviderRequest, decide, recordPayment, items, addonChoices, requestedAddons, refreshCustomer, logCallback, expireStale, markTracked, payments, UNPAID,
   paidWithoutSync, samePurchaseRecently,
 };

@@ -1,7 +1,7 @@
 /* Checkout and thank-you pages (/checkout/…). Vanilla, no dependencies.
    The page works without this file (plain form post, timed reload on the waiting page); this adds:
-   instant field checks, phone formatting, the Kakao address search inside the page, a submit that can't be
-   pressed twice, and the dataLayer events for GTM. Texts come from the page (#co-data), written by the server.
+   instant field checks, phone formatting, the Kakao address search inside the page, the order total following
+   the add-ons ticked, a submit that can't be pressed twice, and the dataLayer events for GTM. Texts come from the page (#co-data), written by the server.
    The server (api/_lib/shop/validate.js) re-checks everything: these checks are only for speed. */
 (function () {
   'use strict';
@@ -33,7 +33,7 @@
   var wait = document.getElementById('co-wait');
   var problem = document.getElementById('co-problem');
   var SAVE_KEY = 'co-form:' + data.slug + ':' + data.currency; // a Korean address must not land in the overseas form, or the reverse
-  var SAVED = ['name', 'email', 'phone', 'postcode', 'address1', 'address2', 'country'];
+  var SAVED = ['name', 'email', 'phone_cc', 'phone', 'postcode', 'address1', 'address2', 'country'];
   var busy = false;
 
   function input(name) { return form.elements[name]; }
@@ -50,6 +50,30 @@
     return /^(010\d{8}|01[16789]\d{7,8})$/.test(d) ? d : '';
   }
 
+  // The country chosen beside the phone number ('KR' by default) and its calling code.
+  function phoneCountry() { var f = input('phone_cc'); return f && f.value ? f.value : 'KR'; }
+  function dialOf(cc) {
+    var f = input('phone_cc'), o = f && f.querySelector('option[value="' + cc + '"]');
+    return o ? o.getAttribute('data-dial') : '82';
+  }
+  // Same rules as validate.phoneInput: '' when the number is fine, else the problem code.
+  function phoneProblem(cc, v) {
+    if (!v) return 'phone_required';
+    var bad = cc === 'KR' ? 'phone_invalid' : 'phone_invalid_intl';
+    if (/[^\d+\s().-]/.test(v)) return bad;
+    if (/^(\+|00)/.test(v)) {
+      var intl = v.replace(/\D/g, '').replace(/^00/, '');
+      if (intl.indexOf('82') === 0) return koreanMobile('+' + intl) ? '' : 'phone_invalid';
+      return intl.length >= 7 && intl.length <= 15 ? '' : 'phone_invalid_intl';
+    }
+    if (cc === 'KR') return koreanMobile(v) ? '' : 'phone_invalid';
+    var dial = dialOf(cc), n = v.replace(/\D/g, '');
+    if (dial === '1' && n.length === 11 && n.charAt(0) === '1') n = n.slice(1);
+    if (cc !== 'IT' && cc !== 'SM' && cc !== 'VA' && n.charAt(0) === '0') n = n.slice(1);
+    var ok = dial === '1' ? /^[2-9]\d{9}$/.test(n) : cc === 'AU' ? /^\d{9}$/.test(n) : n.length >= 6 && dial.length + n.length <= 15;
+    return ok ? '' : 'phone_invalid_intl';
+  }
+
   // Same rules and codes as validate.js.
   var CHECKS = {
     name: function (v) { return !v ? 'name_required' : v.length > 60 ? 'name_long' : ''; },
@@ -57,13 +81,7 @@
       if (!v) return 'email_required';
       return v.length <= 254 && /^[^\s@"'<>()\\,;:]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(v) && v.indexOf('..') < 0 ? '' : 'email_invalid';
     },
-    phone: function (v) {
-      if (!v) return 'phone_required';
-      if (koreanMobile(v)) return '';
-      if (!isUsd) return 'phone_invalid';
-      var digits = v.replace(/\D/g, '');
-      return digits.length >= 7 && digits.length <= 15 && !/[^\d+\s().-]/.test(v) ? '' : 'phone_invalid_intl';
-    },
+    phone: function (v) { return phoneProblem(phoneCountry(), v); },
     postcode: function (v) {
       if (isUsd) return v.length > 20 ? 'postcode_long' : '';
       return !v ? 'postcode_required' : /^\d{5}$/.test(v) ? '' : 'postcode_invalid';
@@ -107,14 +125,17 @@
     try { saved = JSON.parse(stored(SAVE_KEY) || '{}'); } catch (e) { saved = {}; }
     SAVED.forEach(function (n) {
       var f = input(n);
-      if (f && !f.value && typeof saved[n] === 'string' && saved[n].length <= 254) f.value = saved[n];
+      if (!f || typeof saved[n] !== 'string' || saved[n].length > 254) return;
+      // The country list always has a value (Korea): take the saved one only with the saved number.
+      if (n === 'phone_cc') { if (!value('phone') && saved.phone && f.querySelector('option[value="' + saved[n].replace(/[^A-Z]/g, '') + '"]')) f.value = saved[n]; return; }
+      if (!f.value) f.value = saved[n];
     });
   }
 
-  // 01012345678 → 010-1234-5678 while typing (Korean numbers only; anything else is left as typed).
+  // 01012345678 → 010-1234-5678 while typing (Korea chosen; any other country is left as typed).
   function formatPhone() {
     var f = input('phone');
-    if (!f || isUsd) return;
+    if (!f || phoneCountry() !== 'KR') return;
     var raw = f.value;
     if (/^\s*(\+|00)/.test(raw)) return;
     var d = raw.replace(/\D/g, '').slice(0, 11);
@@ -156,6 +177,33 @@
     f.addEventListener('input', function () { if (name === 'phone') formatPhone(); if (f.getAttribute('aria-invalid')) check(name); });
     f.addEventListener('change', save);
   });
+
+  // ---------- Phone country ----------
+  var phoneCountryShown = function () {};
+  // Shows the chosen country as "+82" (the select stays the real control, laid invisibly over it).
+  // On the overseas form, choosing the address country also picks the phone country, until the buyer
+  // picks one themselves.
+  (function () {
+    var cc = input('phone_cc'), row = form.querySelector('.co-phone'), shown = form.querySelector('.co-phone__shown');
+    if (!cc || !row || !shown) return;
+    var chosen = false;
+    function update() {
+      shown.textContent = '+' + dialOf(cc.value);
+      var p = input('phone');
+      if (p) p.placeholder = cc.value === 'KR' ? '010-1234-5678' : '';
+      if (p && p.value) check('phone');
+    }
+    row.classList.add('is-compact');
+    phoneCountryShown = update;
+    cc.addEventListener('change', function () { chosen = true; update(); formatPhone(); save(); });
+    var country = input('country');
+    if (country) country.addEventListener('change', function () {
+      if (chosen || !country.value || !cc.querySelector('option[value="' + country.value + '"]')) return;
+      cc.value = country.value;
+      update();
+    });
+    update();
+  }());
 
   // ---------- Kakao (Daum) address search, opened inside the page ----------
   // The address exactly as Kakao documents it: the script refuses any extra parameter (it shows an alert).
@@ -253,6 +301,66 @@
     });
   }
 
+  // ---------- Add-ons: the order, its total and the button follow what is ticked ----------
+  // The server prices the order again from the ticked add-ons (addon_<id>); these numbers are only what the buyer sees.
+  var ADDONS = data.addons || [];
+  function money(n) {
+    var abs = Math.abs(n), sign = n < 0 ? '-' : '';
+    if (isUsd) {
+      var cents = abs % 100;
+      return sign + '$' + Math.floor(abs / 100).toLocaleString('en-US') + (cents ? '.' + (cents < 10 ? '0' : '') + cents : '');
+    }
+    return sign + '₩' + abs.toLocaleString('en-US');
+  }
+  // Same split as pricing.vatSplit: supply = amount × 10/11 rounded, VAT the rest; once per VAT rule.
+  function vatOf(items) {
+    var taxable = 0;
+    items.forEach(function (x) { if (x.vatRule === 'taxable') taxable += x.amount; });
+    return taxable - Math.round(taxable * 100 / 110);
+  }
+  function addonBox(id) { return form.querySelector('.co-addon__check[data-addon="' + id + '"]'); }
+  function chosenAddons() { return ADDONS.filter(function (a) { var b = addonBox(a.id); return b && b.checked; }); }
+  function cartItems() { return [data.main ? data.main.item : data.item].concat(chosenAddons().map(function (a) { return a.item; })); }
+  function cartValue() {
+    var total = (data.main ? data.main.amount : 0) + chosenAddons().reduce(function (sum, a) { return sum + a.amount; }, 0);
+    return total;
+  }
+  function refreshOrder() {
+    if (!data.main) return;
+    var chosen = chosenAddons(), total = cartValue();
+    ADDONS.forEach(function (a) {
+      var row = form.querySelector('[data-line="' + a.id + '"]'), box = addonBox(a.id);
+      if (row) row.hidden = !(box && box.checked);
+    });
+    var vat = vatOf([data.main].concat(chosen));
+    var totalEl = form.querySelector('[data-total]'), vatEl = form.querySelector('[data-vat]'), due = form.querySelector('[data-due]');
+    if (totalEl) totalEl.textContent = money(total);
+    if (vatEl) { vatEl.textContent = vat > 0 ? String(data.vatTemplate || '').replace('{price}', money(vat)) : ''; vatEl.hidden = !(vat > 0); }
+    if (due) due.textContent = money(total);
+    data.payLabel = String(data.payTemplate || data.payLabel).replace('{price}', money(total));
+    if (!busy) button.textContent = data.payLabel;
+    data.value = isUsd ? total / 100 : total;
+  }
+  ADDONS.forEach(function (a) {
+    var box = addonBox(a.id);
+    if (!box) return;
+    box.addEventListener('change', function () {
+      refreshOrder();
+      window.dataLayer.push({ ecommerce: null });
+      window.dataLayer.push({ event: box.checked ? 'add_to_cart' : 'remove_from_cart', ecommerce: { currency: data.currency, value: a.item.price, items: [a.item] } });
+    });
+  });
+  Array.prototype.forEach.call(form.querySelectorAll('[data-remove]'), function (b) {
+    b.hidden = false;
+    b.addEventListener('click', function () {
+      var box = addonBox(b.getAttribute('data-remove'));
+      if (!box) return;
+      box.checked = false;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+      box.focus();
+    });
+  });
+
   // ---------- submit ----------
   function setBusy(on) {
     busy = on;
@@ -286,11 +394,12 @@
     save();
     var body = {};
     Array.prototype.forEach.call(form.elements, function (f) {
-      if (!f.name || f.disabled || (f.type === 'radio' && !f.checked)) return;
+      // An unticked add-on (or unselected radio) is not sent: only what is ticked is bought.
+      if (!f.name || f.disabled || ((f.type === 'radio' || f.type === 'checkbox') && !f.checked)) return;
       body[f.name] = f.value;
     });
     window.dataLayer.push({ ecommerce: null });
-    window.dataLayer.push({ event: 'add_payment_info', ecommerce: { currency: data.currency, value: data.value, payment_type: isUsd ? 'paypal' : 'card', items: [data.item] } });
+    window.dataLayer.push({ event: 'add_payment_info', ecommerce: { currency: data.currency, value: data.value, payment_type: isUsd ? 'paypal' : 'card', items: cartItems() } });
 
     var controller = window.AbortController ? new AbortController() : null;
     var timer = setTimeout(function () { if (controller) controller.abort(); }, 30000);
@@ -310,12 +419,12 @@
   window.addEventListener('pageshow', function () { setBusy(false); });
 
   restore();
+  phoneCountryShown();
   formatPhone();
-  var more = document.querySelector('.co-sum__more');
-  if (more && window.matchMedia && window.matchMedia('(max-width: 899px)').matches) more.open = false;
+  refreshOrder(); // the browser may have kept add-ons ticked across a reload
 
   window.dataLayer.push({ ecommerce: null });
-  window.dataLayer.push({ event: 'begin_checkout', ecommerce: { currency: data.currency, value: data.value, items: [data.item] } });
+  window.dataLayer.push({ event: 'begin_checkout', ecommerce: { currency: data.currency, value: data.value, items: cartItems() } });
 
   // ---------- thank-you / waiting page ----------
   function complete() {

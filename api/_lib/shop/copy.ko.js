@@ -28,6 +28,7 @@ const copy = {
     email: '이메일',
     emailHint: '주문과 수업 안내를 받을 주소예요.',
     phone: '휴대폰 번호',
+    phoneCountry: '국가 번호',
     postcode: '우편번호',
     address1: '주소',
     address2: '상세 주소',
@@ -59,6 +60,20 @@ const copy = {
   // docs/DESIGN.md: a primary button's label ends in an arrow.
   pay: (amount) => `${amount} 결제하기 →`,
   side: { included: '포함 내용', reviews: '후기' },
+
+  // Add-ons offered on the checkout (Marie Forleo's "Popular add-ons" manner). The names, prices and texts of
+  // each add-on come from its product in the admin.
+  addons: {
+    title: '추가 상품',
+    add: '추가',
+    added: '추가됨',
+    addLabel: (name) => `${name} 주문에 추가`,
+    more: '자세히 보기',
+    remove: '빼기',
+    removeLabel: (name) => `${name} 주문에서 빼기`,
+    regular: '정가',
+    price: '판매가',
+  },
   paying: '결제 화면으로 이동하고 있어요…',
 
   // Field problems. Keys are the codes api/_lib/shop/validate.js returns.
@@ -69,7 +84,7 @@ const copy = {
     email_invalid: '이메일 주소를 다시 확인해 주세요.',
     phone_required: '휴대폰 번호를 입력해 주세요.',
     phone_invalid: '휴대폰 번호를 다시 확인해 주세요. (예: 010-1234-5678)',
-    phone_invalid_intl: '전화번호를 다시 확인해 주세요. 국가번호를 포함해 숫자로 입력해 주세요.',
+    phone_invalid_intl: '전화번호를 다시 확인해 주세요. 왼쪽에서 국가를 고른 뒤 번호를 입력해 주세요.',
     postcode_required: '주소 검색으로 우편번호를 입력해 주세요.',
     postcode_invalid: '우편번호는 숫자 5자리예요.',
     postcode_long: '우편번호가 너무 길어요.',
@@ -86,6 +101,7 @@ const copy = {
     invalid: '입력하신 내용을 다시 확인해 주세요.',
     closed: '지금은 신청 기간이 아니에요.',
     unavailable: '이 결제 방법은 지금 사용할 수 없어요. 다른 방법을 선택해 주세요.',
+    addon_unavailable: '선택하신 추가 상품은 지금 함께 구매할 수 없어요. 주문 내용을 확인하고 다시 시도해 주세요.',
     too_many: '짧은 시간에 요청이 너무 많았어요. 잠시 후 다시 시도해 주세요.',
     provider: '결제 화면을 여는 중에 문제가 생겼어요. 잠시 후 다시 시도해 주세요. 계속되면 ' + SUPPORT_EMAIL + '으로 알려 주세요.',
     not_configured: '지금은 결제를 진행할 수 없어요. ' + SUPPORT_EMAIL + '으로 알려 주시면 바로 도와드릴게요.',
@@ -115,6 +131,7 @@ const copy = {
     paidLead: (name) => `${name}님, 감사합니다.`,
     order: '주문 번호',
     product: '프로그램',
+    addon: '추가 상품',
     amount: '결제 금액',
     date: '결제일',
     receipt: '영수증 보기',

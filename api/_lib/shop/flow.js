@@ -26,6 +26,11 @@ function guardDatabase() {
   if (!db.separateFromProduction()) throw new CheckoutError('not_configured', 'this preview has no database of its own (PODCAST_DATABASE_URL): the shop is switched off here');
 }
 
+// The name of an order on the payment page and receipt: the product, and "외 N건" when add-ons were taken.
+function orderTitle(productName, addonCount = 0) {
+  return addonCount > 0 ? `${productName} 외 ${addonCount}건` : String(productName);
+}
+
 async function productOf(order) {
   return db.one('SELECT * FROM shop_products WHERE id = $1', [order.product_id]);
 }
@@ -39,17 +44,29 @@ async function start({ product, currency, plan, input, source, ipHash }) {
   guardDatabase();
   if (!pricing.saleState(product).open) throw new CheckoutError('closed');
   if (!orders.offers(product, providers()).some((o) => o.currency === currency && o.plan === plan)) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
+  // Add-ons: only the ones this checkout offers right now. One that is no longer offered (closed since the page
+  // was opened) stops the order rather than being dropped: the buyer would pay for less than they chose.
+  const wanted = orders.requestedAddons(input);
+  let addons = [];
+  if (wanted.length) {
+    const choices = await orders.addonChoices(product, currency);
+    addons = wanted.map((id) => (choices.find((c) => c.product.id === id) || {}).product);
+    if (addons.some((a) => !a) || plan !== 'full') throw new CheckoutError('addon_unavailable', `add-on(s) ${wanted.join(', ')} not offered on ${product.slug} in ${currency}`);
+    // In the order the checkout shows them.
+    addons.sort((a, b) => choices.findIndex((c) => c.product.id === a.id) - choices.findIndex((c) => c.product.id === b.id));
+  }
   const checked = validate.checkoutInput(input, currency);
   if (!checked.ok) throw new CheckoutError('invalid', 'form', checked.errors);
   const billing = checked.value;
-  const order = await orders.createOrder({ product, currency, plan, billing, source: validate.sourceInput(source), ipHash });
+  const order = await orders.createOrder({ product, currency, plan, billing, addons, source: validate.sourceInput(source), ipHash });
+  const title = orderTitle(product.name, addons.length);
   try {
     if (order.provider === 'paypal') {
-      const created = await paypal.createOrder({ order, productName: product.name, slug: product.slug });
+      const created = await paypal.createOrder({ order, productName: title, slug: product.slug });
       await orders.awaitPayment(order.id, created.id);
       return { order, redirect: created.approveUrl };
     }
-    const page = await ciderpay.requestPayment({ order, productName: product.name, billing });
+    const page = await ciderpay.requestPayment({ order, productName: title, billing });
     await orders.awaitPayment(order.id, page.payUniqueNo);
     return { order, redirect: page.payUrl };
   } catch (err) {
@@ -115,7 +132,7 @@ async function confirm(order, payment, { sendNow = false } = {}) {
   }
   await step('customer update', () => orders.refreshCustomer(result.order));
   await step('ActiveCampaign queue', () => sync.queuePurchase(result.order, product, payment));
-  await step('Slack', async () => notify.paid(result.order, payment.method, await settings.read()));
+  await step('Slack', async () => notify.paid(result.order, payment.method, await settings.read(), undefined, await orders.items(order.id)));
   await step('double payment check', async () => {
     const other = await orders.samePurchaseRecently(result.order);
     if (other) await notify.attention('the same buyer paid twice for the same product', [`Orders ${other.number} and ${result.order.number} (${order.product_name}), both paid within 24 hours.`, 'If it was a mistake, refund one at the provider.']);
@@ -178,4 +195,4 @@ async function receiptUrl(orderId) {
   return row ? row.receipt_url : '';
 }
 
-module.exports = { start, confirm, settlePaypal, confirmCapture, productOf, receiptUrl, providers, ensureSynced, repairSync };
+module.exports = { orderTitle, start, confirm, settlePaypal, confirmCapture, productOf, receiptUrl, providers, ensureSynced, repairSync };

@@ -67,7 +67,7 @@
         r.orders.map(function (o) {
           return '<tr><td class="num">#' + o.number + ORIGIN[o.origin] + '</td><td class="num">' + Admin.kst(o.created_at) + '</td>' +
             '<td>' + Admin.esc(o.customer_name) + '<br><span class="small muted">' + Admin.esc(o.email) + '</span></td>' +
-            '<td>' + Admin.esc(o.product_name) + (o.plan === 'instalment' ? ' <span class="small muted">(instalments)</span>' : '') + '</td>' +
+            '<td>' + Admin.esc(o.product_name) + (o.addon_count ? ' <span class="small muted">+ ' + o.addon_count + ' add-on' + (o.addon_count > 1 ? 's' : '') + '</span>' : '') + (o.plan === 'instalment' ? ' <span class="small muted">(instalments)</span>' : '') + '</td>' +
             '<td class="num">' + Admin.money(o.total, o.currency) + '</td>' +
             '<td class="num">' + Admin.money(o.paid_total - o.refunded_total, o.currency) + '</td><td>' + status(o) + '</td>' +
             '<td><button data-tip="Open this order: customer, payments, instalment dates and tax lines" class="btn-ghost" type="button" data-open="' + o.id + '">Open</button></td></tr>';
@@ -108,9 +108,12 @@
       body.innerHTML =
         '<dl class="facts">' +
           fact('Status', status(o)) + fact('Created', Admin.kst(o.created_at)) + fact('Paid', o.paid_at ? Admin.kst(o.paid_at) : '–') +
-          fact('Customer', Admin.esc(o.customer_name) + '<br>' + Admin.esc(o.email) + (o.phone ? '<br>' + Admin.esc(o.phone) : '')) +
+          fact('Customer', Admin.esc(o.customer_name) + '<br>' + Admin.esc(o.email) + (o.phone ? '<br>' + Admin.esc(String(o.phone).replace(/^\+82(1\d)(\d{3,4})(\d{4})$/, '0$1-$2-$3')) : '')) +
           fact('Address', Admin.esc(address) || '–') +
           fact('Product', Admin.esc(o.product_name) + (o.plan === 'instalment' ? ' (instalments)' : '')) +
+          (r.items.length > 1 ? fact('Items', r.items.map(function (i) {
+            return (i.kind === 'addon' ? 'Add-on: ' : '') + Admin.esc(i.name) + ' · ' + Admin.money(i.amount, cur) + (i.vat_rule === 'zero' ? ' <span class="small muted">(no VAT)</span>' : '');
+          }).join('<br>')) : '') +
           fact('Paid with', o.provider === 'paypal' ? 'PayPal' : o.provider === 'ciderpay' ? 'Card (CiderPay)' : '–') +
           fact('Price', Admin.money(o.subtotal, cur) + (o.discount ? ' − ' + Admin.money(o.discount, cur) + ' discount' : '')) +
           fact('Total', Admin.money(o.total, cur)) + fact('Received', Admin.money(o.paid_total, cur)) + fact('Refunded', Admin.money(o.refunded_total, cur)) +

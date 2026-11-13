@@ -86,7 +86,7 @@ async function main() {
     eq('order amounts come from the product', [o.currency, o.plan, o.subtotal, o.total, o.due_today, o.status, o.provider], ['KRW', 'full', 220000, 220000, 220000, 'awaiting_payment', 'ciderpay']);
     check('order number starts above WooCommerce’s', o.number >= 100001);
     check('the provider request is remembered', o.provider_request === ridOf(body.redirect));
-    eq('billing kept as typed, cleaned', [o.billing.name, o.billing.phone, o.billing.postcode], ['김지연', '01012345678', '48095']);
+    eq('billing kept as typed, cleaned', [o.billing.name, o.billing.phone, o.billing.postcode], ['김지연', '+821012345678', '48095']);
     const sentBody = fake.cider.get(o.provider_request).body;
     eq('CiderPay was asked for exactly the product’s price', sentBody.price, 220000);
     check('CiderPay request carries the order token and a signature', sentBody.var1 === o.token && sentBody.var2.length === 32);
@@ -252,7 +252,7 @@ async function main() {
     group('Customer record');
     r = await postJson('/api/shop?action=order', buyer(1, { name: '다른 사람', phone: '010-9999-9999', address2: '999호' }), from());
     let c = await one('SELECT * FROM shop_customers WHERE email = $1', ['buyer1@example.com']);
-    eq('an unpaid order under someone’s email does not rewrite their record', [c.name, c.phone, c.address2], ['김지연', '01012345678', '101호']);
+    eq('an unpaid order under someone’s email does not rewrite their record', [c.name, c.phone, c.address2], ['김지연', '+821012345678', '101호']);
     eq('one customer per email', await count('shop_customers', 'email = $1', ['buyer1@example.com']), 1);
 
     group('Late and unusual payments');
@@ -377,13 +377,113 @@ async function main() {
     const run = await admin('shop-sync-run', {});
     check('"send AC updates now" reports that ActiveCampaign is not configured here', /not configured/.test(JSON.stringify(run)));
 
+    // ---------- Add-ons ----------
+    group('Add-ons: products');
+    const addA = (await admin('shop-product-save', { name: '태핑 스크립트 모음', slug: 'e2e-scripts', status: 'open', addon_only: true, price_krw: '47000', price_usd: '47', compare_krw: '99000', purchase_tag: 'purchased_e2e_scripts', content: { summary: '상황별 스크립트', addon_details: '자세한 설명', addon_note: '환불 불가' } })).product;
+    const addB = (await admin('shop-product-save', { name: '워크숍 다시보기', slug: 'e2e-workshop', status: 'open', price_krw: '57000', purchase_tag: 'purchased_e2e_workshop', content: {} })).product;
+    const addC = (await admin('shop-product-save', { name: '마감된 추가 상품', slug: 'e2e-addon-closed', status: 'closed', addon_only: true, price_krw: '10000', content: {} })).product;
+    const addD = (await admin('shop-product-save', { name: '안 팔린 추가 상품', slug: 'e2e-addon-unused', status: 'open', addon_only: true, price_krw: '10000', content: {} })).product;
+    const mainInput = { name: '애드온 테스트 상품', slug: 'e2e-bump', status: 'open', price_krw: '220000', price_usd: '199', usd_vat: 'zero', purchase_tag: 'purchased_e2e_main', content: {} };
+    const bump = (await admin('shop-product-save', { ...mainInput, addon_ids: [addA.id, addB.id, addC.id, addD.id] })).product;
+    check('add-on products and a product offering them', addA && addB && addC && addD && bump && bump.addon_ids.join() === [addA.id, addB.id, addC.id, addD.id].join());
+    check('the closed add-on is flagged in the admin', bump.warnings.some((w) => /마감된 추가 상품/.test(w)));
+    let res = await admin('shop-product-save', { ...mainInput, id: bump.id, addon_ids: [bump.id] });
+    check('a product can’t be its own add-on', /its own add-on/.test(res.error || ''), JSON.stringify(res));
+    res = await admin('shop-product-save', { ...mainInput, id: bump.id, addon_ids: [999999] });
+    check('an add-on that doesn’t exist is refused', /no longer exists/.test(res.error || ''), JSON.stringify(res));
+    eq('the refused saves changed nothing', (await one('SELECT addon_ids FROM shop_products WHERE id = $1', [bump.id])).addon_ids, [addA.id, addB.id, addC.id, addD.id]);
+
+    group('Add-ons: checkout page');
+    html = await (await get('/checkout/e2e-bump')).text();
+    check('offers the open add-ons, in order, unticked', html.includes(`name="addon_${addA.id}" value="1" data-addon="${addA.id}">`) && html.includes(`name="addon_${addB.id}"`) && html.indexOf(`addon_${addA.id}`) < html.indexOf(`addon_${addB.id}`));
+    check('not the closed one', !html.includes(`addon_${addC.id}`));
+    check('regular price crossed out, add-on price, details', html.includes('₩99,000</s>') && html.includes('₩47,000') && html.includes('자세한 설명') && html.includes('환불 불가'));
+    check('total and button: the product alone', html.includes('<strong data-total>₩220,000</strong>') && html.includes('₩220,000 결제하기'));
+    html = await (await get('/checkout/e2e-bump?currency=usd')).text();
+    check('USD: only add-ons with a USD price', html.includes(`addon_${addA.id}`) && !html.includes(`addon_${addB.id}`));
+    eq('an add-on-only product has no checkout of its own', (await get('/checkout/e2e-scripts')).status, 404);
+    eq('…and can’t be ordered on its own', (await postJson('/api/shop?action=order', buyer(60, { slug: 'e2e-scripts' }), from())).status, 404);
+    eq('an add-on that is also sold alone keeps its checkout', (await get('/checkout/e2e-workshop')).status, 200);
+
+    group('Add-ons: ordering');
+    const bumpBuyer = (n, over = {}) => buyer(n, { slug: 'e2e-bump', ...over });
+    r = await postJson('/api/shop?action=order', bumpBuyer(61, { [`addon_${addA.id}`]: '1', [`addon_${addB.id}`]: '1' }), from());
+    body = await r.json();
+    eq('accepted', r.status, 200);
+    o = await orderOf('buyer61@example.com');
+    eq('order total includes both add-ons', [o.subtotal, o.total, o.due_today, o.product_name], [324000, 324000, 324000, '애드온 테스트 상품']);
+    let items = await sql('SELECT position, kind, product_id, name, amount, vat_rule FROM shop_order_items WHERE order_id = $1 ORDER BY position', [o.id]);
+    eq('items: the product, then the add-ons in the page’s order', items.map((i) => [i.position, i.kind, i.product_id, i.amount, i.vat_rule]), [[0, 'main', bump.id, 220000, 'taxable'], [1, 'addon', addA.id, 47000, 'taxable'], [2, 'addon', addB.id, 57000, 'taxable']]);
+    const bumpReq = fake.cider.get(o.provider_request).body;
+    eq('CiderPay asked for the whole order', bumpReq.price, 324000);
+    check('payment page names the order with its add-ons', /^애드온 테스트 상품 외 2건 \[\d+\]$/.test(bumpReq.goodName), bumpReq.goodName);
+    r = await postJson('/api/shop?action=order', bumpBuyer(62, { [`addon_${addA.id}`]: '0', [`addon_${addB.id}`]: '' }), from());
+    o = await orderOf('buyer62@example.com');
+    eq('add-ons not ticked are not bought', [r.status, o.total, await count('shop_order_items', 'order_id = $1', [o.id])], [200, 220000, 1]);
+    r = await postJson('/api/shop?action=order', bumpBuyer(63, { [`addon_${addA.id}`]: '1', [`addon_${addA.id}`.replace('addon_', 'addon_0')]: '1', total: 1000, [`price_${addA.id}`]: 1 }), from());
+    o = await orderOf('buyer63@example.com');
+    eq('the same add-on twice, and amounts sent by the browser: still one add-on at its price', [r.status, o.total, await count('shop_order_items', 'order_id = $1', [o.id])], [200, 267000, 2]);
+    for (const [label, id] of [['a closed add-on', addC.id], ['a product this checkout doesn’t offer', eft.product.id], ['an add-on that doesn’t exist', 999999]]) {
+      r = await postJson('/api/shop?action=order', bumpBuyer(64, { [`addon_${addA.id}`]: '1', [`addon_${id}`]: '1' }), from());
+      eq(`${label}: refused, nothing created`, [r.status, (await r.json()).error], [409, 'addon_unavailable']);
+    }
+    r = await postJson('/api/shop?action=order', bumpBuyer(64, { currency: 'USD', country: 'US', phone: '+1 415 555 0123', [`addon_${addB.id}`]: '1' }), from());
+    eq('an add-on without a price in this currency: refused', [r.status, (await r.json()).error], [409, 'addon_unavailable']);
+    eq('none of those created an order', await count('shop_orders o JOIN shop_customers c ON c.id = o.customer_id', 'c.email = $1', ['buyer64@example.com']), 0);
+    r = await postForm('/api/shop?action=order', bumpBuyer(65, { [`addon_${addA.id}`]: 'on' }), from());
+    check('without JavaScript: a ticked add-on is bought', r.status === 303 && (await orderOf('buyer65@example.com')).total === 267000);
+    r = await postForm('/api/shop?action=order', bumpBuyer(66, { [`addon_${addA.id}`]: 'on', [`addon_${addC.id}`]: 'on' }), from());
+    html = await r.text();
+    check('without JavaScript, an add-on no longer offered: the page again, saying so, the rest still ticked', r.status === 409 && html.includes('선택하신 추가 상품은 지금 함께 구매할 수 없어요') && html.includes(`name="addon_${addA.id}" value="1" data-addon="${addA.id}" checked>`) && html.includes('₩267,000 결제하기'));
+
+    group('Add-ons: payment');
+    o = await orderOf('buyer61@example.com');
+    n = await fake.notifyCiderpay(o.provider_request);
+    eq('paid', [n.status, JSON.parse(n.body).outcome], [200, 'paid']);
+    o = await orderOf('buyer61@example.com');
+    eq('order paid in full', [o.status, o.paid_total], ['paid', 324000]);
+    let leds = await sql('SELECT amount, supply, vat, vat_rule FROM shop_ledger WHERE order_id = $1 ORDER BY id', [o.id]);
+    eq('one tax line for the whole order (one VAT rule)', leds.map((l) => [l.amount, l.supply, l.vat, l.vat_rule]), [[324000, 294545, 29455, 'taxable']]);
+    box = await sql('SELECT op, payload FROM shop_outbox WHERE order_id = $1 ORDER BY id', [o.id]);
+    eq('ActiveCampaign: the product’s tag and each add-on’s', box.filter((b) => b.op === 'tag_add').map((b) => b.payload.tag), ['purchased_e2e_main', 'purchased_e2e_scripts', 'purchased_e2e_workshop']);
+    html = await (await get(`/checkout/complete?o=${o.token}`)).text();
+    check('thank-you page lists the add-ons and the whole amount', html.includes('태핑 스크립트 모음') && html.includes('워크숍 다시보기') && html.includes('₩324,000'));
+    const orderDetail = await (await fetch(`${base}/api/admin?action=shop-order&id=${o.id}`)).json();
+    eq('admin order shows its items', (orderDetail.items || []).map((i) => i.name), ['애드온 테스트 상품', '태핑 스크립트 모음', '워크숍 다시보기']);
+    const listed = (await (await fetch(`${base}/api/admin?action=shop-products`)).json()).products.find((x) => x.id === addA.id);
+    eq('admin counts paid add-on sales', listed.paid_addon_sales, 1);
+    const byAddon = (await (await fetch(`${base}/api/admin?action=shop-orders&product=${addA.id}`)).json()).orders.map((x) => x.id);
+    check('filtering orders by an add-on finds the orders that include it', byAddon.includes(o.id) && byAddon.length >= 1, JSON.stringify(byAddon));
+
+    group('Add-ons: USD, taxed differently from the product');
+    r = await postJson('/api/shop?action=order', abroad(60, { slug: 'e2e-bump', [`addon_${addA.id}`]: '1' }), from());
+    o = await orderOf('abroad60@example.com');
+    eq('USD order with the add-on', [r.status, o.total], [200, 24600]);
+    eq('PayPal asked for the whole order', fake.paypal.get(o.provider_request).body.purchase_units[0].amount, { currency_code: 'USD', value: '246.00' });
+    r = await get(`/__fake/paypal/do?id=${o.provider_request}&act=approve`);
+    await (await get(r.headers.get('location').replace(base, ''))).text();
+    o = await orderOf('abroad60@example.com');
+    leds = await sql('SELECT amount, supply, vat, vat_rule, fee FROM shop_ledger WHERE order_id = $1 ORDER BY id', [o.id]);
+    eq('two tax lines: the taxable add-on and the zero-rated product', leds.map((l) => [l.vat_rule, l.amount, l.supply, l.vat]), [['taxable', 4700, 4273, 427], ['zero', 19900, 19900, 0]]);
+    check('PayPal’s fee is on one line only', leds.filter((l) => l.fee != null).length === 1);
+    eq('the lines add up to the payment', [o.status, leds.reduce((x, l) => x + l.amount, 0)], ['paid', 24600]);
+
+    group('Add-ons: deleting');
+    res = await admin('shop-product-delete', { id: addA.id });
+    check('an add-on that was sold can’t be deleted', /can't be deleted/.test(res.error || ''), JSON.stringify(res));
+    res = await admin('shop-product-delete', { id: addD.id });
+    check('an unsold add-on can', res.deleted === addD.id, JSON.stringify(res));
+    eq('…and no checkout offers it any more', (await one('SELECT addon_ids FROM shop_products WHERE id = $1', [bump.id])).addon_ids, [addA.id, addB.id, addC.id]);
+
     group('Ledger integrity');
     const sums = await one(`SELECT (SELECT COALESCE(sum(amount), 0)::int FROM shop_ledger WHERE currency = 'KRW') AS ledger, (SELECT COALESCE(sum(amount), 0)::int FROM shop_payments WHERE currency = 'KRW' AND kind = 'payment') AS payments, (SELECT COALESCE(sum(paid_total), 0)::int FROM shop_orders WHERE currency = 'KRW') AS orders`);
     eq('KRW: ledger = payments = orders’ paid totals', [sums.ledger === sums.payments, sums.payments === sums.orders], [true, true]);
     const usdSums = await one(`SELECT (SELECT COALESCE(sum(amount), 0)::int FROM shop_ledger WHERE currency = 'USD') AS ledger, (SELECT COALESCE(sum(amount), 0)::int FROM shop_payments WHERE currency = 'USD') AS payments, (SELECT COALESCE(sum(paid_total), 0)::int FROM shop_orders WHERE currency = 'USD') AS orders`);
     eq('USD: ledger = payments = orders’ paid totals', [usdSums.ledger === usdSums.payments, usdSums.payments === usdSums.orders], [true, true]);
     eq('every ledger line splits exactly', await count('shop_ledger', 'supply + vat <> amount', []), 0);
-    eq('every payment has exactly one ledger line', await count('shop_payments p', 'NOT EXISTS (SELECT 1 FROM shop_ledger l WHERE l.payment_id = p.id) OR (SELECT count(*) FROM shop_ledger l WHERE l.payment_id = p.id) <> 1', []), 0);
+    eq('every payment has its ledger lines, adding up to it exactly', await count('shop_payments p', `NOT EXISTS (SELECT 1 FROM shop_ledger l WHERE l.payment_id = p.id) OR (SELECT sum(l.amount) FROM shop_ledger l WHERE l.payment_id = p.id) <> CASE WHEN p.kind = 'refund' THEN -p.amount ELSE p.amount END`, []), 0);
+    eq('every order’s items add up to its total', await count('shop_orders o', 'NOT EXISTS (SELECT 1 FROM shop_order_items i WHERE i.order_id = o.id) OR (SELECT sum(i.amount) FROM shop_order_items i WHERE i.order_id = o.id) <> o.total', []), 0);
+    eq('every order has exactly one main item, first', await count('shop_orders o', `(SELECT count(*) FROM shop_order_items i WHERE i.order_id = o.id AND i.kind = 'main' AND i.position = 0 AND i.product_id = o.product_id) <> 1`, []), 0);
     eq('no order is paid without a payment', await count('shop_orders o', `o.paid_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM shop_payments p WHERE p.order_id = o.id)`, []), 0);
     eq('no unpaid order has money on it', await count('shop_orders', `status IN ('created', 'awaiting_payment', 'expired', 'cancelled') AND paid_total <> 0`, []), 0);
   } catch (err) {

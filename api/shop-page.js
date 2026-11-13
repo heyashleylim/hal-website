@@ -19,7 +19,8 @@ const SLOW_AFTER = 8; // reloads without JavaScript before the page stops reload
 
 async function checkout(req, res, url) {
   const product = await orders.productBySlug(url.searchParams.get('slug'));
-  if (!product || product.status === 'draft') return sendHtml(res, 404, page.notFoundPage());
+  // A product sold only as an add-on has no checkout of its own.
+  if (!product || product.status === 'draft' || product.addon_only) return sendHtml(res, 404, page.notFoundPage());
   const sale = pricing.saleState(product);
   const offers = orders.offers(product, flow.providers());
   if (!sale.open || !offers.length) return sendHtml(res, 200, page.closedPage({ product, reason: sale.reason || 'closed' }));
@@ -27,7 +28,8 @@ async function checkout(req, res, url) {
   const currency = offers.some((o) => o.currency === wanted) ? wanted : offers[0].currency;
   const problem = PROBLEMS.has(url.searchParams.get('problem')) ? url.searchParams.get('problem') : '';
   return sendHtml(res, 200, page.checkoutPage({
-    product, offers, currency, problem, settings: await settings.read(), query: Object.fromEntries(url.searchParams),
+    product, offers, currency, problem, addons: await orders.addonChoices(product, currency),
+    settings: await settings.read(), query: Object.fromEntries(url.searchParams),
   }));
 }
 
@@ -58,7 +60,8 @@ async function complete(req, res, url) {
 
   const tries = Math.max(0, Math.min(99, parseInt(url.searchParams.get('n') || '0', 10) || 0));
   const receiptUrl = order.paid_at ? await flow.receiptUrl(order.id) : '';
-  return sendHtml(res, 200, page.completePage({ order, product, receiptUrl, tries, slow: tries >= SLOW_AFTER }));
+  const items = order.paid_at ? await orders.items(order.id) : [];
+  return sendHtml(res, 200, page.completePage({ order, product, items, receiptUrl, tries, slow: tries >= SLOW_AFTER }));
 }
 
 module.exports = async function handler(req, res) {

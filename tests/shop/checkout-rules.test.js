@@ -100,12 +100,12 @@ test('the buyer’s network is stored as a signature, never as an address', () =
 
 // ---------- the form ----------
 const krw = { name: ' 김지연 ', email: ' Jiyeon@Example.COM ', phone: '010-1234-5678', postcode: '48095', address1: '부산 해운대구 중동1로17번길 15-1', address2: '101호' };
-const usd = { name: 'Jiyeon Kim', email: 'j@example.com', phone: '+1 (415) 555-0123', country: 'us', address1: '1 Market St, San Francisco, CA', address2: '', postcode: '94105' };
+const usd = { name: 'Jiyeon Kim', email: 'j@example.com', phone_cc: 'US', phone: '(415) 555-0123', country: 'us', address1: '1 Market St, San Francisco, CA', address2: '', postcode: '94105' };
 
 test('a complete Korean form is cleaned and accepted', () => {
   const r = validate.checkoutInput(krw, 'KRW');
   assert.equal(r.ok, true);
-  assert.deepEqual(r.value, { name: '김지연', email: 'jiyeon@example.com', phone: '01012345678', country: 'KR', postcode: '48095', address1: '부산 해운대구 중동1로17번길 15-1', address2: '101호' });
+  assert.deepEqual(r.value, { name: '김지연', email: 'jiyeon@example.com', phone: '+821012345678', country: 'KR', postcode: '48095', address1: '부산 해운대구 중동1로17번길 15-1', address2: '101호' });
 });
 
 test('a complete overseas form is accepted, with the country and an international phone', () => {
@@ -114,7 +114,7 @@ test('a complete overseas form is accepted, with the country and an internationa
   assert.equal(r.value.country, 'US');
   assert.equal(r.value.phone, '+14155550123');
   // a Korean living abroad can still give a Korean mobile number
-  assert.equal(validate.checkoutInput({ ...usd, phone: '010 1234 5678' }, 'USD').value.phone, '01012345678');
+  assert.equal(validate.checkoutInput({ ...usd, phone_cc: 'KR', phone: '010 1234 5678' }, 'USD').value.phone, '+821012345678');
   // postcode is optional abroad
   assert.equal(validate.checkoutInput({ ...usd, postcode: '' }, 'USD').ok, true);
 });
@@ -138,8 +138,8 @@ test('field rules', () => {
   bad({ name: 'x'.repeat(61) }, 'name', 'name_long');
   bad({ name: '​ \t' }, 'name', 'name_required');
   for (const email of ['jiyeon', 'jiyeon@', '@example.com', 'a b@example.com', 'a@b', 'a@b..com', 'a@-b.com', 'a@b.com,c@d.com', 'a"b@example.com', 'a@exa mple.com', 'x'.repeat(250) + '@a.com']) bad({ email }, 'email', 'email_invalid');
-  for (const phone of ['02-123-4567', '0101234567890', '010-12-34', 'abc', '011-12-3456', '+1 415 555 0123']) bad({ phone }, 'phone', 'phone_invalid');
-  for (const phone of ['12345', '1'.repeat(16), '555-CALL-NOW']) bad({ phone }, 'phone', 'phone_invalid_intl', 'USD');
+  for (const phone of ['02-123-4567', '0101234567890', '010-12-34', 'abc', '011-12-3456', '+82 2-123-4567']) bad({ phone }, 'phone', 'phone_invalid');
+  for (const phone of ['12345', '1'.repeat(16), '555-CALL-NOW']) bad({ phone, phone_cc: 'US' }, 'phone', 'phone_invalid_intl', 'USD');
   bad({ postcode: '4809' }, 'postcode', 'postcode_invalid');
   bad({ postcode: '480-95' }, 'postcode', 'postcode_invalid');
   bad({ postcode: 'x'.repeat(21) }, 'postcode', 'postcode_long', 'USD');
@@ -182,4 +182,47 @@ test('the country list is in Korean, without duplicates, common countries first'
 
 test('every problem code the API can return has a Korean message', () => {
   for (const code of ['invalid', 'closed', 'unavailable', 'too_many', 'provider', 'not_configured', 'cancelled', 'declined', 'network', 'server']) assert.ok(copy.problems[code], code);
+});
+
+test('phone: a country from the list (Korea by default) and the number → one international format', () => {
+  const ok = (cc, phone, want) => assert.deepEqual(validate.phoneInput(cc, phone), { value: want }, `${cc} ${phone}`);
+  const no = (cc, phone, code) => assert.deepEqual(validate.phoneInput(cc, phone), { error: code }, `${cc} ${phone}`);
+  // Korea, also when the form sent no country (an old page) or a made-up one.
+  for (const cc of ['KR', 'kr', undefined, '', 'XX', '<b>']) ok(cc, '010-1234-5678', '+821012345678');
+  ok('KR', '+82 10 1234 5678', '+821012345678');
+  ok('KR', '011-123-4567', '+82111234567');
+  no('KR', '02-123-4567', 'phone_invalid');           // a landline: the label asks for a mobile number
+  no('KR', '', 'phone_required');
+  // USA and Canada: 10 digits, a leading 1 tolerated.
+  ok('US', '(415) 555-0123', '+14155550123');
+  ok('US', '1-415-555-0123', '+14155550123');
+  ok('CA', '416 555 0123', '+14165550123');
+  no('US', '415 555 012', 'phone_invalid_intl');
+  no('US', '015 555 0123', 'phone_invalid_intl');
+  no('US', '010-1234-5678', 'phone_invalid_intl');   // a Korean number left on the US code
+  // Australia: the trunk 0 is dropped, 9 digits remain.
+  ok('AU', '0412 345 678', '+61412345678');
+  ok('AU', '412 345 678', '+61412345678');
+  no('AU', '0412 345 67', 'phone_invalid_intl');
+  // Elsewhere: the trunk 0 is dropped, except where it is part of the number (Italy).
+  ok('GB', '07700 900123', '+447700900123');
+  ok('JP', '090-1234-5678', '+819012345678');
+  ok('IT', '06 1234 5678', '+390612345678');
+  no('DE', '12345', 'phone_invalid_intl');
+  no('GB', '0770 090 0123 4567 89', 'phone_invalid_intl'); // longer than 15 digits in all
+  // A number typed with its own country code wins over the list.
+  ok('KR', '+1 415 555 0123', '+14155550123');
+  ok('US', '+61 412 345 678', '+61412345678');
+  ok('US', '0082 10-1234-5678', '+821012345678');
+  no('US', '+82 2-123-4567', 'phone_invalid');
+  no('US', '555-CALL-NOW', 'phone_invalid_intl');
+});
+
+test('phone: every country in the lists has a calling code; Korea, USA and Australia come first', () => {
+  for (const code of validate.COUNTRY_SET) assert.match(validate.DIAL[code] || '', /^\d{1,3}$/, code);
+  assert.deepEqual(validate.phoneCountries().slice(0, 3).map((c) => c.code), ['KR', 'US', 'AU']);
+  assert.equal(validate.phoneCountries().length, validate.COUNTRY_SET.size);
+  assert.equal(validate.displayPhone('+821012345678'), '010-1234-5678');
+  assert.equal(validate.displayPhone('+82111234567'), '011-123-4567');
+  assert.equal(validate.displayPhone('+14155550123'), '+14155550123');
 });

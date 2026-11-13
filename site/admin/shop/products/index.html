@@ -49,8 +49,19 @@
       <label>Extra tags <span class="hint">optional, separated by commas</span><input name="extra_tags" autocapitalize="none" spellcheck="false"></label>
       <label>WooCommerce product ids <span class="hint">so old payment links find this product, e.g. 2882, 4536</span><input name="legacy_ids" inputmode="numeric"></label>
 
+      <p class="admin-h3">Add-ons <span class="hint">offered under the payment method, like Marie Forleo’s “Popular add-ons”</span></p>
+      <fieldset class="admin-form__wide addon-pick">
+        <legend>Offer these add-ons on this product’s checkout <span class="hint">up to 6, shown in this order. Only add-ons that are Open and have a price in the checkout’s currency appear</span></legend>
+        <div id="addon-list"><p class="muted small">Save other products first: any product can be offered as an add-on.</p></div>
+      </fieldset>
+      <label class="check-ac admin-form__wide"><input type="checkbox" name="addon_only"><span>Sold only as an add-on</span><span class="hint">no checkout page of its own; it must still be Open to be offered</span></label>
+      <label>Regular KRW price (₩) <span class="hint">optional, shown crossed out next to the add-on price</span><input name="compare_krw" inputmode="numeric" placeholder="99000"></label>
+      <label>Regular USD price ($) <span class="hint">optional, crossed out</span><input name="compare_usd" inputmode="decimal" placeholder="99"></label>
+      <label class="admin-form__wide">Add-on description <span class="hint">Korean, shown under “자세히 보기” when this product is offered as an add-on. Empty line = new paragraph. The one-line Summary below is shown on the add-on card</span><textarea name="addon_details" rows="5" maxlength="2000"></textarea></label>
+      <label class="admin-form__wide">Add-on note <span class="hint">optional, e.g. a refund condition, shown at the end of the description</span><input name="addon_note" maxlength="300"></label>
+
       <p class="admin-h3">On the checkout page <span class="hint">Korean, shown to customers</span></p>
-      <label class="admin-form__wide">Summary <span class="hint">one line under the product name</span><input name="summary" maxlength="300"></label>
+      <label class="admin-form__wide">Summary <span class="hint">one line under the product name (and on its add-on card)</span><input name="summary" maxlength="300"></label>
       <label class="admin-form__wide">What's included <span class="hint">one line each</span><textarea name="included" rows="5"></textarea></label>
       <label>Image <span class="hint">a picture already on the site, e.g. /assets/img/shop/nsmb.webp</span><input name="image" maxlength="300" autocapitalize="none" spellcheck="false"></label>
       <label>Program page <span class="hint">where the logo and "back" links go, e.g. /nsmb</span><input name="page" maxlength="100" autocapitalize="none" spellcheck="false"></label>
@@ -110,10 +121,12 @@
       products.map(function (p) {
         var state = STATUS[p.status] + (p.status === 'open' && !p.sale.open ? ' <span class="badge badge--info">' + REASON[p.sale.reason] + '</span>' : '');
         var warn = p.warnings.map(function (w) { return '<br><span class="small is-error">' + Admin.esc(w) + '</span>'; }).join('');
-        return '<tr><td>' + Admin.esc(p.name) + '<br><a href="/checkout/' + Admin.esc(p.slug) + '" target="_blank" rel="noopener"><code>/checkout/' + Admin.esc(p.slug) + '</code></a>' + warn + '</td><td>' + state + '</td>' +
+        var offered = (p.addon_ids || []).map(find).filter(Boolean).map(function (a) { return Admin.esc(a.name); });
+        var where = p.addon_only ? '<span class="badge badge--info">Add-on only</span>' : '<a href="/checkout/' + Admin.esc(p.slug) + '" target="_blank" rel="noopener"><code>/checkout/' + Admin.esc(p.slug) + '</code></a>';
+        return '<tr><td>' + Admin.esc(p.name) + '<br>' + where + (offered.length ? '<br><span class="small muted">Add-ons: ' + offered.join(', ') + '</span>' : '') + warn + '</td><td>' + state + '</td>' +
           '<td class="num">' + priceCell(p, 'KRW') + '</td><td class="num">' + priceCell(p, 'USD') + '</td>' +
           '<td>' + (p.purchase_tag ? '<code>' + Admin.esc(p.purchase_tag) + '</code>' : '<span class="muted">–</span>') + '</td>' +
-          '<td class="num">' + p.paid_orders + ' paid' + (p.orders > p.paid_orders ? ' <span class="muted">(' + p.orders + ' in all)</span>' : '') + '</td>' +
+          '<td class="num">' + p.paid_orders + ' paid' + (p.orders > p.paid_orders ? ' <span class="muted">(' + p.orders + ' in all)</span>' : '') + (p.paid_addon_sales ? '<br><span class="small muted">+ ' + p.paid_addon_sales + ' as add-on</span>' : '') + '</td>' +
           '<td><div class="admin-actions"><button data-tip="Show exactly what a customer would pay for this product today: each payment, its date and the VAT" class="btn-ghost" type="button" data-quote="' + p.id + '">Price check</button><button data-tip="Change this product: name, prices, instalment plan, tags or checkout texts" class="btn-ghost" type="button" data-edit="' + p.id + '">Edit</button></div></td></tr>';
       }).join('') + '</tbody></table>';
   }
@@ -132,16 +145,37 @@
       instalment_first: p.instalment_first == null ? '' : p.instalment_first, instalment_monthly: p.instalment_monthly == null ? '' : p.instalment_monthly,
       instalment_count: p.instalment_count == null ? '' : p.instalment_count,
       purchase_tag: p.purchase_tag, extra_tags: (p.extra_tags || []).join(', '), legacy_ids: (p.legacy_ids || []).join(', '),
+      compare_krw: p.compare_krw == null ? '' : p.compare_krw, compare_usd: dollars(p.compare_usd),
+      addon_details: c.addon_details || '', addon_note: c.addon_note || '',
       summary: c.summary || '', included: (c.included || []).join('\n'), image: c.image || '', thanks: c.thanks || '', page: c.page || '', guarantee: c.guarantee || '',
       testimonials: (c.testimonials || []).map(function (r) { return r.text + (r.name ? '\n— ' + r.name : ''); }).join('\n\n'),
     } : { id: '', status: 'draft', usd_vat: 'taxable' };
     Object.keys(values).forEach(function (k) { form.elements[k].value = values[k]; });
+    form.elements.addon_only.checked = Boolean(p && p.addon_only);
+    addonList(p);
     document.getElementById('slug-echo').textContent = form.slug.value || '…';
     document.getElementById('delete').hidden = !p;
     document.getElementById('editor-title').textContent = p ? 'Edit ' + p.name : 'Add product';
     editor.hidden = false;
     editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
     form.elements.name.focus({ preventScroll: true });
+  }
+
+  // Every other product, as a tick box; the ones already offered first, in their order.
+  function addonList(p) {
+    var box = document.getElementById('addon-list');
+    var chosen = (p && p.addon_ids) || [];
+    var others = products.filter(function (x) { return !p || x.id !== p.id; });
+    if (!others.length) { box.innerHTML = '<p class="muted small">Save other products first: any product can be offered as an add-on.</p>'; return; }
+    others.sort(function (a, b) {
+      var ia = chosen.indexOf(a.id), ib = chosen.indexOf(b.id);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || (b.addon_only - a.addon_only) || a.name.localeCompare(b.name);
+    });
+    box.innerHTML = others.map(function (x) {
+      var price = [x.price_krw != null ? Admin.money(x.price_krw, 'KRW') : '', x.price_usd != null ? Admin.money(x.price_usd, 'USD') : ''].filter(Boolean).join(' · ');
+      return '<label class="check-ac"><input type="checkbox" name="addon_ids" value="' + x.id + '"' + (chosen.indexOf(x.id) >= 0 ? ' checked' : '') + '><span>' + Admin.esc(x.name) + '</span>' +
+        '<span class="hint">' + price + ' · ' + (x.status === 'open' ? 'Open' : x.status === 'draft' ? 'Draft: not offered' : 'Closed: not offered') + (x.addon_only ? ' · add-on only' : '') + '</span></label>';
+    }).join('');
   }
 
   form.slug.addEventListener('input', function () { document.getElementById('slug-echo').textContent = form.slug.value || '…'; });
@@ -164,7 +198,9 @@
       price_krw: f.price_krw.value.replace(/[,\s₩]/g, ''), price_usd: f.price_usd.value.replace(/[\s$]/g, ''), usd_vat: f.usd_vat.value,
       instalment_first: f.instalment_first.value.replace(/[,\s₩]/g, ''), instalment_monthly: f.instalment_monthly.value.replace(/[,\s₩]/g, ''), instalment_count: f.instalment_count.value,
       purchase_tag: f.purchase_tag.value, extra_tags: f.extra_tags.value, legacy_ids: f.legacy_ids.value,
-      content: { summary: f.summary.value, included: f.included.value, image: f.image.value, thanks: f.thanks.value, page: f.page.value, guarantee: f.guarantee.value, testimonials: f.testimonials.value },
+      addon_ids: Array.prototype.filter.call(form.querySelectorAll('input[name=addon_ids]'), function (x) { return x.checked; }).map(function (x) { return x.value; }),
+      addon_only: f.addon_only.checked, compare_krw: f.compare_krw.value.replace(/[,\s₩]/g, ''), compare_usd: f.compare_usd.value.replace(/[\s$]/g, ''),
+      content: { summary: f.summary.value, included: f.included.value, image: f.image.value, thanks: f.thanks.value, page: f.page.value, guarantee: f.guarantee.value, testimonials: f.testimonials.value, addon_details: f.addon_details.value, addon_note: f.addon_note.value },
     }).then(function (r) {
       editor.hidden = true;
       return load().then(function () { showQuote(find(r.product.id)); });

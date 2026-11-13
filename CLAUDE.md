@@ -22,7 +22,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006), emails (007–008), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006, 009 add-ons), emails (007–008), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -210,6 +210,13 @@ pay in full) are built. The site's payment links still go to WordPress until go-
   page, by "Send to ActiveCampaign now" in the admin, and by the daily cron. A product's purchase tag is the one
   WooCommerce used (`purchased_eft`, `purchased_chosen_2026`, `purchased_switch`, `purchased_nsmb_XX_YYYYMM`), set per
   product. Order fields (`ORDER_NUMBER`…) that don't exist in AC are skipped, never blocking the tags.
+- **Add-ons** (order bump, Alex 2026-11-13; Marie Forleo's "Popular add-ons" style, layout from the Copy Cure checkout):
+  an add-on is a product of its own (prices, optional crossed-out regular price `compare_krw/usd`, tags,
+  `content.addon_details` / `addon_note`); a product lists the add-ons its checkout offers (`addon_ids`, max 6);
+  `addon_only` products have no checkout of their own. The form sends `addon_<id>` ticks; `flow.start` refuses an add-on
+  that isn't offered right now (`addon_unavailable`) rather than dropping it. An order's items (`shop_order_items`) add
+  up to its total; its payments get one tax ledger line per VAT rule (`ledger.lines`). Each add-on's purchase tag is
+  added in AC. Not with instalment plans yet.
 - Instalment plans are stored on products but not sold yet (`orders.INSTALMENTS_ENABLED`, phase 3). The refund window is
   14 days; refunds are handled by hand until phase 3.
 - Env vars: `SHOP_SECRET` (never change once live), `CIDERPAY_*`, `PAYPAL_*`, `SLACK_WEBHOOK_*` (`.env.example`).

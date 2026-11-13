@@ -113,6 +113,25 @@ function field({ name, label, value = '', error = '', hint = '', type = 'text', 
     </div>`;
 }
 
+// The phone number with its country (Korea by default; buyers also live in the US, Australia…).
+// The country list is a real <select>; with JavaScript it shows as a compact "+82" box (checkout.js).
+function phoneField(ccValue, value, error) {
+  const cc = validate.COUNTRY_SET.has(String(ccValue || '').toUpperCase()) ? String(ccValue).toUpperCase() : 'KR';
+  const options = validate.phoneCountries().map((x) => `<option value="${esc(x.code)}" data-dial="${esc(x.dial)}"${x.code === cc ? ' selected' : ''}>${esc(x.name)} +${esc(x.dial)}</option>`).join('');
+  return `<div class="co-field${error ? ' is-invalid' : ''}" data-field="phone">
+      <label for="co-phone">${esc(copy.fields.phone)}</label>
+      <div class="co-phone">
+        <span class="co-phone__cc">
+          <label class="sr-only" for="co-phone_cc">${esc(copy.fields.phoneCountry)}</label>
+          <select id="co-phone_cc" name="phone_cc" autocomplete="tel-country-code">${options}</select>
+          <span class="co-phone__shown" aria-hidden="true">+${esc(validate.DIAL[cc])}</span>
+        </span>
+        <input id="co-phone" name="phone" type="tel" value="${esc(value)}" aria-describedby="phone-error"${error ? ' aria-invalid="true"' : ''} autocomplete="tel-national" inputmode="tel" maxlength="20" required placeholder="${cc === 'KR' ? '010-1234-5678' : ''}">
+      </div>
+      <p class="co-field__error" id="phone-error" role="alert">${esc(error)}</p>
+    </div>`;
+}
+
 const errorText = (errors, name) => (errors && errors[name] ? copy.errors[errors[name]] || copy.problems.invalid : '');
 
 const LOCK = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M7 10V7a5 5 0 0 1 10 0v3h1.5A1.5 1.5 0 0 1 20 11.5v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-8A1.5 1.5 0 0 1 5.5 10zm2 0h6V7a3 3 0 0 0-6 0z" fill="currentColor"/></svg>';
@@ -126,11 +145,10 @@ function step(n, title, inner) {
       </fieldset>`;
 }
 
-// Beside the form: what the buyer gets, the guarantee, what others said. All of it comes from the product
+// Beside the form (below it on a phone): what the buyer gets, the guarantee, what others said. All of it comes from the product
 // (set in the admin); a part with nothing to show is left out.
-function side(product, texts) {
+function side(product, texts, included) {
   const c = product.content || {};
-  const included = Array.isArray(c.included) ? c.included.filter(Boolean) : [];
   const image = c.image && /^\/[A-Za-z0-9/_.-]+\.(webp|jpg|jpeg|png)$/.test(c.image) ? c.image : '';
   const guarantee = String(c.guarantee || texts.guarantee || '').trim();
   const [gTitle, ...gBody] = guarantee.split('\n').map((x) => x.trim()).filter(Boolean);
@@ -159,33 +177,80 @@ function side(product, texts) {
   return `<aside class="co-side">${parts.join('\n')}</aside>`;
 }
 
+// Is add-on `id` ticked in what the buyer sent (after a failed submit without JavaScript)?
+const ticked = (values, id) => ['1', 'on', 'true', 'yes'].includes(String((values || {})[`addon_${id}`] || '').toLowerCase());
+
+const PLUS = '<svg class="co-addon__icon co-addon__icon--add" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M7 2h2v5h5v2H9v5H7V9H2V7h5z" fill="currentColor"/></svg>';
+const CROSS = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="m4.2 2.8 3.8 3.8 3.8-3.8 1.4 1.4L9.4 8l3.8 3.8-1.4 1.4L8 9.4l-3.8 3.8-1.4-1.4L6.6 8 2.8 4.2z" fill="currentColor"/></svg>';
+
+// The add-on cards, between the payment method and the order (Marie Forleo's "Popular add-ons"): name, one line,
+// the regular price crossed out and the price, a "+ 추가" toggle and the full description behind "자세히 보기".
+// Each toggle is a real checkbox (addon_<id>), so the form works without JavaScript.
+function addonsBlock(addons, currency, values) {
+  if (!addons.length) return '';
+  const a = copy.addons;
+  return `<section class="co-addons" aria-labelledby="co-addons-title">
+        <h2 class="co-addons__title" id="co-addons-title">${esc(a.title)}</h2>
+        <ul class="co-addons__list">
+        ${addons.map(({ product: p, amount, compare }) => {
+    const c = p.content || {};
+    const details = String(c.addon_details || '').trim();
+    const note = String(c.addon_note || '').trim();
+    const id = `co-addon-${p.id}`;
+    return `<li class="co-addon">
+          <input class="co-addon__check" type="checkbox" id="${id}" name="addon_${esc(p.id)}" value="1" data-addon="${esc(p.id)}"${ticked(values, p.id) ? ' checked' : ''}>
+          <div class="co-addon__body">
+            <p class="co-addon__name" id="${id}-name">${esc(p.name)}</p>
+            ${c.summary ? `<p class="co-addon__sum">${esc(c.summary)}</p>` : ''}
+            <p class="co-addon__price">${compare ? `<s><span class="sr-only">${esc(a.regular)} </span>${esc(pricing.formatMoney(compare, currency))}</s> ` : ''}<strong>${compare ? `<span class="sr-only">${esc(a.price)} </span>` : ''}${esc(pricing.formatMoney(amount, currency))}</strong></p>
+            ${details || note ? `<details class="co-addon__more"><summary>${esc(a.more)}</summary>
+              ${details ? details.split(/\n\s*\n/).map((para) => `<p>${esc(para.trim()).replace(/\n/g, '<br>')}</p>`).join('') : ''}
+              ${note ? `<p class="co-addon__note">${esc(note)}</p>` : ''}
+            </details>` : ''}
+          </div>
+          <label class="co-addon__toggle" for="${id}"><span class="sr-only">${esc(a.addLabel(p.name))}</span><span class="co-addon__off" aria-hidden="true">${PLUS}${esc(a.add)}</span><span class="co-addon__on" aria-hidden="true">${TICK}${esc(a.added)}</span></label>
+        </li>`;
+  }).join('\n        ')}
+        </ul>
+      </section>`;
+}
+
 /*
- * The checkout page: an order form in the ThriveCart / ClickFunnels manner. One column of numbered steps
- * (who, where, how to pay), the order and its total right above one large button, and beside it what the
- * buyer gets, the guarantee and reviews.
+ * The checkout page, in the manner of the Copy Cure checkout (SamCart; Alex, 2026-11-13): on a computer, the
+ * product on the left (name, price, what's included, guarantee, reviews) and the order form in a card on the
+ * right; on a phone, the product's name and price, then the form, then the rest. The form: numbered steps (who,
+ * where, how to pay), the add-ons, the order and its total right above one large button.
  *   product, offers   the product and its priced offers (orders.offers)
  *   currency          'KRW' | 'USD' being shown
+ *   addons            the add-ons offered (orders.addonChoices), in order
  *   values, errors    what the buyer typed and the problems found (after a failed submit without JavaScript)
  *   problem           a code from copy.problems to show above the form
  *   settings          shop settings (checkout_texts)
  *   query             campaign values to carry through the form
  */
-function checkoutPage({ product, offers, currency, values = {}, errors = null, problem = '', settings = {}, query = {} }) {
+function checkoutPage({ product, offers, currency, addons = [], values = {}, errors = null, problem = '', settings = {}, query = {} }) {
   const mine = offers.filter((o) => o.currency === currency);
   const offer = mine[0];
   const other = offers.find((o) => o.currency !== currency);
   const texts = (settings && settings.checkout_texts) || {};
   const isUsd = currency === 'USD';
-  const price = pricing.formatMoney(offer.dueToday, offer.currency);
-  const payLabel = copy.pay(price);
+  const money = (n) => pricing.formatMoney(n, offer.currency);
   const v = (name) => (values && values[name] != null ? String(values[name]) : '');
   const source = validate.sourceInput(query);
   const switchUrl = other ? `/checkout/${product.slug}${other.currency === 'USD' ? '?currency=usd' : ''}` : '';
   const c = product.content || {};
 
+  // The order as it stands when the page opens (add-ons ticked before a failed submit stay ticked). checkout.js
+  // updates the same numbers when an add-on is added or removed; the server prices the order again on submit.
+  const chosen = addons.filter((x) => ticked(values, x.product.id));
+  const now = pricing.quote(product, { currency, plan: offer.plan, addons: offer.plan === 'full' ? chosen.map((x) => x.product) : [] });
+  const price = money(now.dueToday);
+  const payLabel = copy.pay(price);
+  const vatText = (vat) => (vat > 0 ? copy.summary.vat(money(vat)) : '');
+
   const me = `<div class="co-fields">
           ${field({ name: 'name', label: copy.fields.name, value: v('name'), error: errorText(errors, 'name'), attrs: 'autocomplete="name" maxlength="60" required' })}
-          ${field({ name: 'phone', label: copy.fields.phone, value: v('phone'), error: errorText(errors, 'phone'), type: 'tel', attrs: `autocomplete="tel" inputmode="tel" maxlength="20" required${isUsd ? ' placeholder="+1 415 555 0123"' : ' placeholder="010-1234-5678"'}` })}
+          ${phoneField(v('phone_cc'), v('phone'), errorText(errors, 'phone'))}
           ${field({ name: 'email', label: copy.fields.email, value: v('email'), error: errorText(errors, 'email'), hint: copy.fields.emailHint, type: 'email', wide: true, attrs: 'autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" required' })}
         </div>`;
 
@@ -218,31 +283,40 @@ function checkoutPage({ product, offers, currency, values = {}, errors = null, p
           <input type="radio" name="plan" id="co-plan-full" value="full" checked>
           <label for="co-plan-full">
             <span class="co-method__name">${isUsd ? esc(copy.methods.paypal) : `${esc(copy.methods.card)} · ${esc(copy.methods.cardFull)}`}</span>
-            <span class="co-method__price">${esc(price)}</span>
+            <span class="co-method__price" data-due>${esc(price)}</span>
             <span class="co-method__note">${esc(isUsd ? copy.methods.paypalNote : copy.methods.redirectCard)}</span>
             ${isUsd && texts.paypal_instalments ? `<span class="co-method__note">${esc(texts.paypal_instalments)}</span>` : ''}
           </label>
         </div>
         ${other ? `<p class="co-switch"><a href="${esc(switchUrl)}">${esc(other.currency === 'USD' ? copy.methods.toUsd : copy.methods.toKrw)}</a></p>` : ''}`;
 
+  const item = (id, name, amount) => ({ item_id: id, item_name: name, price: offer.currency === 'USD' ? amount / 100 : amount, quantity: 1 });
   const data = {
-    slug: product.slug, currency, plan: offer.plan, payLabel, paying: copy.paying,
+    slug: product.slug, currency, plan: offer.plan, payLabel, payTemplate: copy.pay('{price}'), vatTemplate: copy.summary.vat('{price}'), paying: copy.paying,
     errors: copy.errors, problems: copy.problems, emailTypo: copy.emailTypo('{email}'), emailTypoUse: copy.emailTypoUse,
     search: { open: copy.fields.search, again: copy.fields.searchAgain, failed: copy.fields.searchFailed },
     kakao: !isUsd,
-    item: { item_id: product.slug, item_name: product.name, price: offer.currency === 'USD' ? offer.total / 100 : offer.total, quantity: 1 },
-    value: offer.currency === 'USD' ? offer.total / 100 : offer.total,
+    // The product and each add-on, as checkout.js needs them to keep the total and the analytics events right.
+    main: { amount: now.items[0].amount, vatRule: now.items[0].vatRule, item: item(product.slug, product.name, now.items[0].amount) },
+    addons: addons.map((x) => ({ id: x.product.id, amount: x.amount, vatRule: x.vatRule, item: item(x.product.slug, x.product.name, x.amount) })),
+    item: item(product.slug, product.name, now.items[0].amount),
+    value: offer.currency === 'USD' ? now.total / 100 : now.total,
   };
 
-  const body = `<div class="co-wrap">
-  <header class="co-hero">
+  const summaryRows = `<div class="co-order__row"><dt>${esc(product.name)}</dt><dd>${esc(money(now.items[0].amount))}</dd></div>
+          ${addons.map((x) => `<div class="co-order__row co-order__row--addon" data-line="${esc(x.product.id)}"${ticked(values, x.product.id) ? '' : ' hidden'}>
+            <dt>${esc(x.product.name)}<button class="co-order__remove" type="button" data-remove="${esc(x.product.id)}" hidden aria-label="${esc(copy.addons.removeLabel(x.product.name))}">${CROSS}<span aria-hidden="true">${esc(copy.addons.remove)}</span></button></dt>
+            <dd>${esc(money(x.amount))}</dd></div>`).join('\n          ')}`;
+
+  const included = Array.isArray(c.included) ? c.included.filter(Boolean) : [];
+  const body = `<div class="co-wrap co-grid">
+  <header class="co-head">
     <p class="co-badge">${LOCK}${esc(copy.secure)}</p>
     <h1 class="co-title">${esc(product.name)}</h1>
     ${c.summary ? `<p class="co-sub">${esc(c.summary)}</p>` : ''}
-    <p class="co-price"><strong>${esc(pricing.formatMoney(offer.total, offer.currency))}</strong>${offer.vat > 0 ? `<span>${esc(copy.summary.vat(pricing.formatMoney(offer.vat, offer.currency)))}</span>` : ''}</p>
+    <p class="co-price"><strong>${esc(money(offer.total))}</strong>${offer.vat > 0 ? `<span>${esc(copy.summary.vat(money(offer.vat)))}</span>` : ''}</p>
   </header>
-  <div class="co-grid">
-    <form class="co-form" id="co-form" method="post" action="/api/shop?action=order" novalidate>
+  <form class="co-form" id="co-form" method="post" action="/api/shop?action=order" novalidate>
       <p class="co-problem" id="co-problem" role="alert"${problem ? '' : ' hidden'}>${esc(problem ? copy.problems[problem] || copy.problems.server : '')}</p>
       <input type="hidden" name="slug" value="${esc(product.slug)}">
       <input type="hidden" name="currency" value="${esc(currency)}">
@@ -252,11 +326,13 @@ function checkoutPage({ product, offers, currency, values = {}, errors = null, p
       ${step(2, copy.sections.address, address)}
       ${step(3, copy.sections.method, method)}
 
+      ${offer.plan === 'full' ? addonsBlock(addons, currency, values) : ''}
+
       <section class="co-order" aria-labelledby="co-order-title">
         <h2 class="co-order__title" id="co-order-title">${esc(copy.summary.title)}</h2>
         <dl>
-          <div class="co-order__row"><dt>${esc(product.name)}</dt><dd>${esc(price)}</dd></div>
-          <div class="co-order__row co-order__row--total"><dt>${esc(copy.summary.total)}</dt><dd><strong data-total>${esc(pricing.formatMoney(offer.total, offer.currency))}</strong>${offer.vat > 0 ? `<span class="co-order__vat">${esc(copy.summary.vat(pricing.formatMoney(offer.vat, offer.currency)))}</span>` : ''}</dd></div>
+          ${summaryRows}
+          <div class="co-order__row co-order__row--total"><dt>${esc(copy.summary.total)}</dt><dd><strong data-total>${esc(money(now.total))}</strong><span class="co-order__vat" data-vat${now.vat > 0 ? '' : ' hidden'}>${esc(vatText(now.vat))}</span></dd></div>
         </dl>
       </section>
 
@@ -264,9 +340,8 @@ function checkoutPage({ product, offers, currency, values = {}, errors = null, p
       <p class="co-wait" id="co-wait" role="status" aria-live="polite"></p>
       ${texts.secure_note ? `<p class="co-secure">${LOCK}<span>${esc(texts.secure_note)}</span></p>` : ''}
       <p class="co-consent">${consentHtml(texts.consent)}</p>
-    </form>
-    ${side(product, texts)}
-  </div>
+  </form>
+  ${side(product, texts, included)}
 </div>`;
   return layout({ title: `${copy.title} · ${product.name}`, body, data });
 }
@@ -326,7 +401,7 @@ function kstDate(value) {
  *   receiptUrl the provider's receipt for the payment, if any
  *   slow       true when the caller already waited and the payment is still unconfirmed (no-JavaScript reloads)
  */
-function completePage({ order, product = null, receiptUrl = '', slow = false, tries = 0 }) {
+function completePage({ order, product = null, items = [], receiptUrl = '', slow = false, tries = 0 }) {
   const c = copy.complete;
   if (!order) {
     return layout({
@@ -343,14 +418,18 @@ function completePage({ order, product = null, receiptUrl = '', slow = false, tr
   if (order.paid_at && !['refunded'].includes(order.status)) {
     const name = (order.billing || {}).name || '';
     const thanks = (product && product.content && product.content.thanks) || c.thanksDefault;
-    const value = order.currency === 'USD' ? order.total / 100 : order.total;
-    const vat = pricing.vatSplit(order.total, product ? pricing.vatRule(product, order.currency) : 'taxable').vat;
+    const unit = (n) => (order.currency === 'USD' ? n / 100 : n);
+    const value = unit(order.total);
+    // What was bought: the order's items (the product, then add-ons); an order without items is its product.
+    const sold = items && items.length ? items : [{ kind: 'main', product_id: order.product_id, name: order.product_name, amount: order.total, vat_rule: product ? pricing.vatRule(product, order.currency) : 'taxable' }];
+    const vat = pricing.vatGroups(sold.map((i) => ({ amount: i.amount, vatRule: i.vat_rule }))).reduce((sum, g) => sum + g.vat, 0);
+    const addons = sold.filter((i) => i.kind === 'addon');
     const data = {
       complete: 'paid', token: order.token,
       // Sent to GTM once per order (the server remembers when it has been).
       purchase: order.tracked_at ? null : {
-        transaction_id: String(order.number), value, tax: order.currency === 'USD' ? vat / 100 : vat, currency: order.currency,
-        items: [{ item_id: product ? product.slug : String(order.product_id), item_name: order.product_name, price: value, quantity: 1 }],
+        transaction_id: String(order.number), value, tax: unit(vat), currency: order.currency,
+        items: sold.map((i) => ({ item_id: i.slug || (product && i.kind === 'main' ? product.slug : String(i.product_id)), item_name: i.name, price: unit(i.amount), quantity: 1 })),
       },
     };
     return layout({
@@ -362,6 +441,7 @@ function completePage({ order, product = null, receiptUrl = '', slow = false, tr
   <dl class="co-facts">
     <div><dt>${esc(c.order)}</dt><dd>${esc(order.number)}</dd></div>
     <div><dt>${esc(c.product)}</dt><dd>${esc(order.product_name)}</dd></div>
+    ${addons.map((i) => `<div><dt>${esc(c.addon)}</dt><dd>${esc(i.name)}</dd></div>`).join('')}
     <div><dt>${esc(c.amount)}</dt><dd>${esc(amount)}</dd></div>
     <div><dt>${esc(c.date)}</dt><dd>${esc(kstDate(order.paid_at))}</dd></div>
   </dl>
