@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Import &amp; sync · Emails · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="emails">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main">
+  <h1>Import &amp; sync</h1>
+
+  <section class="admin-card" aria-labelledby="ac-title">
+    <h2 id="ac-title">ActiveCampaign</h2>
+    <p class="muted" style="margin-bottom:16px">Copies every email sent from ActiveCampaign into the archive, and refreshes the numbers (sent, opened, clicked, unsubscribed) of all of them. It runs by itself every day at 09:10 Seoul time. Nothing is changed in ActiveCampaign.</p>
+    <ul class="checklist" id="ac-status" aria-live="polite"><li class="muted">Checking…</li></ul>
+    <p style="margin-top:20px">
+      <button data-tip="Copy new ActiveCampaign emails and refresh the numbers of all of them now" class="btn-sm" type="button" id="sync-now">Sync now</button>
+      <span class="muted" id="sync-out" role="status" style="margin-left:8px"></span>
+    </p>
+    <h3 class="admin-h3">Last syncs</h3>
+    <div id="runs" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="import-title">
+    <h2 id="import-title">Spreadsheet</h2>
+    <p class="muted" style="margin-bottom:8px">For the emails that were not sent from ActiveCampaign. Choose the Excel file (<code>.xlsx</code>; from Google Sheets: File → Download → Microsoft Excel). The first row must hold the column titles <code>Date</code>, <code>Campaign name</code>, <code>Subject</code>, <code>Body</code>, <code>Sent</code>, <code>Opened</code>, <code>Clicked</code>, <code>Unsubscribed</code>. Dates are read as Seoul time. <code>Perf</code>, <code>Resend</code> and the rate columns are ignored: the admin has its own score, and “send again” is only decided here.</p>
+    <p class="muted" style="margin-bottom:16px">Importing the same file again adds nothing twice: an email with the same date and campaign name is updated. “Send again” choices and notes are never touched by an import.</p>
+    <div class="admin-actions">
+      <label class="sr-only" for="file">Spreadsheet file (.xlsx)</label>
+      <input type="file" id="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+      <button data-tip="Add the emails of the chosen spreadsheet to the archive (or update the ones already there)" class="btn-sm" type="button" id="import" disabled>Import</button>
+    </div>
+    <div class="progress" id="bar" hidden style="margin-top:16px"><span></span></div>
+    <p id="import-out" role="status" style="margin-top:12px"></p>
+    <ul class="import-problems" id="problems"></ul>
+  </section>
+
+  <section class="admin-card" aria-labelledby="tr-title">
+    <h2 id="tr-title">English translations</h2>
+    <p class="muted" style="margin-bottom:16px">Each email’s subject and text are translated into English once, and saved: reading an email never translates anything. An email is translated again only if its Korean text changes. Translations are written by Claude in a working session and saved here: when new emails are waiting, ask Claude to “translate the new emails”. The button below uses Vercel’s paid translation service instead, and only works once the Vercel account has a payment method.</p>
+    <ul class="checklist" id="tr-status" aria-live="polite"><li class="muted">Checking…</li></ul>
+    <p style="margin-top:20px">
+      <button data-tip="Translate the emails that have no English version yet, and retry the ones that failed" class="btn-sm" type="button" id="tr-now">Translate now</button>
+      <span class="muted" id="tr-out" role="status" style="margin-left:8px"></span>
+    </p>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script src="/assets/js/admin/xlsx.js"></script>
+<script>
+(function () {
+  var esc = Admin.esc;
+  function li(ok, html, info) { return '<li><span class="status ' + (info ? 'status--info">Info' : ok ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + html + '</span></li>'; }
+
+  function describe(s) {
+    if (!s || s.ok === false) return '';
+    return s.emails + ' sent emails found' + (s.added ? ', ' + s.added + ' new' : '') + (s.bodies ? ', ' + s.bodies + ' text(s) read' : '') + (s.bodies_left ? ', ' + s.bodies_left + ' text(s) left for the next sync' : '');
+  }
+
+  function status() {
+    return Admin.get('emails-sync').then(function (r) {
+      var last = r.runs[0], c = r.counts;
+      document.getElementById('ac-status').innerHTML =
+        li(r.connected, r.connected ? 'ActiveCampaign is connected' : 'ActiveCampaign is not connected here: <code>AC_API_URL</code> and <code>AC_API_KEY</code> are missing in Vercel for this environment') +
+        (last ? li(last.ok !== false, last.ok === false ? 'The last sync failed: ' + esc(last.error || 'unknown error') : last.finished_at ? 'Last sync: ' + Admin.kst(last.finished_at) + ' (' + esc(describe(last.summary)) + ')' : 'A sync is running…') :
+          li(false, 'Never synced yet: click “Sync now”')) +
+        li(true, c.ac + ' emails from ActiveCampaign and ' + c.imported + ' from the spreadsheet in the archive', true) +
+        (c.body_pending ? li(true, c.body_pending + ' ActiveCampaign email(s) still wait for their subject and text. Each sync reads as many as it can: click “Sync now” again, or let the daily sync finish.', true) : '');
+      document.getElementById('sync-now').disabled = !r.connected;
+      var t = r.translation;
+      waiting = t.pending;
+      canTranslate = t.ready;
+      document.getElementById('tr-status').innerHTML =
+        li(true, t.ready ? 'Vercel’s translation service has a key (it also needs a payment method on the Vercel account)' : 'Vercel’s translation service is not set up (not needed when Claude writes the translations)', true) +
+        li(!t.pending, t.translated + ' email(s) translated' + (t.pending ? ', ' + t.pending + ' waiting' : ''), true) +
+        (t.failed ? li(false, t.failed + ' email(s) could not be translated after 5 tries (“Translate now” tries again): ' + t.failures.map(function (f) { return esc(f.name) + ' <span class="small muted">(' + esc(f.translate_error || '') + ')</span>'; }).join('; ')) : '');
+      document.getElementById('tr-now').disabled = busy || !t.ready || !(t.pending + t.failed);
+      document.getElementById('runs').innerHTML = r.runs.length ?
+        '<table class="admin-table"><thead><tr><th>When</th><th>Started by</th><th>Result</th></tr></thead><tbody>' + r.runs.map(function (x) {
+          return '<tr><td class="num">' + Admin.kst(x.started_at) + '</td><td>' + (x.trigger === 'cron' ? 'Daily job' : 'Sync now') + '</td><td>' +
+            (x.ok === false ? '<span class="badge badge--warn">Failed</span> <span class="small">' + esc(x.error || '') + '</span>' : x.ok ? '<span class="badge badge--ok">Done</span> <span class="small">' + esc(describe(x.summary)) + '</span>' : '<span class="badge badge--info">Running</span>') + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<p class="admin-empty">No sync yet.</p>';
+    }).catch(function (err) {
+      document.getElementById('ac-status').innerHTML = '<li><span class="status status--bad">Error</span><span>' + esc(err.message) + '</span></li>';
+      document.getElementById('runs').innerHTML = '';
+    });
+  }
+
+  // ---- translations: 40 seconds of work per call, repeated while some are left
+  var waiting = 0, canTranslate = false, busy = false;
+  var trBtn = document.getElementById('tr-now'), trOut = document.getElementById('tr-out');
+  function translateAll(retry) {
+    if (busy || !canTranslate) return;
+    busy = true;
+    trBtn.disabled = true;
+    var done = 0;
+    (function again(first) {
+      Admin.say(trOut, 'Translating… ' + done + ' done' + (waiting ? ', ' + waiting + ' to go' : '') + '. You can leave this page: the daily job finishes what is left.');
+      Admin.post('emails-translate-run', { retry: first && retry }).then(function (r) {
+        var x = r.result;
+        done += x.translated;
+        waiting = x.left || 0;
+        if (x.ok && x.left && x.translated) return again(false);
+        busy = false;
+        if (x.error) Admin.say(trOut, 'Stopped after ' + done + ' email(s): ' + x.error + '.', true);
+        else Admin.say(trOut, 'Done: ' + done + ' email(s) translated' + (x.failed ? ', ' + x.failed + ' failed (see above)' : '') + '.');
+        status();
+      }).catch(function (err) { busy = false; Admin.say(trOut, err.message, true); status(); });
+    })(true);
+  }
+  trBtn.addEventListener('click', function () { translateAll(true); });
+  // After an import or a sync, new emails are translated straight away.
+  // (Not started automatically: translations are normally written by Claude in a session; the button stays for the paid service.)
+  function afterNewEmails() { return status(); }
+
+  var syncBtn = document.getElementById('sync-now'), syncOut = document.getElementById('sync-out');
+  syncBtn.addEventListener('click', function () {
+    syncBtn.disabled = true;
+    Admin.say(syncOut, 'Syncing… this can take up to a minute.');
+    Admin.post('emails-sync-run').then(function (r) {
+      if (r.result.ok) Admin.say(syncOut, 'Done: ' + describe(r.result) + '.');
+      else Admin.say(syncOut, 'The sync failed: ' + r.result.error, true);
+    }).catch(function (err) { Admin.say(syncOut, err.message, true); }).then(afterNewEmails);
+  });
+
+  // ---- spreadsheet
+  var file = document.getElementById('file'), importBtn = document.getElementById('import'), out = document.getElementById('import-out');
+  var problems = document.getElementById('problems'), bar = document.getElementById('bar');
+  var ready = [];
+  function showProblems(items) {
+    problems.innerHTML = items.slice(0, 50).map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + (items.length > 50 ? '<li>…and ' + (items.length - 50) + ' more</li>' : '');
+  }
+
+  file.addEventListener('change', function () {
+    ready = [];
+    importBtn.disabled = true;
+    bar.hidden = true;
+    showProblems([]);
+    var f = file.files[0];
+    if (!f) { Admin.say(out, ''); return; }
+    Admin.say(out, 'Reading the file…');
+    f.arrayBuffer().then(AdminXlsx.read).then(function (rows) {
+      var r = AdminXlsx.emails(rows);
+      ready = r.emails;
+      showProblems(r.problems);
+      if (!ready.length) { Admin.say(out, 'No email could be read from this file.', true); return; }
+      var days = ready.map(function (e) { return e.sent_at; }).sort();
+      Admin.say(out, ready.length + ' emails found, from ' + days[0].slice(0, 10) + ' to ' + days[days.length - 1].slice(0, 10) + (r.problems.length ? '. ' + r.problems.length + ' row(s) will be skipped (listed below)' : '') + '. Click Import to add them.');
+      importBtn.disabled = false;
+    }).catch(function (err) { Admin.say(out, err.message, true); });
+  });
+
+  importBtn.addEventListener('click', function () {
+    var total = ready.length, sum = { added: 0, updated: 0 }, errors = [], SIZE = 40;
+    importBtn.disabled = true;
+    file.disabled = true;
+    bar.hidden = false;
+    bar.firstElementChild.style.width = '0';
+    (function batch(start) {
+      if (start >= total) {
+        Admin.say(out, 'Done: ' + sum.added + ' email(s) added, ' + sum.updated + ' updated' + (errors.length ? ', ' + errors.length + ' skipped (listed below)' : '') + '. See them in All emails.');
+        showProblems(errors);
+        file.disabled = false;
+        afterNewEmails();
+        return;
+      }
+      Admin.say(out, 'Importing… ' + start + ' of ' + total);
+      Admin.post('emails-import', { rows: ready.slice(start, start + SIZE) }).then(function (r) {
+        sum.added += r.added; sum.updated += r.updated; errors = errors.concat(r.errors);
+        bar.firstElementChild.style.width = Math.round(Math.min(start + SIZE, total) / total * 100) + '%';
+        batch(start + SIZE);
+      }).catch(function (err) {
+        Admin.say(out, 'Stopped after ' + start + ' of ' + total + ': ' + err.message + ' You can click Import again: nothing is added twice.', true);
+        importBtn.disabled = false;
+        file.disabled = false;
+      });
+    })(0);
+  });
+
+  status();
+})();
+</script>
+</body>
+</html>

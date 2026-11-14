@@ -9,6 +9,12 @@
   "functions": {
     "api/podcast-page.js": {
       "includeFiles": "site/{index.html,nsmb/index.html}"
+    },
+    "api/shop-page.js": {
+      "includeFiles": "site/{index.html,nsmb/index.html}"
+    },
+    "api/shop.js": {
+      "includeFiles": "site/{index.html,nsmb/index.html}"
     }
   },
   "crons": [
@@ -119,9 +125,19 @@
       "permanent": true
     },
     {
-      "source": "/checkout/:path*",
-      "destination": "https://ashleylim.com/checkout/:path*",
-      "permanent": true
+      "source": "/checkout",
+      "destination": "https://ashleylim.com/checkout",
+      "permanent": false
+    },
+    {
+      "source": "/checkout/order-received/:path*",
+      "destination": "https://ashleylim.com/checkout/order-received/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/checkout/order-pay/:path*",
+      "destination": "https://ashleylim.com/checkout/order-pay/:path*",
+      "permanent": false
     },
     {
       "source": "/cart/:path*",
@@ -209,6 +225,14 @@
     {
       "source": "/podcast/:token([A-Za-z0-9_-]+)",
       "destination": "/api/podcast-page?token=:token"
+    },
+    {
+      "source": "/checkout/complete",
+      "destination": "/api/shop-page?view=complete"
+    },
+    {
+      "source": "/checkout/:slug([a-z0-9-]+)",
+      "destination": "/api/shop-page?view=checkout&slug=:slug"
     }
   ]
 }

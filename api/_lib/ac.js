@@ -1,6 +1,5 @@
 /*
- * ActiveCampaign API v3 client for the private podcast (contacts, tags, custom fields).
- * api/waitlist.js keeps its own small client for now.
+ * ActiveCampaign API v3 client (contacts, tags, custom fields), shared by the private podcast and the NSMB waitlist.
  *
  *   AC_API_URL  e.g. https://youraccount.api-us1.com   (Settings → Developer)
  *   AC_API_KEY  never commit it
@@ -15,6 +14,7 @@ let fieldCacheAt = 0;
 async function ac(path, options = {}) {
   if (!process.env.AC_API_URL || !process.env.AC_API_KEY) throw new Error('AC_API_URL / AC_API_KEY not set');
   const res = await fetch(process.env.AC_API_URL.trim().replace(/\/$/, '') + '/api/3' + path, {
+    signal: AbortSignal.timeout(20000), // a stuck ActiveCampaign call must not hold up a payment notice or the daily job
     ...options,
     headers: { 'Api-Token': process.env.AC_API_KEY.trim(), 'Content-Type': 'application/json', Accept: 'application/json' },
   });
@@ -32,14 +32,26 @@ async function findContactByEmail(email) {
   return (body.contacts || [])[0] || null;
 }
 
+// { id, email, firstName } or null.
+async function getContact(id) {
+  try {
+    const body = await ac('/contacts/' + encodeURIComponent(id));
+    const c = body.contact;
+    return c ? { id: String(c.id), email: String(c.email || ''), firstName: c.firstName || '' } : null;
+  } catch (err) {
+    if (err.status === 404) return null;
+    throw err;
+  }
+}
+
 // Tag id by name; created when `create` is true and it doesn't exist yet. Null if missing.
-async function tagId(name, { create = false } = {}) {
+async function tagId(name, { create = false, description = 'Private podcast (hal-website)' } = {}) {
   const key = name.toLowerCase();
   if (tagIds.has(key)) return tagIds.get(key);
   const found = await ac('/tags?search=' + encodeURIComponent(name));
   let match = (found.tags || []).find((t) => t.tag.toLowerCase() === key);
   if (!match && create) {
-    match = (await ac('/tags', { method: 'POST', body: JSON.stringify({ tag: { tag: name, tagType: 'contact', description: 'Private podcast (hal-website)' } }) })).tag;
+    match = (await ac('/tags', { method: 'POST', body: JSON.stringify({ tag: { tag: name, tagType: 'contact', description } }) })).tag;
   }
   if (!match) return null;
   tagIds.set(key, match.id);
@@ -62,8 +74,8 @@ async function contactHasTags(contactId, candidates) {
   return out;
 }
 
-async function addTag(contactId, name) {
-  const id = await tagId(name, { create: true });
+async function addTag(contactId, name, { description } = {}) {
+  const id = await tagId(name, { create: true, ...(description ? { description } : {}) });
   try {
     await ac('/contactTags', { method: 'POST', body: JSON.stringify({ contactTag: { contact: String(contactId), tag: String(id) } }) });
   } catch (err) {
@@ -125,6 +137,52 @@ async function syncContact({ email, firstName, fields = {} }) {
   return body.contact.id;
 }
 
+// Sets custom fields on an existing contact by id (no email needed); `fields` maps perstag → value.
+async function updateContactFields(contactId, fields) {
+  const fieldValues = [];
+  for (const [perstag, value] of Object.entries(fields)) fieldValues.push({ field: String(await fieldId(perstag)), value: value == null ? '' : String(value) });
+  if (!fieldValues.length) return;
+  await ac('/contacts/' + encodeURIComponent(contactId), { method: 'PUT', body: JSON.stringify({ contact: { fieldValues } }) });
+}
+
+// A dropdown/radio field's options, in their AC order: [{ value, label }]. Empty if AC lists none.
+const optionCache = new Map(); // field id → { at, list }
+async function fieldOptions(perstag) {
+  const id = String(await fieldId(perstag));
+  const hit = optionCache.get(id);
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.list;
+  const body = await ac(`/fields/${encodeURIComponent(id)}?include=options`);
+  const raw = body.fieldOptions || body.options || [];
+  const list = raw
+    .filter((o) => String(o.field || id) === id)
+    .sort((a, b) => Number(a.orderid || 0) - Number(b.orderid || 0))
+    .map((o) => ({ value: String(o.value ?? o.label ?? ''), label: String(o.label ?? o.value ?? '') }));
+  optionCache.set(id, { at: Date.now(), list });
+  return list;
+}
+
+// The list's id by its exact name, or null.
+const listIds = new Map();
+async function listId(name) {
+  if (listIds.has(name)) return listIds.get(name);
+  const found = await ac('/lists?limit=100&filters[name]=' + encodeURIComponent(name));
+  const match = (found.lists || []).find((l) => l.name === name);
+  if (!match) return null;
+  listIds.set(name, match.id);
+  return match.id;
+}
+
+// Subscribes the contact to the list directly (no confirmation email). 422 = already on it.
+async function subscribeToList(contactId, name) {
+  const id = await listId(name);
+  if (!id) throw new Error('list not found: ' + name);
+  try {
+    await ac('/contactLists', { method: 'POST', body: JSON.stringify({ contactList: { list: String(id), contact: String(contactId), status: 1 } }) });
+  } catch (err) {
+    if (err.status !== 422) throw err;
+  }
+}
+
 // Every contact that has the tag `name`: [{ id, email, firstName, lastName }]. Null if the tag doesn't exist in AC.
 async function contactsWithTag(name) {
   const id = await tagId(name);
@@ -141,7 +199,9 @@ async function contactsWithTag(name) {
 
 function resetCaches() {
   tagIds.clear();
+  listIds.clear();
+  optionCache.clear();
   fieldCache = null;
 }
 
-module.exports = { findContactByEmail, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, findField, syncContact, resetCaches };
+module.exports = { request: ac, findContactByEmail, getContact, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, findField, fieldOptions, syncContact, updateContactFields, subscribeToList, resetCaches };
