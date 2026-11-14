@@ -16,6 +16,9 @@
  * The Emails section's "Sync now" reads made-up campaigns (tools/emails/fake-ac.js), never the real ActiveCampaign,
  * and its translations are a stand-in (each line prefixed with [EN]): no translation service is called.
  *
+ * The student area (/learn) runs too. Sign-in emails are never sent: the code is printed in this server's output
+ * and listed at /__fake/learn-mail.
+ *
  * tools/shop/e2e.js starts the same server to run the end-to-end checks.
  */
 const fs = require('node:fs');
@@ -95,12 +98,21 @@ async function start({ port = Number(process.env.PORT || 8793), quiet = false } 
   });
   require(path.join(root, 'api', '_lib', 'emails', 'ac-sync.js')).setClient(require(path.join(root, 'tools', 'emails', 'fake-ac.js')).create({ now: new Date() }).request);
 
+  // Student area: sign-in emails stay on this computer.
+  if ((process.env.PODCAST_SECRET || '').length < 32) process.env.PODCAST_SECRET = crypto.randomBytes(32).toString('base64url');
+  const learnMail = [];
+  require(path.join(root, 'api', '_lib', 'learn', 'mail.js')).setTransport(async (msg) => {
+    learnMail.unshift({ at: new Date().toISOString(), to: msg.to, subject: msg.subject, text: msg.text });
+    say(`[learn] email to ${msg.to}: ${msg.subject}`);
+  });
+
   const auth = require(path.join(root, 'api', '_lib', 'auth.js'));
   const handlers = {
     '/api/admin': require(path.join(root, 'api', 'admin.js')),
     '/api/shop': require(path.join(root, 'api', 'shop.js')),
     '/api/shop-callback': require(path.join(root, 'api', 'shop-callback.js')),
     '/api/shop-page': require(path.join(root, 'api', 'shop-page.js')),
+    '/api/learn': require(path.join(root, 'api', 'learn.js')),
   };
   const cookie = `${auth.ADMIN_COOKIE}=${auth.adminSessionToken(fakeEnv.ADMIN_USER, fakeEnv.ADMIN_PASSWORD)}`;
   const fake = fakes.create({ base, memberId: fakeEnv.CIDERPAY_MEMBER_ID, apiToken: fakeEnv.CIDERPAY_API_TOKEN });
@@ -108,11 +120,16 @@ async function start({ port = Number(process.env.PORT || 8793), quiet = false } 
   const server = http.createServer(async (req, res) => {
     try {
       const u = new URL(req.url, base);
+      if (u.pathname === '/__fake/learn-mail') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(learnMail.slice(0, 20), null, 2));
+      }
       if (u.pathname.startsWith('/__fake/')) return await fake.handle(req, res, u);
       // The rewrites of vercel.json.
       let m;
       if (u.pathname === '/checkout/complete') req.url = `/api/shop-page?view=complete&${u.searchParams}`;
       else if ((m = /^\/checkout\/([a-z0-9-]+)$/.exec(u.pathname))) req.url = `/api/shop-page?view=checkout&slug=${m[1]}&${u.searchParams}`;
+      else if ((m = /^\/learn(?:\/(.*))?$/.exec(u.pathname))) req.url = `/api/learn?path=${encodeURIComponent(m[1] || '')}&${u.searchParams}`;
       const route = new URL(req.url, base).pathname;
       if (handlers[route]) {
         if (route === '/api/admin') req.headers.cookie = cookie;
@@ -150,7 +167,7 @@ async function start({ port = Number(process.env.PORT || 8793), quiet = false } 
     }
     return stopping;
   }
-  return { base, sql: run, fake, env: fakeEnv, stop };
+  return { base, sql: run, fake, env: fakeEnv, learnMail, stop };
 }
 
 module.exports = { start };

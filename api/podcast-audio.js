@@ -15,6 +15,7 @@ const db = require('./_lib/db.js');
 const podcast = require('./_lib/podcast.js');
 const automation = require('./_lib/automation.js');
 const { extension } = require('./_lib/rss.js');
+const { streamEpisode } = require('./_lib/audio-stream.js');
 
 const PROBE_BYTES = 64 * 1024;
 
@@ -100,66 +101,19 @@ module.exports = async function handler(req, res) {
   }
   if (extension(episode.mime_type) !== m[2]) return notFound(res);
 
-  const filename = episode.kind === 'module' && episode.number ? `module-${String(episode.number).padStart(2, '0')}.${m[2]}` : `episode.${m[2]}`;
-  res.setHeader('Content-Type', episode.mime_type || 'audio/mpeg');
-  res.setHeader('Accept-Ranges', 'bytes');
-  res.setHeader('Cache-Control', 'private, max-age=86400');
-  res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-
-  try {
-    if (req.method === 'HEAD') {
-      const meta = await blob.head(episode.blob_pathname);
-      res.statusCode = 200;
-      res.setHeader('Content-Length', String(meta.size));
-      return res.end();
-    }
-
-    const range = req.headers.range;
-    if (isDownloadStart(range)) {
+  if (req.method !== 'HEAD' && isDownloadStart(req.headers.range)) {
+    try {
       const client = podcast.clientInfo(req);
       await podcast.logEvent({ studentId: data.student.id, showId: episode.show_id, episodeId: episode.id, kind: 'download', client });
       if (client.app !== 'Bot' && !client.app.endsWith('(server)')) {
         const entry = data.shows.find((x) => x.show.id === episode.show_id);
         await automation.onDownload(data.student.id, entry.show, episode).catch((err) => console.error('automation', err.message)); // queued for AC
       }
-    }
-
-    let result;
-    try {
-      result = await blob.get(episode.blob_pathname, { access: 'private', headers: range ? { Range: range } : {} });
     } catch (err) {
-      if (/\b416\b/.test(err.message)) {
-        res.statusCode = 416;
-        if (episode.bytes) res.setHeader('Content-Range', `bytes */${episode.bytes}`);
-        return res.end();
-      }
-      throw err;
+      console.error('podcast-audio log', err.message);
     }
-    if (!result || !result.stream) return notFound(res);
-
-    const contentRange = result.headers.get('content-range');
-    res.statusCode = contentRange ? 206 : 200;
-    for (const name of ['content-length', 'content-range', 'etag', 'last-modified']) {
-      const value = result.headers.get(name);
-      if (value) res.setHeader(name, value);
-    }
-    const body = Readable.fromWeb(result.stream);
-    res.on('close', () => body.destroy());
-    body.on('error', (err) => {
-      console.error('podcast-audio stream', err.message);
-      res.destroy(err);
-    });
-    body.pipe(res);
-  } catch (err) {
-    console.error('podcast-audio', episode.blob_pathname, err);
-    if (!res.headersSent) {
-      res.statusCode = 502;
-      res.removeHeader('Content-Disposition');
-      return res.end();
-    }
-    res.destroy(err);
   }
+  return streamEpisode(req, res, episode);
 };
 
 module.exports.isDownloadStart = isDownloadStart;

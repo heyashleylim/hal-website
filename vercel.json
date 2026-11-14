@@ -15,6 +15,9 @@
     },
     "api/shop.js": {
       "includeFiles": "site/{index.html,nsmb/index.html}"
+    },
+    "api/learn.js": {
+      "includeFiles": "site/{index.html,nsmb/index.html}"
     }
   },
   "crons": [
@@ -86,6 +89,32 @@
         {
           "key": "Referrer-Policy",
           "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/learn/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        }
+      ]
+    },
+    {
+      "source": "/learn",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
         }
       ]
     }
@@ -206,6 +235,14 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/learn",
+      "destination": "/api/learn?path="
+    },
+    {
+      "source": "/learn/:path*",
+      "destination": "/api/learn?path=:path*"
+    },
     {
       "source": "/f/:token([A-Za-z0-9_-]+)/:show([a-z0-9-]+)",
       "destination": "/api/podcast-feed?token=:token&show=:show"

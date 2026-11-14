@@ -18,6 +18,7 @@
   <div class="admin-head">
     <h1>Episodes <span class="admin-h1-show" data-show-title></span></h1>
     <button data-tip="Add a new episode to this program: audio file, title and release week" class="btn-sm" type="button" id="add">Add episode</button>
+    <button data-tip="Read the chapters made in Podcast Studio from every MP3 of this program that has none yet (for the student area). New uploads do this by themselves" class="btn-ghost" type="button" id="read-all">Read chapters from files</button>
   </div>
 
   <section class="admin-panel" id="editor" hidden aria-labelledby="editor-title">
@@ -42,6 +43,8 @@
       <label class="admin-form__wide">Show notes <span class="hint">shown under the episode in podcast apps</span><textarea name="notes" maxlength="10000"></textarea></label>
       <label class="admin-form__wide">Audio file <span class="hint">MP3 or M4A, up to 500 MB. Use the files Podcast Studio exports (128 kbps mono).</span><input name="file" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a"></label>
       <p class="admin-form__wide muted" id="current-audio" hidden></p>
+      <label class="admin-form__wide" id="chapters-field" hidden>Chapters <span class="hint">shown in the student area’s player. One per line: time, then title (e.g. 12:30 신경계가 먼저인 이유). Read from the MP3 each time a new file is uploaded.</span><textarea name="chapters" rows="8" spellcheck="false"></textarea></label>
+      <p class="admin-form__wide" id="chapters-actions" hidden><button data-tip="Read the chapters again from this episode’s MP3 file (the ones made in Podcast Studio), replacing the list above" class="btn-ghost" type="button" id="reread">Read chapters from the file</button></p>
       <div class="progress" hidden><span></span></div>
       <div class="admin-form__actions">
         <button data-tip="Save this episode. Published episodes appear in students’ feeds on their release day" class="btn-sm" type="submit">Save</button>
@@ -79,7 +82,7 @@
     el.innerHTML = '<table class="admin-table"><thead><tr><th>#</th><th>Title</th><th>Release day</th><th>Audio</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       episodes.map(function (e) {
         var label = e.kind === 'bonus' ? '<span class="badge badge--info">Bonus</span>' : e.number;
-        var audio = e.has_audio ? Admin.duration(e.duration_seconds) + ' · ' + Admin.size(e.bytes) : '<span class="badge badge--warn">No audio</span>';
+        var audio = e.has_audio ? Admin.duration(e.duration_seconds) + ' · ' + Admin.size(e.bytes) + (e.chapters.length ? '<div class="muted">' + e.chapters.length + ' chapters</div>' : '') : '<span class="badge badge--warn">No audio</span>';
         var status = e.status === 'published' ? '<span class="badge badge--ok">Published</span>' : '<span class="badge">Draft</span>';
         return '<tr data-id="' + e.id + '"><td class="num">' + label + '</td><td>' + Admin.esc(e.title) + '<div class="player-slot"></div></td>' +
           '<td class="num">Day ' + e.day_offset + (drip ? ' <span class="muted">(week ' + (Math.floor(e.day_offset / 7) + 1) + ')</span>' : '') + '</td>' +
@@ -94,6 +97,16 @@
     episodes.forEach(function (e) { if (e.kind === 'module' && e.number > max) max = e.number; });
     return max + 1;
   }
+
+  function clock(t) {
+    t = Math.max(0, Math.floor(t || 0));
+    var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+    return (h ? h + ':' + (m < 10 ? '0' : '') + m : m) + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function chapterLines(list) {
+    return (list || []).map(function (c) { return clock(c.start) + ' ' + c.title; }).join('\n');
+  }
+  var chaptersBefore = '';
 
   function syncKind() {
     form.querySelector('[data-module]').hidden = form.kind.value !== 'module';
@@ -115,6 +128,10 @@
     cur.hidden = !(e && e.has_audio);
     cur.textContent = e && e.has_audio ? 'Current audio: ' + Admin.duration(e.duration_seconds) + ', ' + Admin.size(e.bytes) + '. Choose a file only to replace it.' : '';
     document.getElementById('delete').hidden = !e;
+    chaptersBefore = e ? chapterLines(e.chapters) : '';
+    form.chapters.value = chaptersBefore;
+    document.getElementById('chapters-field').hidden = !(e && e.has_audio);
+    document.getElementById('chapters-actions').hidden = !(e && e.has_audio && /mpeg/.test(e.mime_type));
     document.getElementById('editor-title').textContent = e ? 'Edit episode' : 'Add episode';
     syncKind();
     editor.hidden = false;
@@ -163,12 +180,40 @@
       Admin.say(out, 'Saving…');
       return Admin.post('episode-save', data);
     }).then(function (r) {
+      // A new file brings its own chapters; otherwise save the list if it was edited.
+      if (!file && data.id && form.chapters.value.trim() !== chaptersBefore.trim()) {
+        return Admin.post('episode-chapters', { id: data.id, chapters: form.chapters.value });
+      }
+      return r;
+    }).then(function (r) {
       Admin.say(out, 'Saved.');
       editor.hidden = true;
       return load();
     }).catch(function (err) {
       Admin.say(out, err.message, true);
     }).then(function () { submit.disabled = false; });
+  });
+
+  document.getElementById('read-all').addEventListener('click', function () {
+    var btn = this, note = document.getElementById('drip-note');
+    btn.disabled = true;
+    note.textContent = 'Reading chapters from the files…';
+    Admin.post('episodes-chapters-read', {}).then(function (r) {
+      note.textContent = 'Chapters found in ' + r.found + ' of ' + r.read + ' files' + (r.left ? ' (' + r.left + ' left: click again).' : '.');
+      return load();
+    }).catch(function (err) { note.textContent = err.message; }).then(function () { btn.disabled = false; });
+  });
+
+  document.getElementById('reread').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    Admin.say(out, 'Reading the chapters from the file…');
+    Admin.post('episode-chapters', { id: form.id.value, reread: true }).then(function (r) {
+      chaptersBefore = chapterLines(r.episode.chapters);
+      form.chapters.value = chaptersBefore;
+      Admin.say(out, r.episode.chapters.length ? r.episode.chapters.length + ' chapters read from the file and saved.' : 'This file has no chapters.');
+      return load();
+    }).catch(function (err) { Admin.say(out, err.message, true); }).then(function () { btn.disabled = false; });
   });
 
   document.getElementById('delete').addEventListener('click', function () {

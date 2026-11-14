@@ -51,7 +51,14 @@ offline listening (iPhone limits website storage). That is the one reason for a 
 Built on what exists: students, enrolments, cohorts, release rules (`api/_lib/release.js`), access dates, the
 private Blob store, the admin and the AC outbox. Each step ships on its own.
 
-### 1a. Listening (replaces the test page)
+### 1a. Listening (replaces the test page) — built 2026-11-14 on `podcast`, not linked yet
+
+Done: sign-in by email code (sent through Google Workspace's Gmail API, Alex 2026-11-14) and by the personal link,
+1-year sessions, `/learn` home with "이어 듣기", program page with the player, chapters (ID3 on upload, bulk read and
+editing on the Episodes page), progress saved to the account. Still to do in 1a: the admin view of each student's
+listening, the AC "listened" tags, and counting web listening as "subscribed" for the `_not_subscribed_3d/7d` reminders
+(otherwise web-only students would get them).
+
 - Sign-in (S1) and a home page listing the student's programs, with "이어 듣기" (continue) at the top.
 - A program page: modules in order, released / coming (with date) / listened, access end date.
 - The player from the test, with progress **saved to the account** (works across phone and computer).

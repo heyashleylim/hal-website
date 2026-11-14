@@ -22,7 +22,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -178,6 +178,25 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   `_subscribed`, `_not_subscribed_3d/7d`, `_epNN_released`, `_epNN_downloaded`, `_completed`, `_expiring_30d`, `_expired`,
   `_revoked` (prefix e.g. `podcast_nsmb`), plus `podcast_link_reset`; field `PODCAST_LINK`.
   Students added by hand only reach AC when "Tell ActiveCampaign" is ticked.
+
+## Student area "내 강의실" (/learn)
+
+Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch; not linked anywhere yet (step 1a).
+- `api/learn.js` (rewrites `/learn`, `/learn/:path*`), pages in `api/_lib/learn/pages.js`, player `site/assets/js/learn-player.js`,
+  styles `site/assets/css/pages/learn.css` (on top of `podcast.css`). Private: noindex, no GTM / analytics, in robots.txt.
+- Sign-in (`api/_lib/learn/auth.js`): email → 6-digit code (10 min, used once, 5 tries, 5 per hour per student, 20 per hour
+  per network), then an HttpOnly cookie `hal_learn` for 1 year from the last visit (Alex: at least a week). Only hashes are
+  stored (`learn_codes`, `learn_sessions`). `/learn/start/<token>` (the podcast personal token) also signs in.
+  The page never says whether an email is a student's. A revoked student is signed out at once.
+- Codes are emailed through Ashley's Google Workspace with the Gmail API (`api/_lib/learn/mail.js`, no package):
+  `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY`, `LEARN_MAIL_FROM` (service account, domain-wide delegation, `gmail.send` scope only).
+- Audio `/learn/audio/<guid>.<ext>` checks the session and access on every request (`api/_lib/audio-stream.js`, shared with
+  `/a/<token>/…`). Web listening is not logged as podcast downloads and doesn't touch AC yet.
+- Progress (`listening`, `api/_lib/learn/progress.js`): position, furthest point, real time listened; done at 90%.
+- Chapters: `episodes.chapters` = `[{ start, title }]`, read from the MP3's ID3 CHAP frames (Podcast Studio) on upload
+  (`api/_lib/learn/chapters.js`), "Read chapters from files" on the Episodes page for older files, editable there.
+- Local: the `shop-admin` preview serves `/learn` too; codes are printed and listed at `/__fake/learn-mail`.
+  `npm run test:learn` runs the end-to-end checks (rolled back).
 
 ## Shop (e-commerce, replacing WooCommerce)
 

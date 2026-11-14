@@ -5,6 +5,7 @@
  * 4.5 MB function limit: `upload-url` returns a short-lived signed PUT URL for one new pathname, the
  * browser sends the file there, then `episode-save` / `show-artwork` attach it (after checking it exists).
  */
+const chapters = require('../learn/chapters.js');
 const crypto = require('node:crypto');
 const blob = require('@vercel/blob');
 const db = require('../db.js');
@@ -30,6 +31,7 @@ function episodeOut(e) {
     id: e.id, guid: e.guid, kind: e.kind, number: e.number, title: e.title, notes: e.notes, day_offset: e.day_offset,
     status: e.status, has_audio: Boolean(e.blob_pathname), bytes: e.bytes == null ? null : Number(e.bytes),
     duration_seconds: e.duration_seconds, mime_type: e.mime_type, updated_at: e.updated_at,
+    chapters: Array.isArray(e.chapters) ? e.chapters : [],
   };
 }
 
@@ -221,6 +223,13 @@ const actions = {
 
     const fields = { kind, number, title, notes, day_offset: dayOffset, status };
     if (audio) Object.assign(fields, { blob_pathname: audio.pathname, bytes: audio.size, mime_type: audio.contentType, duration_seconds: duration });
+    // Chapters made in Podcast Studio are inside the MP3 (ID3): read them from the new file for the student area.
+    if (audio && audio.contentType === 'audio/mpeg') {
+      fields.chapters = JSON.stringify(await chapters.readFromBlob(audio.pathname).catch((err) => {
+        console.error('podcast chapters', audio.pathname, err.message);
+        return [];
+      }));
+    }
     else if (duration) fields.duration_seconds = duration;
 
     const keys = Object.keys(fields);
@@ -255,8 +264,50 @@ const actions = {
     const { presignedUrl } = await blob.presignUrl(token, { operation: 'get', pathname: row.blob_pathname, access: 'private', validUntil });
     return { url: presignedUrl };
   },
+
+  // Every MP3 episode of the program without chapters: read them from the file (once, after the update that added
+  // chapters; later uploads read them by themselves). Stops after ~40 s; run again to continue.
+  async 'episodes-chapters-read'(input) {
+    const show = await getShow(input.show);
+    const rows = await db.query(`SELECT id, blob_pathname FROM episodes WHERE show_id = $1 AND mime_type = 'audio/mpeg' AND blob_pathname IS NOT NULL AND chapters = '[]'::jsonb ORDER BY id`, [show.id]);
+    const started = Date.now();
+    let read = 0, found = 0;
+    for (const row of rows) {
+      if (Date.now() - started > 40000) break;
+      const list = await chapters.readFromBlob(row.blob_pathname).catch((err) => {
+        console.error('podcast chapters', row.blob_pathname, err.message);
+        return [];
+      });
+      if (list.length) {
+        await db.query('UPDATE episodes SET chapters = $2, updated_at = now() WHERE id = $1', [row.id, JSON.stringify(list)]);
+        found++;
+      }
+      read++;
+    }
+    return { read, found, left: rows.length - read, target: `chapters read for ${found} of ${read} episodes` };
+  },
+
+  // An episode's chapters (student area): `reread` reads them again from the MP3's ID3 tag; otherwise `chapters`
+  // ([{ start, title }], or "M:SS Title" lines) replaces them, e.g. to fix a title without re-uploading.
+  async 'episode-chapters'(input) {
+    const show = await getShow(input.show);
+    const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
+    const row = await db.one('SELECT * FROM episodes WHERE id = $1 AND show_id = $2', [id, show.id]);
+    if (!row) throw userError('episode not found', 404);
+    let list;
+    if (input.reread) {
+      if (!row.blob_pathname || row.mime_type !== 'audio/mpeg') throw userError('chapters can only be read from an MP3 file');
+      list = await chapters.readFromBlob(row.blob_pathname);
+    } else {
+      list = typeof input.chapters === 'string' ? chapters.fromLines(input.chapters) : input.chapters;
+      if (!Array.isArray(list) || list.length > 200) throw userError('chapters: one per line, e.g. "12:30 Title"');
+      list = chapters.clean(list, Number(row.duration_seconds) || null);
+    }
+    const saved = await db.one('UPDATE episodes SET chapters = $2, updated_at = now() WHERE id = $1 RETURNING *', [id, JSON.stringify(list)]);
+    return { episode: episodeOut(saved), target: `episode ${id} chapters (${list.length})` };
+  },
 };
 
-const writes = ['show-create', 'show-save', 'show-delete', 'upload-url', 'show-artwork', 'episode-save', 'episode-delete'];
+const writes = ['show-create', 'show-save', 'show-delete', 'upload-url', 'show-artwork', 'episode-save', 'episode-delete', 'episode-chapters', 'episodes-chapters-read'];
 
 module.exports = { section: 'podcast', actions, writes, AUDIO_TYPES, IMAGE_TYPES, blobRoot, mayDelete };
