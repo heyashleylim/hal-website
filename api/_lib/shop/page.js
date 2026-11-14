@@ -145,32 +145,66 @@ function step(n, title, inner) {
       </fieldset>`;
 }
 
-// Beside the form (below it on a phone): what the buyer gets, the guarantee, what others said. All of it comes from the product
-// (set in the admin); a part with nothing to show is left out.
-function side(product, texts, included) {
+const CURRENCY_ORDER = ['KRW', 'USD'];
+
+// A price in every currency the page can switch to (the payment method sets the currency). Only the current
+// one shows; checkout.js shows the other when the buyer picks the other method. amounts: { KRW, USD } (null = none).
+function dual(amounts, current) {
+  return CURRENCY_ORDER.filter((cur) => amounts[cur] != null)
+    .map((cur) => `<span data-cur="${cur}"${cur === current ? '' : ' hidden'}>${esc(pricing.formatMoney(amounts[cur], cur))}</span>`).join('');
+}
+
+// A price with its regular price crossed out (when higher), once per currency: only the current one shows.
+// amounts / compares: { KRW, USD } (null = none); labels: { regular, price } for screen readers.
+function priceIn(amounts, compares, current, labels) {
+  return CURRENCY_ORDER.filter((cur) => amounts[cur] != null).map((cur) => {
+    const cmp = compares[cur] != null && compares[cur] > amounts[cur] ? compares[cur] : null;
+    const inner = cmp != null
+      ? `<s><span class="sr-only">${esc(labels.regular)} </span>${esc(pricing.formatMoney(cmp, cur))}</s> <strong><span class="sr-only">${esc(labels.price)} </span>${esc(pricing.formatMoney(amounts[cur], cur))}</strong>`
+      : `<strong>${esc(pricing.formatMoney(amounts[cur], cur))}</strong>`;
+    return `<span class="co-money" data-cur="${cur}"${cur === current ? '' : ' hidden'}>${inner}</span>`;
+  }).join('');
+}
+
+// What's included: entries are { title, text } (a short title and its paragraph); older products have plain lines.
+function includedOf(c) {
+  return (Array.isArray(c.included) ? c.included : [])
+    .map((x) => (typeof x === 'string' ? { title: x, text: '' } : { title: String((x && x.title) || ''), text: String((x && x.text) || '') }))
+    .map((x) => ({ title: x.title.trim(), text: x.text.trim() }))
+    .filter((x) => x.title || x.text);
+}
+
+const paragraphs = (text, cls = '') => String(text || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
+  .map((p) => `<p${cls ? ` class="${cls}"` : ''}>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+
+// The left of the page on a computer (below the form on a phone), in the manner of the Copy Cure checkout:
+// the picture, what's included (a title and a paragraph each), the guarantee and the reviews, as text on the
+// page's background. All of it comes from the product (set in the admin); a part with nothing to show is left out.
+function side(product, texts) {
   const c = product.content || {};
   const image = c.image && /^\/[A-Za-z0-9/_.-]+\.(webp|jpg|jpeg|png)$/.test(c.image) ? c.image : '';
+  const included = includedOf(c);
   const guarantee = String(c.guarantee || texts.guarantee || '').trim();
   const [gTitle, ...gBody] = guarantee.split('\n').map((x) => x.trim()).filter(Boolean);
   const reviews = Array.isArray(c.testimonials) ? c.testimonials.filter((r) => r && r.text) : [];
   const parts = [];
-  if (image || included.length) {
-    parts.push(`<section class="co-box" aria-labelledby="co-inc-title">
-      ${image ? `<img class="co-box__img" src="${esc(image)}" alt="" width="640" height="360" loading="lazy">` : ''}
-      ${included.length ? `<h2 class="co-box__title" id="co-inc-title">${esc(copy.side.included)}</h2>
-      <ul class="co-list">${included.map((x) => `<li>${TICK}<span>${esc(x)}</span></li>`).join('')}</ul>` : `<h2 class="sr-only" id="co-inc-title">${esc(product.name)}</h2>`}
+  if (image) parts.push(`<img class="co-side__img" src="${esc(image)}" alt="" width="640" height="360" loading="lazy">`);
+  if (included.length) {
+    parts.push(`<section class="co-inc" aria-labelledby="co-inc-title">
+      <h2 class="co-side__title" id="co-inc-title">${esc(String(c.included_title || '').trim() || copy.side.included)}</h2>
+      <ul class="co-inc__list">${included.map((x) => `<li>${TICK}<div>${x.title ? `<p class="co-inc__name">${esc(x.title)}</p>` : ''}${paragraphs(x.text, 'co-inc__text')}</div></li>`).join('')}</ul>
     </section>`);
   }
   if (gTitle) {
-    parts.push(`<section class="co-box co-box--guarantee" aria-labelledby="co-g-title">
-      <h2 class="co-box__title" id="co-g-title">${esc(gTitle)}</h2>
+    parts.push(`<section class="co-guarantee" aria-labelledby="co-g-title">
+      <h2 class="co-side__title" id="co-g-title">${esc(gTitle)}</h2>
       ${gBody.map((x) => `<p>${esc(x)}</p>`).join('')}
     </section>`);
   }
   if (reviews.length) {
     parts.push(`<section class="co-reviews" aria-labelledby="co-r-title">
-      <h2 class="co-box__title" id="co-r-title">${esc(copy.side.reviews)}</h2>
-      ${reviews.map((r) => `<figure class="t-card co-review"><blockquote class="t-card__body">${esc(r.text).replace(/\n/g, '<br>')}</blockquote>${r.name ? `<figcaption class="t-card__by">${esc(r.name)}</figcaption>` : ''}</figure>`).join('')}
+      <h2 class="co-side__title" id="co-r-title">${esc(copy.side.reviews)}</h2>
+      ${reviews.map((r) => `<figure class="co-review"><blockquote>${esc(r.text).replace(/\n/g, '<br>')}</blockquote>${r.name ? `<figcaption>${esc(r.name)}</figcaption>` : ''}</figure>`).join('')}
     </section>`);
   }
   parts.push(`<p class="co-help">${esc(copy.closed.contact)}</p>`);
@@ -183,28 +217,49 @@ const ticked = (values, id) => ['1', 'on', 'true', 'yes'].includes(String((value
 const PLUS = '<svg class="co-addon__icon co-addon__icon--add" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><path d="M7 2h2v5h5v2H9v5H7V9H2V7h5z" fill="currentColor"/></svg>';
 const CROSS = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="m4.2 2.8 3.8 3.8 3.8-3.8 1.4 1.4L9.4 8l3.8 3.8-1.4 1.4L8 9.4l-3.8 3.8-1.4-1.4L6.6 8 2.8 4.2z" fill="currentColor"/></svg>';
 
+/*
+ * The add-ons offered, one entry per add-on in the order set in the admin, with what it costs in each currency
+ * the page can switch to: [{ product, by: { KRW: { amount, compare, vatRule }, USD: … } }]. An add-on missing a
+ * currency (no price in it) is offered in the other one only.
+ */
+function addonUnion(product, addonsBy, currencies) {
+  const byId = new Map();
+  for (const cur of currencies) {
+    for (const x of addonsBy[cur] || []) {
+      if (!byId.has(x.product.id)) byId.set(x.product.id, { product: x.product, by: {} });
+      byId.get(x.product.id).by[cur] = { amount: x.amount, compare: x.compare, vatRule: x.vatRule };
+    }
+  }
+  const order = (product.addon_ids || []).map(Number);
+  return [...byId.values()].sort((a, b) => order.indexOf(a.product.id) - order.indexOf(b.product.id));
+}
+
 // The add-on cards, between the payment method and the order (Marie Forleo's "Popular add-ons"): name, one line,
 // the regular price crossed out and the price, a "+ 추가" toggle and the full description behind "자세히 보기".
-// Each toggle is a real checkbox (addon_<id>), so the form works without JavaScript.
-function addonsBlock(addons, currency, values) {
-  if (!addons.length) return '';
+// Each toggle is a real checkbox (addon_<id>), so the form works without JavaScript. A card not sold in the
+// current currency is hidden (and can't be ticked) until the buyer switches to a method it is sold with.
+function addonsBlock(list, currency, values) {
+  if (!list.length) return '';
   const a = copy.addons;
   return `<section class="co-addons" aria-labelledby="co-addons-title">
         <h2 class="co-addons__title" id="co-addons-title">${esc(a.title)}</h2>
         <ul class="co-addons__list">
-        ${addons.map(({ product: p, amount, compare }) => {
+        ${list.map(({ product: p, by }) => {
     const c = p.content || {};
     const details = String(c.addon_details || '').trim();
     const note = String(c.addon_note || '').trim();
     const id = `co-addon-${p.id}`;
-    return `<li class="co-addon">
-          <input class="co-addon__check" type="checkbox" id="${id}" name="addon_${esc(p.id)}" value="1" data-addon="${esc(p.id)}"${ticked(values, p.id) ? ' checked' : ''}>
+    const here = Boolean(by[currency]);
+    const compare = Object.fromEntries(Object.entries(by).map(([cur, x]) => [cur, x.compare]));
+    const amount = Object.fromEntries(Object.entries(by).map(([cur, x]) => [cur, x.amount]));
+    return `<li class="co-addon" data-addon-card="${esc(p.id)}" data-in="${esc(Object.keys(by).join(' '))}"${here ? '' : ' hidden'}>
+          <input class="co-addon__check" type="checkbox" id="${id}" name="addon_${esc(p.id)}" value="1" data-addon="${esc(p.id)}"${here && ticked(values, p.id) ? ' checked' : ''}${here ? '' : ' disabled'}>
           <div class="co-addon__body">
             <p class="co-addon__name" id="${id}-name">${esc(p.name)}</p>
             ${c.summary ? `<p class="co-addon__sum">${esc(c.summary)}</p>` : ''}
-            <p class="co-addon__price">${compare ? `<s><span class="sr-only">${esc(a.regular)} </span>${esc(pricing.formatMoney(compare, currency))}</s> ` : ''}<strong>${compare ? `<span class="sr-only">${esc(a.price)} </span>` : ''}${esc(pricing.formatMoney(amount, currency))}</strong></p>
+            <p class="co-addon__price">${priceIn(amount, compare, currency, a)}</p>
             ${details || note ? `<details class="co-addon__more"><summary>${esc(a.more)}</summary>
-              ${details ? details.split(/\n\s*\n/).map((para) => `<p>${esc(para.trim()).replace(/\n/g, '<br>')}</p>`).join('') : ''}
+              ${paragraphs(details)}
               ${note ? `<p class="co-addon__note">${esc(note)}</p>` : ''}
             </details>` : ''}
           </div>
@@ -215,37 +270,57 @@ function addonsBlock(addons, currency, values) {
       </section>`;
 }
 
+// A choice card (a pricing option or a payment method): a real radio button with its label laid out as a card.
+function choice({ name, value, id, checked, title, price = '', note = '', extra = '' }) {
+  return `<div class="co-choice">
+          <input type="radio" name="${esc(name)}" id="${esc(id)}" value="${esc(value)}"${checked ? ' checked' : ''}>
+          <label for="${esc(id)}">
+            <span class="co-choice__name">${title}</span>
+            ${price ? `<span class="co-choice__price">${price}</span>` : ''}
+            ${note ? `<span class="co-choice__note">${note}</span>` : ''}
+            ${extra}
+            <span class="co-choice__mark" aria-hidden="true">${TICK}</span>
+          </label>
+        </div>`;
+}
+
 /*
- * The checkout page, in the manner of the Copy Cure checkout (SamCart; Alex, 2026-11-13): on a computer, the
- * product on the left (name, price, what's included, guarantee, reviews) and the order form in a card on the
- * right; on a phone, the product's name and price, then the form, then the rest. The form: numbered steps (who,
- * where, how to pay), the add-ons, the order and its total right above one large button.
+ * The checkout page, in the manner of the Copy Cure checkout (SamCart; Alex, 2026-11-13/14): on a computer, the
+ * product on the left (name, one line, picture, what's included, guarantee, reviews: text on the page's
+ * background) and the order form in a card on the right; on a phone, the name, then the form, then the rest.
+ * The form: numbered steps (who, where, which option when the product has several, how to pay), the add-ons,
+ * the order and its total right above one large button. The payment method sets the currency (card = won,
+ * PayPal = dollars); every price on the page follows it.
  *   product, offers   the product and its priced offers (orders.offers)
- *   currency          'KRW' | 'USD' being shown
- *   addons            the add-ons offered (orders.addonChoices), in order
+ *   currency          'KRW' | 'USD' shown when the page opens
+ *   addons            the add-ons offered per currency ({ KRW: orders.addonChoices(…), USD: … }), in order
  *   values, errors    what the buyer typed and the problems found (after a failed submit without JavaScript)
  *   problem           a code from copy.problems to show above the form
  *   settings          shop settings (checkout_texts)
  *   query             campaign values to carry through the form
  */
-function checkoutPage({ product, offers, currency, addons = [], values = {}, errors = null, problem = '', settings = {}, query = {} }) {
-  const mine = offers.filter((o) => o.currency === currency);
-  const offer = mine[0];
-  const other = offers.find((o) => o.currency !== currency);
+function checkoutPage({ product, offers, currency, addons = {}, values = {}, errors = null, problem = '', settings = {}, query = {} }) {
+  const offer = offers.find((o) => o.currency === currency) || offers[0];
+  currency = offer.currency;
+  const currencies = CURRENCY_ORDER.filter((cur) => offers.some((o) => o.currency === cur && o.plan === 'full'));
+  const addonsBy = Array.isArray(addons) ? { [currency]: addons } : addons || {};
   const texts = (settings && settings.checkout_texts) || {};
-  const isUsd = currency === 'USD';
-  const money = (n) => pricing.formatMoney(n, offer.currency);
+  const money = (n) => pricing.formatMoney(n, currency);
   const v = (name) => (values && values[name] != null ? String(values[name]) : '');
   const source = validate.sourceInput(query);
-  const switchUrl = other ? `/checkout/${product.slug}${other.currency === 'USD' ? '?currency=usd' : ''}` : '';
   const c = product.content || {};
 
-  // The order as it stands when the page opens (add-ons ticked before a failed submit stay ticked). checkout.js
-  // updates the same numbers when an add-on is added or removed; the server prices the order again on submit.
-  const chosen = addons.filter((x) => ticked(values, x.product.id));
-  const now = pricing.quote(product, { currency, plan: offer.plan, addons: offer.plan === 'full' ? chosen.map((x) => x.product) : [] });
-  const price = money(now.dueToday);
-  const payLabel = copy.pay(price);
+  // Pricing options (기본 / VIP…): the one picked before a failed submit stays picked; else the first.
+  const opts = pricing.priceOptions(product);
+  const optionKey = opts.length ? (opts.find((o) => o.key === v('option')) || opts[0]).key : '';
+
+  // The add-ons, and the order as it stands when the page opens (add-ons ticked before a failed submit stay
+  // ticked). checkout.js updates the same numbers when the option, an add-on or the method changes; the server
+  // prices the order again on submit.
+  const addonList = offer.plan === 'full' ? addonUnion(product, addonsBy, currencies) : [];
+  const chosen = addonList.filter((x) => x.by[currency] && ticked(values, x.product.id));
+  const now = pricing.quote(product, { currency, plan: offer.plan, option: optionKey || null, addons: chosen.map((x) => x.product) });
+  const payLabel = copy.pay(money(now.dueToday));
   const vatText = (vat) => (vat > 0 ? copy.summary.vat(money(vat)) : '');
 
   const me = `<div class="co-fields">
@@ -254,79 +329,84 @@ function checkoutPage({ product, offers, currency, addons = [], values = {}, err
           ${field({ name: 'email', label: copy.fields.email, value: v('email'), error: errorText(errors, 'email'), hint: copy.fields.emailHint, type: 'email', wide: true, attrs: 'autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" required' })}
         </div>`;
 
+  // The address: its country first (Korea by default). In Korea the Kakao search fills the postcode and address;
+  // elsewhere the address is typed and the postcode is optional (checkout.js switches between the two).
+  const country = validate.COUNTRY_SET.has(v('country').toUpperCase()) ? v('country').toUpperCase() : 'KR';
+  const inKorea = country === 'KR';
   const address = `<div class="co-fields">
-          ${isUsd
-    ? `<div class="co-field${errors && errors.country ? ' is-invalid' : ''}" data-field="country">
+    <div class="co-field co-field--wide${errors && errors.country ? ' is-invalid' : ''}" data-field="country">
       <label for="co-country">${esc(copy.fields.country)}</label>
       <select id="co-country" name="country" autocomplete="country" required aria-describedby="country-error"${errors && errors.country ? ' aria-invalid="true"' : ''}>
-        <option value="">${esc(copy.fields.chooseCountry)}</option>
-        ${validate.countries().map((x) => `<option value="${esc(x.code)}"${v('country') === x.code ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}
+        ${validate.countries().map((x) => `<option value="${esc(x.code)}"${country === x.code ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}
       </select>
       <p class="co-field__error" id="country-error" role="alert">${esc(errorText(errors, 'country'))}</p>
     </div>
-    ${field({ name: 'postcode', label: copy.fields.postcodeOptional, value: v('postcode'), error: errorText(errors, 'postcode'), attrs: 'autocomplete="postal-code" maxlength="20"' })}
-    ${field({ name: 'address1', label: copy.fields.address1, value: v('address1'), error: errorText(errors, 'address1'), wide: true, attrs: 'autocomplete="address-line1" maxlength="200" required' })}
-    ${field({ name: 'address2', label: copy.fields.address2, value: v('address2'), error: errorText(errors, 'address2'), hint: copy.fields.address2Hint, wide: true, attrs: 'autocomplete="address-line2" maxlength="100"' })}`
-    : `<div class="co-postcode">
-      ${field({ name: 'postcode', label: copy.fields.postcode, value: v('postcode'), error: errorText(errors, 'postcode'), attrs: 'autocomplete="postal-code" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" required data-kakao' })}
+    <div class="co-postcode">
+      ${field({ name: 'postcode', label: inKorea ? copy.fields.postcode : copy.fields.postcodeOptional, value: v('postcode'), error: errorText(errors, 'postcode'), attrs: inKorea ? 'autocomplete="postal-code" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" required' : 'autocomplete="postal-code" maxlength="20"' })}
       <button class="co-search" type="button" id="co-search" hidden>${esc(copy.fields.search)}</button>
     </div>
     <div class="co-kakao" id="co-kakao" hidden>
       <div class="co-kakao__bar"><p id="co-kakao-title">${esc(copy.fields.searchTitle)}</p><button type="button" id="co-kakao-close">${esc(copy.fields.searchClose)}</button></div>
       <div class="co-kakao__frame" id="co-kakao-frame" role="region" aria-labelledby="co-kakao-title"></div>
     </div>
-    ${field({ name: 'address1', label: copy.fields.address1, value: v('address1'), error: errorText(errors, 'address1'), wide: true, attrs: 'autocomplete="address-line1" maxlength="200" required data-kakao' })}
-    ${field({ name: 'address2', label: copy.fields.address2, value: v('address2'), error: errorText(errors, 'address2'), hint: copy.fields.address2Hint, wide: true, attrs: 'autocomplete="address-line2" maxlength="100"' })}`}
+    ${field({ name: 'address1', label: copy.fields.address1, value: v('address1'), error: errorText(errors, 'address1'), wide: true, attrs: 'autocomplete="address-line1" maxlength="200" required' })}
+    ${field({ name: 'address2', label: copy.fields.address2, value: v('address2'), error: errorText(errors, 'address2'), hint: copy.fields.address2Hint, wide: true, attrs: 'autocomplete="address-line2" maxlength="100"' })}
         </div>`;
 
-  const method = `<div class="co-method">
-          <input type="radio" name="plan" id="co-plan-full" value="full" checked>
-          <label for="co-plan-full">
-            <span class="co-method__name">${isUsd ? esc(copy.methods.paypal) : `${esc(copy.methods.card)} · ${esc(copy.methods.cardFull)}`}</span>
-            <span class="co-method__price" data-due>${esc(price)}</span>
-            <span class="co-method__note">${esc(isUsd ? copy.methods.paypalNote : copy.methods.redirectCard)}</span>
-            ${isUsd && texts.paypal_instalments ? `<span class="co-method__note">${esc(texts.paypal_instalments)}</span>` : ''}
-          </label>
-        </div>
-        ${other ? `<p class="co-switch"><a href="${esc(switchUrl)}">${esc(other.currency === 'USD' ? copy.methods.toUsd : copy.methods.toKrw)}</a></p>` : ''}`;
+  // The pricing options, right before the payment method (only for a product with several).
+  const optionsStep = opts.length ? `<div class="co-choices">
+        ${opts.map((o) => {
+    const amounts = Object.fromEntries(currencies.map((cur) => [cur, pricing.priceIn(o, cur)]));
+    const compares = Object.fromEntries(currencies.map((cur) => [cur, pricing.compareIn(o, cur)]));
+    const price = priceIn(amounts, compares, currency, copy.options);
+    return choice({ name: 'option', value: o.key, id: `co-option-${o.key}`, checked: o.key === optionKey, title: esc(o.label), price, note: o.note ? esc(o.note) : '' });
+  }).join('\n        ')}
+      </div>` : '';
 
-  const item = (id, name, amount) => ({ item_id: id, item_name: name, price: offer.currency === 'USD' ? amount / 100 : amount, quantity: 1 });
+  // How to pay: card (won, CiderPay) or PayPal (dollars). Only the methods this product and this site can take.
+  const methodStep = `<div class="co-choices co-choices--methods">
+        ${currencies.map((cur) => (cur === 'USD'
+    ? choice({ name: 'currency', value: 'USD', id: 'co-method-paypal', checked: currency === 'USD', title: esc(copy.methods.paypal), note: esc(copy.methods.paypalNote), extra: texts.paypal_instalments ? `<span class="co-choice__note">${esc(texts.paypal_instalments)}</span>` : '' })
+    : choice({ name: 'currency', value: 'KRW', id: 'co-method-card', checked: currency === 'KRW', title: esc(copy.methods.card), note: esc(copy.methods.cardNote) }))).join('\n        ')}
+      </div>`;
+
+  // What checkout.js needs to keep the prices, the total and the analytics events right in either currency.
   const data = {
     slug: product.slug, currency, plan: offer.plan, payLabel, payTemplate: copy.pay('{price}'), vatTemplate: copy.summary.vat('{price}'), paying: copy.paying,
     errors: copy.errors, problems: copy.problems, emailTypo: copy.emailTypo('{email}'), emailTypoUse: copy.emailTypoUse,
     search: { open: copy.fields.search, again: copy.fields.searchAgain, failed: copy.fields.searchFailed },
-    kakao: !isUsd,
-    // The product and each add-on, as checkout.js needs them to keep the total and the analytics events right.
-    main: { amount: now.items[0].amount, vatRule: now.items[0].vatRule, item: item(product.slug, product.name, now.items[0].amount) },
-    addons: addons.map((x) => ({ id: x.product.id, amount: x.amount, vatRule: x.vatRule, item: item(x.product.slug, x.product.name, x.amount) })),
-    item: item(product.slug, product.name, now.items[0].amount),
-    value: offer.currency === 'USD' ? now.total / 100 : now.total,
+    postcode: { kr: copy.fields.postcode, other: copy.fields.postcodeOptional },
+    product: { id: product.slug, name: product.name },
+    vatRule: Object.fromEntries(currencies.map((cur) => [cur, pricing.vatRule(product, cur)])),
+    options: (opts.length ? opts : [{ key: '', label: '', price_krw: product.price_krw, price_usd: product.price_usd }])
+      .map((o) => ({ key: o.key, label: String(o.label || ''), ...Object.fromEntries(currencies.map((cur) => [cur, pricing.priceIn(o, cur)])) })),
+    addons: addonList.map((x) => ({ id: x.product.id, slug: x.product.slug, name: x.product.name, ...Object.fromEntries(currencies.map((cur) => [cur, x.by[cur] ? { amount: x.by[cur].amount, vatRule: x.by[cur].vatRule } : null])) })),
   };
 
-  const summaryRows = `<div class="co-order__row"><dt>${esc(product.name)}</dt><dd>${esc(money(now.items[0].amount))}</dd></div>
-          ${addons.map((x) => `<div class="co-order__row co-order__row--addon" data-line="${esc(x.product.id)}"${ticked(values, x.product.id) ? '' : ' hidden'}>
+  const summaryRows = `<div class="co-order__row"><dt data-main-name>${esc(now.items[0].name)}</dt><dd data-main-amount>${esc(money(now.items[0].amount))}</dd></div>
+          ${addonList.map((x) => `<div class="co-order__row co-order__row--addon" data-line="${esc(x.product.id)}"${chosen.includes(x) ? '' : ' hidden'}>
             <dt>${esc(x.product.name)}<button class="co-order__remove" type="button" data-remove="${esc(x.product.id)}" hidden aria-label="${esc(copy.addons.removeLabel(x.product.name))}">${CROSS}<span aria-hidden="true">${esc(copy.addons.remove)}</span></button></dt>
-            <dd>${esc(money(x.amount))}</dd></div>`).join('\n          ')}`;
+            <dd>${dual(Object.fromEntries(Object.entries(x.by).map(([cur, y]) => [cur, y.amount])), currency)}</dd></div>`).join('\n          ')}`;
 
-  const included = Array.isArray(c.included) ? c.included.filter(Boolean) : [];
+  let n = 0;
   const body = `<div class="co-wrap co-grid">
   <header class="co-head">
-    <p class="co-badge">${LOCK}${esc(copy.secure)}</p>
     <h1 class="co-title">${esc(product.name)}</h1>
     ${c.summary ? `<p class="co-sub">${esc(c.summary)}</p>` : ''}
-    <p class="co-price"><strong>${esc(money(offer.total))}</strong>${offer.vat > 0 ? `<span>${esc(copy.summary.vat(money(offer.vat)))}</span>` : ''}</p>
   </header>
-  <form class="co-form" id="co-form" method="post" action="/api/shop?action=order" novalidate>
+  <form class="co-form" id="co-form" method="post" action="/api/shop?action=order" novalidate data-currency="${esc(currency)}">
       <p class="co-problem" id="co-problem" role="alert"${problem ? '' : ' hidden'}>${esc(problem ? copy.problems[problem] || copy.problems.server : '')}</p>
       <input type="hidden" name="slug" value="${esc(product.slug)}">
-      <input type="hidden" name="currency" value="${esc(currency)}">
+      <input type="hidden" name="plan" value="${esc(offer.plan)}">
+      <input type="hidden" name="shown_currency" value="${esc(currency)}">
       ${Object.entries(source).map(([k, val]) => `<input type="hidden" name="${esc(k)}" value="${esc(val)}">`).join('')}
 
-      ${step(1, copy.sections.me, me)}
-      ${step(2, copy.sections.address, address)}
-      ${step(3, copy.sections.method, method)}
+      ${step(++n, copy.sections.me, me)}
+      ${step(++n, copy.sections.address, address)}
+      ${opts.length ? step(++n, copy.sections.option, optionsStep) : ''}
+      ${step(++n, copy.sections.method, methodStep)}
 
-      ${offer.plan === 'full' ? addonsBlock(addons, currency, values) : ''}
+      ${addonsBlock(addonList, currency, values)}
 
       <section class="co-order" aria-labelledby="co-order-title">
         <h2 class="co-order__title" id="co-order-title">${esc(copy.summary.title)}</h2>
@@ -336,12 +416,12 @@ function checkoutPage({ product, offers, currency, addons = [], values = {}, err
         </dl>
       </section>
 
-      <button class="btn btn--block co-pay${isUsd ? ' co-pay--paypal' : ''}" type="submit" id="co-pay">${esc(payLabel)}</button>
+      <button class="btn btn--block co-pay${currency === 'USD' ? ' co-pay--paypal' : ''}" type="submit" id="co-pay">${esc(payLabel)}</button>
       <p class="co-wait" id="co-wait" role="status" aria-live="polite"></p>
       ${texts.secure_note ? `<p class="co-secure">${LOCK}<span>${esc(texts.secure_note)}</span></p>` : ''}
       <p class="co-consent">${consentHtml(texts.consent)}</p>
   </form>
-  ${side(product, texts, included)}
+  ${side(product, texts)}
 </div>`;
   return layout({ title: `${copy.title} · ${product.name}`, body, data });
 }
@@ -440,7 +520,7 @@ function completePage({ order, product = null, items = [], receiptUrl = '', slow
   ${name ? `<p class="co-lead">${esc(c.paidLead(name))}</p>` : ''}
   <dl class="co-facts">
     <div><dt>${esc(c.order)}</dt><dd>${esc(order.number)}</dd></div>
-    <div><dt>${esc(c.product)}</dt><dd>${esc(order.product_name)}</dd></div>
+    <div><dt>${esc(c.product)}</dt><dd>${esc(order.price_option && order.price_option.label ? `${order.product_name} · ${order.price_option.label}` : order.product_name)}</dd></div>
     ${addons.map((i) => `<div><dt>${esc(c.addon)}</dt><dd>${esc(i.name)}</dd></div>`).join('')}
     <div><dt>${esc(c.amount)}</dt><dd>${esc(amount)}</dd></div>
     <div><dt>${esc(c.date)}</dt><dd>${esc(kstDate(order.paid_at))}</dd></div>

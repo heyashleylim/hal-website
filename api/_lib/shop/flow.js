@@ -37,7 +37,8 @@ async function productOf(order) {
 
 /*
  * → { order, redirect } where `redirect` is the provider's payment page.
- * Throws CheckoutError: 'invalid' (with .fields), 'closed', 'unavailable', 'too_many', 'provider', 'not_configured'.
+ * Throws CheckoutError: 'invalid' (with .fields), 'closed', 'unavailable', 'option_unavailable', 'addon_unavailable', 'too_many',
+ * 'provider', 'not_configured'.
  */
 async function start({ product, currency, plan, input, source, ipHash }) {
   // First: is this product on sale, in this currency, with this plan? Only then is the form worth checking.
@@ -55,11 +56,16 @@ async function start({ product, currency, plan, input, source, ipHash }) {
     // In the order the checkout shows them.
     addons.sort((a, b) => choices.findIndex((c) => c.product.id === a.id) - choices.findIndex((c) => c.product.id === b.id));
   }
-  const checked = validate.checkoutInput(input, currency);
+  // The pricing option: one of the product's (the page sends the one picked); a product without options takes none.
+  // An option that no longer exists (changed since the page was opened) stops the order, like an add-on.
+  const option = String((input && input.option) || '').trim();
+  const hasOptions = pricing.priceOptions(product).length > 0;
+  if (hasOptions ? !pricing.priceOptions(product).some((o) => o.key === option) : option) throw new CheckoutError('option_unavailable', `pricing option "${option}" not offered on ${product.slug}`);
+  const checked = validate.checkoutInput(input);
   if (!checked.ok) throw new CheckoutError('invalid', 'form', checked.errors);
   const billing = checked.value;
-  const order = await orders.createOrder({ product, currency, plan, billing, addons, source: validate.sourceInput(source), ipHash });
-  const title = orderTitle(product.name, addons.length);
+  const order = await orders.createOrder({ product, currency, plan, option: hasOptions ? option : null, billing, addons, source: validate.sourceInput(source), ipHash });
+  const title = orderTitle(orders.orderName(order), addons.length);
   try {
     if (order.provider === 'paypal') {
       const created = await paypal.createOrder({ order, productName: title, slug: product.slug });

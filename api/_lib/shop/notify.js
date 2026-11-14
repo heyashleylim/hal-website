@@ -23,7 +23,7 @@ async function send(text, { fetchImpl = fetch, env = process.env } = {}) {
 function paidText(order, method, items = []) {
   const name = (order.billing || {}).name || '';
   const extras = (items || []).filter((i) => i.kind === 'addon').map((i) => ` + ${i.name}`).join('');
-  return `You've got MONEY!\nYAY!! Paid ${pricing.formatMoney(order.due_today, order.currency)} 🎉${method ? ` (${method})` : ''}\n${name} - ${order.product_name}${extras} [${order.number}]`;
+  return `You've got MONEY!\nYAY!! Paid ${pricing.formatMoney(order.due_today, order.currency)} 🎉${method ? ` (${method})` : ''}\n${name} - ${order.product_name}${order.price_option && order.price_option.label ? ` · ${order.price_option.label}` : ''}${extras} [${order.number}]`;
 }
 
 async function paid(order, method, settings, opts, items = []) {

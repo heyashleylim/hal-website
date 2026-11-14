@@ -69,14 +69,20 @@ function requestedAddons(input) {
  * The order and its items are written by one statement.
  * Throws CheckoutError('closed' | 'unavailable' | 'too_many').
  */
-async function createOrder({ product, currency, plan, billing, addons = [], source = {}, ipHash = null, now = new Date() }) {
+async function createOrder({ product, currency, plan, option = null, billing, addons = [], source = {}, ipHash = null, now = new Date() }) {
   if (!pricing.saleState(product, now).open) throw new CheckoutError('closed');
   if (!offers(product).some((o) => o.currency === currency && o.plan === plan)) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
+  // A product with pricing options is only sold with one of them named: never a default the buyer didn't see.
+  if (pricing.priceOptions(product).length && !option) throw new CheckoutError('option_unavailable', `no pricing option chosen for ${product.slug}`);
   let offer;
   try {
-    offer = { ...pricing.quote(product, { currency, plan, addons }), provider: providerFor(currency) };
+    offer = { ...pricing.quote(product, { currency, plan, addons, option }), provider: providerFor(currency) };
   } catch (err) {
-    if (err instanceof pricing.PricingError) throw new CheckoutError(err.code === 'addon_plan' || err.code === 'bad_addon' || err.code === 'no_price' ? 'addon_unavailable' : 'unavailable', err.message);
+    if (err instanceof pricing.PricingError) {
+      const code = err.code === 'bad_option' || err.code === 'option_plan' ? 'option_unavailable'
+        : err.code === 'addon_plan' || err.code === 'bad_addon' || (err.code === 'no_price' && addons.length) ? 'addon_unavailable' : 'unavailable';
+      throw new CheckoutError(code, err.message);
+    }
     throw err;
   }
 
@@ -98,8 +104,8 @@ async function createOrder({ product, currency, plan, billing, addons = [], sour
   const it = offer.items;
   const order = await db.one(
     `WITH o AS (
-       INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14) RETURNING *),
+       INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash, price_option)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14, $20::jsonb) RETURNING *),
      i AS (
        INSERT INTO shop_order_items (order_id, position, kind, product_id, name, amount, vat_rule)
        SELECT o.id, x.position - 1, x.kind, x.product_id, x.name, x.amount, x.vat_rule
@@ -108,11 +114,18 @@ async function createOrder({ product, currency, plan, billing, addons = [], sour
      SELECT o.*, (SELECT count(*)::int FROM i) AS item_count FROM o`,
     [config.newToken(), customer.id, product.id, product.name, offer.currency, offer.plan, offer.subtotal, offer.discount, offer.total, offer.dueToday,
       offer.provider, JSON.stringify(billing), JSON.stringify(source), ipHash,
-      it.map((x) => x.kind), it.map((x) => x.product_id), it.map((x) => x.name), it.map((x) => x.amount), it.map((x) => x.vatRule)],
+      it.map((x) => x.kind), it.map((x) => x.product_id), it.map((x) => x.name), it.map((x) => x.amount), it.map((x) => x.vatRule),
+      offer.option ? JSON.stringify(offer.option) : null],
   );
   if (!order || order.item_count !== it.length) throw new Error('the order and its items were not saved together');
   delete order.item_count;
   return order;
+}
+
+// "product · option" for an order sold with a pricing option, else the product's name.
+function orderName(order) {
+  const label = order && order.price_option && order.price_option.label;
+  return label ? `${order.product_name} · ${label}` : String((order && order.product_name) || '');
 }
 
 // An order's items, in order (the product first). Orders from before add-ons have their one item since migration 009.
@@ -257,6 +270,6 @@ async function payments(orderId) {
 
 module.exports = {
   INSTALMENTS_ENABLED, RATE_LIMIT, CheckoutError, providerFor, offers, productBySlug, createOrder, awaitPayment, abandon,
-  byToken, byProviderRequest, decide, recordPayment, items, addonChoices, requestedAddons, refreshCustomer, logCallback, expireStale, markTracked, payments, UNPAID,
+  byToken, byProviderRequest, decide, recordPayment, items, orderName, addonChoices, requestedAddons, refreshCustomer, logCallback, expireStale, markTracked, payments, UNPAID,
   paidWithoutSync, samePurchaseRecently,
 };

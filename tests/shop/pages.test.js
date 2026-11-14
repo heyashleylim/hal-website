@@ -34,27 +34,34 @@ test('until instalments are built, the checkout only offers pay-in-full', () => 
 
 test('checkout page: the product, the price and a form that works without JavaScript', () => {
   const html = page.checkoutPage({ product, offers, currency: 'KRW' });
-  assert.match(html, /<form class="co-form" id="co-form" method="post" action="\/api\/shop\?action=order" novalidate>/);
+  assert.match(html, /<form class="co-form" id="co-form" method="post" action="\/api\/shop\?action=order" novalidate data-currency="KRW">/);
   assert.match(html, /<input type="hidden" name="slug" value="nsmb">/);
-  assert.match(html, /<input type="hidden" name="currency" value="KRW">/);
+  assert.match(html, /<input type="hidden" name="shown_currency" value="KRW">/);
+  assert.match(html, /<input type="hidden" name="plan" value="full">/);
+  // The payment method is a choice between card (won) and PayPal (dollars), card picked.
+  assert.match(html, /<input type="radio" name="currency" id="co-method-card" value="KRW" checked>/);
+  assert.match(html, /<input type="radio" name="currency" id="co-method-paypal" value="USD">/);
+  assert.ok(html.includes('<span class="co-choice__name">신용/체크카드</span>') && html.includes('<span class="co-choice__name">PayPal</span>'));
+  assert.ok(!html.includes('안전 결제'), 'no secure-payment pill');
+  assert.ok(!html.includes('name="option"'), 'no pricing options for a product without them');
   assert.ok(html.includes('내성만방 프로그램'));
   assert.ok(html.includes('₩2,690,000 결제하기'));
   assert.ok(html.includes('부가세 ₩244,545 포함'));
   assert.ok(html.includes('라이브 그룹 코칭'));
-  assert.ok(html.includes('href="/checkout/nsmb?currency=usd"'), 'link to the USD checkout');
   assert.ok(!html.includes('930,000'), 'the instalment plan is not offered yet');
   assert.equal((html.match(/<h1/g) || []).length, 1);
   for (const name of ['name', 'email', 'phone', 'postcode', 'address1', 'address2']) {
     assert.match(html, new RegExp(`<label for="co-${name}">`), name);
     assert.match(html, new RegExp(`<input id="co-${name}" name="${name}"`), name);
   }
-  assert.ok(!html.includes('name="country"'), 'no country list for Korean buyers');
+  // The address's country, Korea first and chosen.
+  assert.match(html, /<select id="co-country" name="country" autocomplete="country" required[^>]*>\s*<option value="KR" selected>대한민국<\/option>/);
   // The phone's country: a labelled list, Korea chosen, the number field beside it.
   assert.match(html, /<label class="sr-only" for="co-phone_cc">국가 번호<\/label>\s*<select id="co-phone_cc" name="phone_cc"/);
   assert.match(html, /<option value="KR" data-dial="82" selected>대한민국 \+82<\/option>/);
   assert.match(html, /<option value="US" data-dial="1">/);
   assert.match(html, /<option value="AU" data-dial="61">/);
-  assert.equal((html.match(/ selected>/g) || []).length, 1, 'one country chosen');
+  assert.equal((html.match(/ selected>/g) || []).length, 2, 'one country chosen in each list');
   assert.ok(html.includes(copy.consent), 'the published consent line is the default');
   assert.match(html, /<meta name="robots" content="noindex, nofollow, noarchive">/);
   assert.ok(html.includes('GTM-MK4FNWNV'));
@@ -67,35 +74,81 @@ test('checkout page: the product, the price and a form that works without JavaSc
   assert.ok(html.includes('₩2,690,000 결제하기 →'));
   const data = dataOf(html);
   assert.equal(data.slug, 'nsmb');
-  assert.equal(data.value, 2690000);
-  assert.equal(data.kakao, true);
+  assert.deepEqual(data.options, [{ key: '', label: '', KRW: 2690000, USD: 229900 }]);
+  assert.deepEqual(data.vatRule, { KRW: 'taxable', USD: 'taxable' });
+  // The order's lines that checkout.js keeps up to date when the method changes.
+  assert.ok(html.includes('<dd data-main-amount>₩2,690,000</dd>') && html.includes('<strong data-total>₩2,690,000</strong>'));
 });
 
 test('beside the form: what you get, the guarantee and reviews, only when the product has them', () => {
   const rich = { ...product, content: { ...product.content, guarantee: '14일 전액 환불 보장\n조건이 있어요.', testimonials: [{ text: '인생의 마스터 키를 쥔 기분.\n정말로요', name: '유00' }, { text: '이름 없는 후기', name: '' }] } };
   let html = page.checkoutPage({ product: rich, offers, currency: 'KRW' });
-  assert.ok(html.includes('<h2 class="co-box__title" id="co-g-title">14일 전액 환불 보장</h2>') && html.includes('<p>조건이 있어요.</p>'));
-  assert.ok(html.includes('인생의 마스터 키를 쥔 기분.<br>정말로요') && html.includes('<figcaption class="t-card__by">유00</figcaption>'));
-  assert.equal((html.match(/<figure class="t-card co-review">/g) || []).length, 2);
+  assert.ok(html.includes('<h2 class="co-side__title" id="co-g-title">14일 전액 환불 보장</h2>') && html.includes('<p>조건이 있어요.</p>'));
+  assert.ok(html.includes('인생의 마스터 키를 쥔 기분.<br>정말로요') && html.includes('<figcaption>유00</figcaption>'));
+  assert.equal((html.match(/<figure class="co-review">/g) || []).length, 2);
   assert.equal((html.match(/<figcaption/g) || []).length, 1, 'no empty name line');
-  assert.ok(html.includes('src="/assets/img/shop/nsmb.webp"') && /<img class="co-box__img"[^>]*width="\d+" height="\d+" loading="lazy"/.test(html));
-  // nothing set: no empty boxes
+  assert.ok(html.includes('src="/assets/img/shop/nsmb.webp"') && /<img class="co-side__img"[^>]*width="\d+" height="\d+" loading="lazy"/.test(html));
+  // What's included: plain lines (older products) are titles; entries have a title and a paragraph.
+  assert.ok(html.includes('<h2 class="co-side__title" id="co-inc-title">포함 내용</h2>') && html.includes('<p class="co-inc__name">라이브 그룹 코칭</p>'));
+  html = page.checkoutPage({ product: { ...product, content: { included_title: '이 모든 걸 받아요', included: [{ title: '8주 라이브', text: '매주 화요일.\n\n녹화본 제공.' }, { title: '커뮤니티', text: '' }] } }, offers, currency: 'KRW' });
+  assert.ok(html.includes('id="co-inc-title">이 모든 걸 받아요</h2>'));
+  assert.ok(html.includes('<p class="co-inc__name">8주 라이브</p><p class="co-inc__text">매주 화요일.</p><p class="co-inc__text">녹화본 제공.</p>'));
+  assert.ok(html.includes('<p class="co-inc__name">커뮤니티</p></div>'), 'no empty paragraph');
+  // nothing set: nothing empty
   html = page.checkoutPage({ product: { ...product, content: {} }, offers, currency: 'KRW' });
-  assert.ok(!html.includes('co-box') && !html.includes('co-reviews') && !html.includes('co-sub'));
+  assert.ok(!html.includes('co-inc') && !html.includes('co-reviews') && !html.includes('co-sub') && !html.includes('co-side__img'));
   // the shop-wide guarantee line (Settings) is used when the product has none
   html = page.checkoutPage({ product: { ...product, content: {} }, offers, currency: 'KRW', settings: { checkout_texts: { guarantee: '환불 보장' } } });
   assert.ok(html.includes('id="co-g-title">환불 보장</h2>'));
 });
 
-test('checkout page in USD: PayPal, a country list in Korean, dollars', () => {
+test('checkout page in USD: PayPal picked, a country list in Korean, dollars', () => {
   const html = page.checkoutPage({ product, offers, currency: 'USD', settings: { checkout_texts: { paypal_instalments: 'PayPal 화면에서 분할 결제를 선택할 수 있는 경우가 있어요.' } } });
   assert.ok(html.includes('$2,299 결제하기'));
   assert.ok(html.includes('<option value="US">미국</option>'));
   assert.ok(html.includes('PayPal 화면에서 분할 결제를 선택할 수 있는 경우가 있어요.'));
-  assert.ok(html.includes('href="/checkout/nsmb"'), 'link back to the KRW checkout');
-  assert.equal(dataOf(html).kakao, false);
-  assert.equal(dataOf(html).value, 2299);
-  assert.ok(!html.includes('id="co-kakao"'));
+  assert.match(html, /<input type="radio" name="currency" id="co-method-paypal" value="USD" checked>/);
+  assert.match(html, /<input type="radio" name="currency" id="co-method-card" value="KRW">/);
+  assert.match(html, /<input type="hidden" name="shown_currency" value="USD">/);
+  assert.ok(html.includes('co-pay--paypal'));
+  // The address search is there for a Korean address, whichever the method.
+  assert.ok(html.includes('id="co-kakao"'));
+  // Only the methods this site can take: with PayPal only, no card choice.
+  const only = page.checkoutPage({ product, offers: orders.offers(product, ['paypal']), currency: 'USD' });
+  assert.ok(!only.includes('co-method-card') && only.includes('co-method-paypal'));
+});
+
+test('a buyer abroad: their country comes back, the postcode is optional', () => {
+  const html = page.checkoutPage({ product, offers, currency: 'USD', values: { country: 'AU', postcode: '2000' }, errors: { address1: 'address1_required' }, problem: 'invalid' });
+  assert.match(html, /<option value="AU" selected>오스트레일리아<\/option>|<option value="AU" selected>호주<\/option>/);
+  assert.match(html, /<label for="co-postcode">우편번호 \(선택\)<\/label>/);
+  assert.doesNotMatch(html, /<input id="co-postcode"[^>]*required/);
+  const kr = page.checkoutPage({ product, offers, currency: 'USD' });
+  assert.match(kr, /<input id="co-postcode"[^>]*maxlength="5" pattern="\[0-9\]\{5\}" required/);
+});
+
+test('pricing options: picked right before the payment method, each with its prices, the first picked', () => {
+  const opt = { ...product, instalment_first: null, instalment_monthly: null, instalment_count: null, price_options: [
+    { key: 'basic', label: '기본', note: '', price_krw: 2690000, price_usd: 229900, compare_krw: null, compare_usd: null, tag: '' },
+    { key: 'vip', label: 'VIP', note: '1:1 코칭 2회 포함', price_krw: 3990000, price_usd: 329900, compare_krw: 4990000, compare_usd: null, tag: 'nsmb_vip' },
+  ] };
+  const html = page.checkoutPage({ product: opt, offers: orders.offers(opt), currency: 'KRW' });
+  assert.deepEqual([...html.matchAll(/<span class="co-step__n" aria-hidden="true">(\d)<\/span>([^<]+)/g)].map((m) => m[1] + m[2]), ['1내 정보', '2주소', '3옵션 선택', '4결제 방법']);
+  assert.match(html, /<input type="radio" name="option" id="co-option-basic" value="basic" checked>/);
+  assert.match(html, /<input type="radio" name="option" id="co-option-vip" value="vip">/);
+  assert.ok(html.includes('1:1 코칭 2회 포함'));
+  assert.ok(html.includes('<span class="co-money" data-cur="KRW"><s><span class="sr-only">정가 </span>₩4,990,000</s> <strong><span class="sr-only">판매가 </span>₩3,990,000</strong></span>'), 'regular price crossed out, in won');
+  assert.ok(!html.includes('$4,990'), 'no regular dollar price where none is set');
+  assert.ok(html.includes('<span class="co-money" data-cur="USD" hidden><strong>$3,299</strong></span>'), 'the dollar price is there, hidden until PayPal is picked, without a regular price it doesn’t have');
+  assert.ok(html.includes('<dt data-main-name>내성만방 프로그램 · 기본</dt>'));
+  assert.ok(html.includes('₩2,690,000 결제하기'));
+  assert.deepEqual(dataOf(html).options, [{ key: 'basic', label: '기본', KRW: 2690000, USD: 229900 }, { key: 'vip', label: 'VIP', KRW: 3990000, USD: 329900 }]);
+  // After a failed submit the option picked stays picked, and is what the total says.
+  const again = page.checkoutPage({ product: opt, offers: orders.offers(opt), currency: 'KRW', values: { option: 'vip' } });
+  assert.match(again, /id="co-option-vip" value="vip" checked>/);
+  assert.ok(again.includes('₩3,990,000 결제하기') && again.includes('내성만방 프로그램 · VIP'));
+  // An option that no longer exists falls back to the first.
+  assert.match(page.checkoutPage({ product: opt, offers: orders.offers(opt), currency: 'KRW', values: { option: 'gone' } }), /id="co-option-basic" value="basic" checked>/);
 });
 
 test('what the buyer typed comes back after an error, with the message next to the field', () => {
@@ -106,7 +159,7 @@ test('what the buyer typed comes back after an error, with the message next to t
   // A buyer who chose another country gets it back with their number.
   const again = page.checkoutPage({ product, offers, currency: 'KRW', values: { phone_cc: 'AU', phone: '0412' }, errors: { phone: 'phone_invalid_intl' }, problem: 'invalid' });
   assert.match(again, /<option value="AU" data-dial="61" selected>/);
-  assert.ok(!/<option value="KR"[^>]* selected>/.test(again));
+  assert.ok(!/<option value="KR" data-dial="82" selected>/.test(again));
   assert.ok(again.includes('<span class="co-phone__shown" aria-hidden="true">+61</span>'));
   assert.ok(html.includes(copy.problems.invalid));
   assert.match(html, /<input id="co-email"[^>]*aria-invalid="true"/);

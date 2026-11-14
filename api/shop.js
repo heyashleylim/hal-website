@@ -3,8 +3,9 @@
  *
  *   POST order    the checkout form (JSON from checkout.js, or a plain form post without JavaScript)
  *                 → the provider's payment page: { redirect } as JSON, or a 303 for a form post.
- *                 The only inputs that matter are the product, the currency, the plan, the add-ons ticked
- *                 (addon_<id>) and the buyer's details: every amount is computed here from the products.
+ *                 The only inputs that matter are the product, the currency (= payment method: KRW card,
+ *                 USD PayPal), the plan, the pricing option, the add-ons ticked (addon_<id>) and the buyer's
+ *                 details: every amount is computed here from the products.
  *   GET  status   ?o=<order token> → { status: 'paid' | 'pending' | 'ended' | 'refunded' | 'unknown' }
  *                 (the thank-you page asks until the provider's confirmation has arrived)
  *   POST after    { o, tracked } from the thank-you page: remembers that the purchase event reached GTM,
@@ -20,7 +21,7 @@ const page = require('./_lib/shop/page.js');
 const { readBody, sendJson, sendHtml, redirect, sameOrigin } = require('./_lib/shop/http.js');
 const { CheckoutError } = orders;
 
-const STATUS = { invalid: 422, closed: 409, unavailable: 409, addon_unavailable: 409, too_many: 429, provider: 502, not_configured: 503, server: 500 };
+const STATUS = { invalid: 422, closed: 409, unavailable: 409, addon_unavailable: 409, option_unavailable: 409, currency_changed: 409, too_many: 429, provider: 502, not_configured: 503, server: 500 };
 
 async function order(req, res) {
   const wantsJson = /json/i.test(String(req.headers['content-type'] || ''));
@@ -36,7 +37,7 @@ async function order(req, res) {
     const offers = orders.offers(product, flow.providers());
     const sale = pricing.saleState(product);
     if (!sale.open || !offers.some((o) => o.currency === currency)) return sendHtml(res, status === 422 ? 409 : status, page.closedPage({ product, reason: sale.reason || 'closed' }));
-    const addons = await orders.addonChoices(product, currency);
+    const addons = await addonsByCurrency(product, offers);
     return sendHtml(res, status, page.checkoutPage({ product, offers, currency, addons, values: data, errors: fields, problem: code, settings: await settings.read(), query: data }));
   };
 
@@ -46,6 +47,10 @@ async function order(req, res) {
     console.error('shop: SHOP_SECRET is not set, orders cannot be taken');
     return fail('not_configured');
   }
+  // Without JavaScript the prices on the page don't follow the payment method: a buyer who picked the other
+  // method (card ↔ PayPal, so another currency) first sees the page again in that currency, then pays.
+  const shown = String(data.shown_currency || '').toUpperCase();
+  if (!wantsJson && (shown === 'KRW' || shown === 'USD') && shown !== currency) return fail('currency_changed');
   try {
     const started = await flow.start({
       product, currency, plan: String(data.plan || 'full'), input: data, source: data, ipHash: config.ipHash(req),
@@ -56,6 +61,13 @@ async function order(req, res) {
     console.error('shop: order', err);
     return fail('server');
   }
+}
+
+// The add-ons the checkout offers, per currency it is sold in (the page switches between them with the payment method).
+async function addonsByCurrency(product, offers) {
+  const out = {};
+  for (const cur of [...new Set(offers.map((o) => o.currency))]) out[cur] = await orders.addonChoices(product, cur);
+  return out;
 }
 
 async function status(req, res, url) {

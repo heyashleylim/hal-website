@@ -22,7 +22,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006, 009 add-ons), emails (007–008), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -217,6 +217,19 @@ pay in full) are built. The site's payment links still go to WordPress until go-
   that isn't offered right now (`addon_unavailable`) rather than dropping it. An order's items (`shop_order_items`) add
   up to its total; its payments get one tax ledger line per VAT rule (`ledger.lines`). Each add-on's purchase tag is
   added in AC. Not with instalment plans yet.
+- **Checkout page** (Alex 2026-11-14): Copy Cure layout without its logo. Left (below the form on a phone), as text on
+  the page background: name, summary, picture, what's included (`content.included` = `[{ title, text }]`, heading
+  `content.included_title`), guarantee, reviews. Right, the form: 내 정보 → 주소 (country first, Korea by default; the
+  Kakao search only for a Korean address) → 옵션 선택 (only with pricing options) → 결제 방법 (신용/체크카드 = KRW/CiderPay,
+  PayPal = USD; only the methods with keys) → add-ons → order → button. The method sets the currency: every price is
+  written in both (`[data-cur]`) and `checkout.js` shows the one picked. Without JavaScript, a form posted with another
+  method than the prices shown (`shown_currency`) comes back once in that currency (`currency_changed`) before paying.
+- **Pricing options** (Alex 2026-11-14): `shop_products.price_options` = none or 2–6 `{ key, label, note, price_krw,
+  price_usd, compare_krw, compare_usd, tag }`; every option carries the same currencies; the product's own prices are the
+  first option's (set by the admin). The form sends `option=<key>`; an order of a product with options must name one
+  (`option_unavailable` otherwise). The order keeps `{ key, label, tag }` in `shop_orders.price_option`, its main item
+  is named "product · option", and the option's tag is added in AC with the product's. Not with instalment plans yet:
+  they join the same picker in phase 3.
 - Instalment plans are stored on products but not sold yet (`orders.INSTALMENTS_ENABLED`, phase 3). The refund window is
   14 days; refunds are handled by hand until phase 3.
 - Env vars: `SHOP_SECRET` (never change once live), `CIDERPAY_*`, `PAYPAL_*`, `SLACK_WEBHOOK_*` (`.env.example`).

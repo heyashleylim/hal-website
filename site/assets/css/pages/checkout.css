@@ -1,9 +1,10 @@
 /* =========================================================
    Checkout and thank-you pages (/checkout/…), rendered by api/_lib/shop/page.js.
-   Laid out like the Copy Cure checkout (SamCart; Alex, 2026-11-13), in Ashley's design system (docs/DESIGN.md,
-   brand.css tokens): on a computer the product on the left (name, price, what's included, guarantee, reviews)
-   and the order form in a white card on the right; on a phone the name and price, then the form, then the rest.
-   Add-ons sit between the payment method and the order, as cards with a "+ 추가" toggle (Marie Forleo's checkouts).
+   Laid out like the Copy Cure checkout (SamCart; Alex, 2026-11-13/14), in Ashley's design system (docs/DESIGN.md,
+   brand.css tokens): on a computer the product on the left as text on the page's background (name, one line,
+   picture, what's included with a paragraph each, guarantee, reviews) and the order form in a white card on the
+   right; on a phone the name, then the form, then the rest. Pricing options and payment methods are choice cards;
+   add-ons sit between the payment method and the order, with a "+ 추가" toggle (Marie Forleo's checkouts).
    Site header and footer: header.css, footer.css. Phone first; two columns from 960px.
    ========================================================= */
 .co{
@@ -23,15 +24,11 @@
 .co-main a{text-underline-offset:3px}
 .co-wrap{max-width:1080px;margin:0 auto}
 
-/* ---------- The product: name, one line, price ---------- */
+/* ---------- The product: name and one line (Copy Cure: centred, an accent rule under the name) ---------- */
 .co-head{text-align:center;max-width:var(--w-text);margin:0 auto}
-.co-badge{display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;padding:6px 16px;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--surface);font:400 13px/1.6 var(--font-body);color:var(--ink-2)}
 .co-title{font:500 28px/1.4 var(--font-head);margin:0}
-.co-sub{margin-top:10px;font-size:16px;line-height:1.6;color:var(--ink-2)}
-/* The price sits with the product, before the form (it is repeated as the total above the button) */
-.co-price{margin-top:14px;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:4px 10px}
-.co-price strong{font:700 26px/1.2 var(--font-head);color:var(--accent);font-variant-numeric:tabular-nums}
-.co-price span{font-size:13px;color:var(--muted)}
+.co-head .co-title::after{content:"";display:block;width:100%;max-width:360px;height:2px;margin:16px auto 0;background:var(--accent);opacity:.55}
+.co-sub{margin-top:14px;font-size:16px;line-height:1.7;color:var(--ink-2)}
 
 .co-grid{display:flex;flex-direction:column;gap:24px}
 .co-grid > .co-head{margin-bottom:4px}
@@ -68,19 +65,23 @@
 .co-kakao__frame{height:420px;max-height:70vh}
 .co-kakao__frame.is-failed{height:auto;padding:16px;font-size:14px;color:var(--ink-2)}
 
-/* Payment method: a large selectable row */
-.co-method{position:relative}
-.co-method input{position:absolute;opacity:0;width:1px;height:1px}
-.co-method label{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;padding:16px 16px 16px 50px;border:2px solid var(--line);border-radius:var(--r-md);cursor:pointer;position:relative}
-.co-method label::before{content:"";position:absolute;left:16px;top:18px;width:20px;height:20px;border:2px solid var(--line);border-radius:50%;background:var(--surface)}
-.co-method input:checked + label{border-color:var(--ink);background:var(--bg)}
-.co-method input:checked + label::before{border-color:var(--ink);background:radial-gradient(circle,var(--ink) 0 5px,var(--surface) 6px)}
-.co-method input:focus-visible + label{outline:3px solid var(--accent);outline-offset:3px}
-.co-method__name{font:700 16px/1.6 var(--font-body)}
-.co-method__price{font:700 17px/1.6 var(--font-body);font-variant-numeric:tabular-nums;text-align:right}
-.co-method__note{grid-column:1/-1;font-size:13px;line-height:1.6;color:var(--muted)}
-.co-switch{margin-top:10px;font-size:14px}
-.co-switch a{display:inline-block;padding:12px 0;color:var(--ink-2)}
+/* Pricing options and payment methods: one card per choice, a real radio button underneath; the chosen card
+   gets the accent border and a filled check on the right (the inspiration Alex sent, 2026-11-14) */
+.co-choices{display:grid;gap:10px}
+.co-choice{position:relative}
+.co-choice input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+.co-choice label{display:grid;grid-template-columns:minmax(0,1fr);gap:2px 12px;align-items:center;min-height:60px;padding:14px 56px 14px 16px;border:1.5px solid var(--line);border-radius:var(--r-md);background:var(--surface);cursor:pointer;position:relative}
+.co-choice label:hover{border-color:var(--ink-2)}
+.co-choice__mark{position:absolute;right:16px;top:50%;width:24px;height:24px;margin-top:-12px;border:1.5px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;color:transparent;background:var(--surface)}
+.co-choice__mark .co-tick{margin:0;color:inherit}
+.co-choice input:checked + label{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.co-choice input:checked + label .co-choice__mark{border-color:var(--accent);background:var(--accent);color:var(--surface)}
+.co-choice input:focus-visible + label{outline:3px solid var(--accent);outline-offset:3px}
+.co-choice__name{font:700 16px/1.5 var(--font-body);color:var(--ink)}
+.co-choice__price{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;font-variant-numeric:tabular-nums}
+.co-choice__price s{font-size:13px;color:var(--ink-2)}
+.co-choice__price strong{font:700 17px/1.5 var(--font-body);color:var(--ink)}
+.co-choice__note{grid-column:1/-1;font-size:13px;line-height:1.6;color:var(--muted)}
 
 /* ---------- Add-ons: a card each, "+ 추가" toggles a real checkbox ---------- */
 .co-addons{display:grid;gap:12px}
@@ -91,7 +92,8 @@
 .co-addon__body{min-width:0}
 .co-addon__name{font:700 16px/1.5 var(--font-body);color:var(--ink)}
 .co-addon__sum{margin-top:2px;font-size:14px;line-height:1.6;color:var(--ink-2)}
-.co-addon__price{margin-top:6px;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;font-variant-numeric:tabular-nums}
+.co-addon__price{margin-top:6px;font-variant-numeric:tabular-nums}
+.co-money{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
 .co-addon__price s{font-size:14px;color:var(--ink-2)}
 .co-addon__price strong{font:700 17px/1.4 var(--font-body);color:var(--accent)}
 .co-addon__more{margin-top:4px;font-size:14px;line-height:1.7;color:var(--ink)}
@@ -143,23 +145,22 @@
 .co-problem{margin:0;padding:14px 16px;border:1px solid var(--accent);border-radius:var(--r-sm);background:var(--bg-blush);font:600 14px/1.6 var(--font-body);color:var(--ink)}
 .co-problem:focus{outline:none}
 
-/* ---------- Beside the form: what you get, the guarantee, reviews ---------- */
-.co-side{min-width:0;display:flex;flex-direction:column;gap:20px}
-.co-box{padding:24px 20px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg)}
-.co-box__img{width:100%;height:auto;margin-bottom:18px;border-radius:var(--r-md)}
-.co-box__title{font:700 18px/1.4 var(--font-body);margin:0 0 12px}
-.co-list{margin:0;padding:0;list-style:none;display:grid;gap:10px;font-size:15px;line-height:1.6}
-.co-list li{display:flex;gap:10px;align-items:flex-start}
-.co-tick{flex:none;margin-top:4px;color:var(--proof-fg)}
-.co-box--guarantee{background:var(--proof-bg);border-color:transparent}
-.co-box--guarantee .co-box__title{color:var(--proof-fg)}
-.co-box--guarantee p{font-size:14px;line-height:1.7;color:var(--ink)}
-.co-box--guarantee p + p{margin-top:8px}
-.co-reviews{display:flex;flex-direction:column;gap:14px}
-.co-reviews .co-box__title{margin:4px 0 0}
-.co-review{margin:0;gap:14px;font-size:15px}
-.co-review blockquote{margin:0;line-height:1.6}
-.co-review figcaption{font-size:14px}
+/* ---------- Beside the form: picture, what you get, guarantee, reviews — text on the page's background ---------- */
+.co-side{min-width:0;display:flex;flex-direction:column;gap:36px;padding-top:8px}
+.co-side__img{display:block;width:100%;max-width:560px;height:auto;margin:0 auto;border-radius:var(--r-md)}
+.co-side__title{font:700 20px/1.4 var(--font-body);margin:0 0 18px;color:var(--ink)}
+.co-inc__list{margin:0;padding:0;list-style:none;display:grid;gap:22px}
+.co-inc__list li{display:flex;gap:12px;align-items:flex-start}
+.co-inc__list .co-tick{flex:none;width:18px;height:18px;margin-top:4px;color:var(--accent)}
+.co-inc__name{font:700 16px/1.6 var(--font-body);color:var(--ink)}
+.co-inc__text{margin-top:4px;font-size:15px;line-height:1.75;color:var(--ink-2)}
+.co-guarantee p{font-size:15px;line-height:1.75;color:var(--ink-2)}
+.co-guarantee p + p{margin-top:8px}
+.co-reviews{display:flex;flex-direction:column;gap:22px}
+.co-reviews .co-side__title{margin-bottom:0}
+.co-review{margin:0;padding-left:16px;border-left:2px solid var(--accent)}
+.co-review blockquote{margin:0;font-size:15px;line-height:1.75;color:var(--ink)}
+.co-review figcaption{margin-top:8px;font-size:14px;color:var(--muted)}
 .co-help{font-size:14px;line-height:1.6;color:var(--muted);text-align:center}
 
 /* ---------- Standalone cards: closed, not found, thank-you, waiting ---------- */
@@ -189,14 +190,15 @@
   .co-field--wide,.co-postcode,.co-kakao{grid-column:1/-1}
   .co-postcode{max-width:340px}
   .co-order{padding:24px}
-  .co-box{padding:28px 24px}
+  /* Room enough: the price on the right of the name */
+  .co-choice label{grid-template-columns:minmax(0,1fr) auto}
+  .co-choice__price{justify-content:flex-end;text-align:right}
 }
 @media (min-width:960px){
   .co-title{font-size:36px}
   /* Copy Cure: the product on the left, the form card on the right, from the top of the page */
   .co-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,540px);grid-template-rows:auto 1fr;grid-template-areas:"head form" "side form";column-gap:48px;row-gap:28px;align-items:start}
-  .co-grid > .co-head{grid-area:head;margin:0;text-align:left;padding-top:8px}
-  .co-head .co-price{justify-content:flex-start}
+  .co-grid > .co-head{grid-area:head;margin:0;max-width:none;padding-top:8px}
   .co-grid > .co-form{grid-area:form}
   .co-grid > .co-side{grid-area:side}
   .co-grid .co-help{text-align:left}

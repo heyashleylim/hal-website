@@ -400,7 +400,7 @@ async function main() {
     check('regular price crossed out, add-on price, details', html.includes('₩99,000</s>') && html.includes('₩47,000') && html.includes('자세한 설명') && html.includes('환불 불가'));
     check('total and button: the product alone', html.includes('<strong data-total>₩220,000</strong>') && html.includes('₩220,000 결제하기'));
     html = await (await get('/checkout/e2e-bump?currency=usd')).text();
-    check('USD: only add-ons with a USD price', html.includes(`addon_${addA.id}`) && !html.includes(`addon_${addB.id}`));
+    check('USD: the add-on without a USD price is put away (hidden, switched off) until card is picked', html.includes(`name="addon_${addA.id}" value="1" data-addon="${addA.id}">`) && new RegExp(`data-addon-card="${addB.id}" data-in="KRW" hidden>\\s*<input[^>]*data-addon="${addB.id}" disabled>`).test(html));
     eq('an add-on-only product has no checkout of its own', (await get('/checkout/e2e-scripts')).status, 404);
     eq('…and can’t be ordered on its own', (await postJson('/api/shop?action=order', buyer(60, { slug: 'e2e-scripts' }), from())).status, 404);
     eq('an add-on that is also sold alone keeps its checkout', (await get('/checkout/e2e-workshop')).status, 200);
@@ -474,6 +474,96 @@ async function main() {
     res = await admin('shop-product-delete', { id: addD.id });
     check('an unsold add-on can', res.deleted === addD.id, JSON.stringify(res));
     eq('…and no checkout offers it any more', (await one('SELECT addon_ids FROM shop_products WHERE id = $1', [bump.id])).addon_ids, [addA.id, addB.id, addC.id]);
+
+    // ---------- Pricing options ----------
+    group('Pricing options: products');
+    const optRows = [
+      { label: '기본', price_krw: '300000', price_usd: '250', compare_krw: '', compare_usd: '', tag: '', note: '' },
+      { label: 'VIP', price_krw: '500000', price_usd: '400', compare_krw: '700000', compare_usd: '', tag: 'e2e_vip', note: '1:1 코칭 포함' },
+    ];
+    const optInput = { name: '옵션 테스트 상품', slug: 'e2e-opt', status: 'open', usd_vat: 'zero', purchase_tag: 'purchased_e2e_opt', addon_ids: [addA.id], content: {}, price_options: optRows };
+    const optP = (await admin('shop-product-save', optInput)).product;
+    check('a product with two options; its own prices are the first option’s', optP && optP.price_options.length === 2 && optP.price_krw === 300000 && optP.price_usd === 25000, JSON.stringify(optP && optP.price_options));
+    const [kBasic, kVip] = optP.price_options.map((x) => x.key);
+    const typedBack = optP.price_options.map((x) => ({ ...x, price_krw: String(x.price_krw), price_usd: String(x.price_usd / 100), compare_krw: x.compare_krw == null ? '' : String(x.compare_krw), compare_usd: '' }));
+    res = await admin('shop-product-save', { ...optInput, id: optP.id, price_options: typedBack });
+    eq('saving again keeps the option keys', res.product.price_options.map((x) => x.key), [kBasic, kVip]);
+    eq('the admin list prices each option', res.product.options.filter((x) => x.currency === 'KRW').map((x) => [x.option.label, x.total]), [['기본', 300000], ['VIP', 500000]]);
+    res = await admin('shop-product-save', { ...optInput, slug: 'e2e-opt-one', price_options: [optRows[0]] });
+    check('one option alone is refused', /at least two/.test(res.error || ''), JSON.stringify(res));
+    res = await admin('shop-product-save', { ...optInput, slug: 'e2e-opt-mixed', price_options: [optRows[0], { ...optRows[1], price_usd: '' }] });
+    check('options sold in different currencies are refused', /every option a USD price, or none/.test(res.error || ''), JSON.stringify(res));
+    const q = await (await fetch(`${base}/api/admin?action=shop-quote&slug=e2e-opt&currency=KRW&option=${kVip}`)).json();
+    eq('price check of one option', [q.quote && q.quote.total, q.quote && q.quote.option.label], [500000, 'VIP']);
+
+    group('Pricing options: checkout page');
+    html = await (await get('/checkout/e2e-opt')).text();
+    check('the options right before the payment method, the first picked', html.includes(`id="co-option-${kBasic}" value="${kBasic}" checked>`) && html.includes(`id="co-option-${kVip}" value="${kVip}">`) && html.indexOf('co-option-') < html.indexOf('co-method-card') && html.includes('3</span>옵션 선택') && html.includes('4</span>결제 방법'));
+    check('each option’s price, the regular one crossed out, its note', html.includes('₩700,000</s>') && html.includes('₩500,000') && html.includes('1:1 코칭 포함'));
+    check('total and button: the first option', html.includes('<dt data-main-name>옵션 테스트 상품 · 기본</dt>') && html.includes('₩300,000 결제하기'));
+
+    group('Pricing options: ordering');
+    const optBuyer = (n, over = {}) => buyer(n, { slug: 'e2e-opt', option: kVip, ...over });
+    r = await postJson('/api/shop?action=order', optBuyer(70, { [`addon_${addA.id}`]: '1', total: 1000, price_krw: 1000 }), from());
+    o = await orderOf('buyer70@example.com');
+    eq('the option’s price plus the add-on, whatever the browser says', [r.status, o.total, o.due_today, o.product_name], [200, 547000, 547000, '옵션 테스트 상품']);
+    eq('the order keeps the option as sold', [o.price_option.key, o.price_option.label, o.price_option.tag], [kVip, 'VIP', 'e2e_vip']);
+    items = await sql('SELECT kind, name, amount FROM shop_order_items WHERE order_id = $1 ORDER BY position', [o.id]);
+    eq('items: the product named with its option, then the add-on', items.map((i) => [i.kind, i.name, i.amount]), [['main', '옵션 테스트 상품 · VIP', 500000], ['addon', '태핑 스크립트 모음', 47000]]);
+    const optReq = fake.cider.get(o.provider_request).body;
+    eq('CiderPay asked for the whole order', optReq.price, 547000);
+    check('the payment page names the option', /^옵션 테스트 상품 · VIP 외 1건 \[\d+\]$/.test(optReq.goodName), optReq.goodName);
+    for (const [label, over] of [['no option', { option: '' }], ['an unknown option', { option: 'gold' }], ['an option on a product without options', { slug: 'e2e-eft' }]]) {
+      r = await postJson('/api/shop?action=order', optBuyer(71, over), from());
+      eq(`${label}: refused`, [r.status, (await r.json()).error], [409, 'option_unavailable']);
+    }
+    eq('none of those created an order', await count('shop_orders o JOIN shop_customers c ON c.id = o.customer_id', 'c.email = $1', ['buyer71@example.com']), 0);
+    r = await postForm('/api/shop?action=order', optBuyer(72, { option: kBasic }), from());
+    check('without JavaScript: the option picked is bought', r.status === 303 && (await orderOf('buyer72@example.com')).total === 300000);
+
+    group('Pricing options: payment and tags');
+    o = await orderOf('buyer70@example.com');
+    n = await fake.notifyCiderpay(o.provider_request);
+    eq('paid', [n.status, JSON.parse(n.body).outcome], [200, 'paid']);
+    o = await orderOf('buyer70@example.com');
+    leds = await sql('SELECT amount, vat_rule FROM shop_ledger WHERE order_id = $1 ORDER BY id', [o.id]);
+    eq('one tax line for the whole order', leds.map((l) => [l.vat_rule, l.amount]), [['taxable', 547000]]);
+    box = await sql('SELECT op, payload FROM shop_outbox WHERE order_id = $1 ORDER BY id', [o.id]);
+    eq('ActiveCampaign: the product’s tag, the add-on’s, the option’s', box.filter((b) => b.op === 'tag_add').map((b) => b.payload.tag), ['purchased_e2e_opt', 'purchased_e2e_scripts', 'e2e_vip']);
+    eq('ORDER_PRODUCT names the option', box.find((b) => b.op === 'fields').payload.fields.ORDER_PRODUCT, '옵션 테스트 상품 · VIP');
+    html = await (await get(`/checkout/complete?o=${o.token}`)).text();
+    check('thank-you page names the option', html.includes('옵션 테스트 상품 · VIP') && html.includes('₩547,000'));
+    const listedOrder = (await (await fetch(`${base}/api/admin?action=shop-orders&product=${optP.id}`)).json()).orders.find((x) => x.id === o.id);
+    eq('the admin order list has the option', listedOrder && listedOrder.price_option.label, 'VIP');
+    r = await postJson('/api/shop?action=order', abroad(70, { slug: 'e2e-opt', option: kVip }), from());
+    o = await orderOf('abroad70@example.com');
+    eq('PayPal: the option’s dollar price', [r.status, o.total, fake.paypal.get(o.provider_request).body.purchase_units[0].amount.value], [200, 40000, '400.00']);
+    r = await get(`/__fake/paypal/do?id=${o.provider_request}&act=approve`);
+    await (await get(r.headers.get('location').replace(base, ''))).text();
+    leds = await sql('SELECT amount, vat_rule FROM shop_ledger WHERE order_id = $1 ORDER BY id', [o.id]);
+    eq('paid, zero-rated in dollars', [(await orderOf('abroad70@example.com')).status, leds.map((l) => [l.vat_rule, l.amount])], ['paid', [['zero', 40000]]]);
+    res = await admin('shop-product-save', { ...optInput, id: optP.id, price_options: [typedBack[0], { label: 'Premium', price_krw: '900000', price_usd: '700', compare_krw: '', compare_usd: '', tag: '', note: '' }] });
+    r = await postJson('/api/shop?action=order', optBuyer(73), from());
+    eq('an option removed since the page was opened: refused', [r.status, (await r.json()).error], [409, 'option_unavailable']);
+    o = await orderOf('buyer70@example.com');
+    eq('…and the paid order still has its own copy of it', o.price_option.label, 'VIP');
+
+    group('Payment method and address country');
+    const swap = buyer(74, { slug: 'e2e-opt', option: kBasic, currency: 'USD', shown_currency: 'KRW', country: 'US', phone_cc: 'US', phone: '(415) 555-0123', postcode: '94105', address1: '1 Market St, San Francisco' });
+    r = await postForm('/api/shop?action=order', swap, from());
+    html = await r.text();
+    check('without JavaScript, switching to PayPal first shows the dollar prices', r.status === 409 && html.includes('결제 방법에 맞춰 금액을 다시 보여 드려요') && html.includes('$250 결제하기') && html.includes('id="co-method-paypal" value="USD" checked>') && html.includes('value="1 Market St, San Francisco"') && html.includes('<option value="US" selected>'));
+    eq('…and creates no order until confirmed', await count('shop_orders o JOIN shop_customers c ON c.id = o.customer_id', 'c.email = $1', ['buyer74@example.com']), 0);
+    r = await postForm('/api/shop?action=order', { ...swap, shown_currency: 'USD' }, from());
+    check('confirmed: to PayPal', r.status === 303 && String(r.headers.get('location')).includes('/__fake/paypal/'));
+    r = await postJson('/api/shop?action=order', abroad(75, { country: 'KR', phone: '010-1234-5678', phone_cc: 'KR', postcode: '48095', address1: '부산 해운대구 중동1로17번길 15-1' }), from());
+    o = await orderOf('abroad75@example.com');
+    eq('PayPal with a Korean address', [r.status, o.billing.country, o.billing.postcode], [200, 'KR', '48095']);
+    r = await postJson('/api/shop?action=order', abroad(76, { country: 'KR', postcode: '' }), from());
+    eq('a Korean address needs its postcode, whichever the method', [r.status, ((await r.json()).fields || {}).postcode], [422, 'postcode_required']);
+    r = await postJson('/api/shop?action=order', buyer(77, { country: 'AU', phone_cc: 'AU', phone: '0412 345 678', postcode: '', address1: '1 George St, Sydney NSW' }), from());
+    o = await orderOf('buyer77@example.com');
+    eq('card from abroad: the country kept, no postcode needed', [r.status, o.currency, o.billing.country, o.billing.phone], [200, 'KRW', 'AU', '+61412345678']);
 
     group('Ledger integrity');
     const sums = await one(`SELECT (SELECT COALESCE(sum(amount), 0)::int FROM shop_ledger WHERE currency = 'KRW') AS ledger, (SELECT COALESCE(sum(amount), 0)::int FROM shop_payments WHERE currency = 'KRW' AND kind = 'payment') AS payments, (SELECT COALESCE(sum(paid_total), 0)::int FROM shop_orders WHERE currency = 'KRW') AS orders`);

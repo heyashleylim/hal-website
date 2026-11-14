@@ -270,3 +270,13 @@ button.email-name:hover,a.email-name:hover{color:var(--accent);text-decoration:u
 .addon-pick legend{padding:0;margin-bottom:10px;font-weight:600}
 .addon-pick legend .hint{display:block;font-weight:400}
 .addon-pick #addon-list{display:grid;gap:2px}
+
+/* Repeating blocks in a form (shop products: pricing options, what's included) */
+.rows-edit{display:grid;gap:10px;margin-bottom:10px}
+.rows-edit:empty{display:none}
+.row-edit{padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg-alt)}
+.row-edit__head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.row-edit__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 14px}
+.row-edit__grid--one{grid-template-columns:1fr}
+.row-edit__wide{grid-column:1/-1}
+.row-edit [hidden],.admin-form [hidden]{display:none!important}

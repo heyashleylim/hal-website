@@ -140,10 +140,10 @@ test('checkout page: add-on cards, unticked, with a real checkbox each', () => {
   assert.match(html, /<div class="co-order__row co-order__row--addon" data-line="2" hidden>/);
   assert.match(html, /<strong data-total>₩220,000<\/strong>/);
   assert.ok(html.includes('₩220,000 결제하기'));
-  assert.ok(html.indexOf('co-addons') > html.indexOf('co-method') && html.indexOf('co-addons') < html.indexOf('co-order'), 'between the payment method and the order');
+  assert.ok(html.indexOf('co-addons') > html.indexOf('co-method-card') && html.indexOf('co-addons') < html.indexOf('co-order'), 'between the payment method and the order');
   const d = dataOf(html);
-  assert.deepEqual(d.main, { amount: 220000, vatRule: 'taxable', item: { item_id: 'eft', item_name: main.name, price: 220000, quantity: 1 } });
-  assert.deepEqual(d.addons.map((a) => [a.id, a.amount, a.vatRule, a.item.item_id]), [[3, 57000, 'taxable', 'workshop'], [2, 47000, 'taxable', 'eft-scripts']]);
+  assert.deepEqual(d.product, { id: 'eft', name: main.name });
+  assert.deepEqual(d.addons.map((a) => [a.id, a.slug, a.KRW]), [[3, 'workshop', { amount: 57000, vatRule: 'taxable' }], [2, 'eft-scripts', { amount: 47000, vatRule: 'taxable' }]]);
   assert.equal(d.payTemplate, '{price} 결제하기 →');
 });
 
@@ -155,10 +155,9 @@ test('checkout page after a failed submit: ticked add-ons stay ticked and are in
   assert.match(html, /data-line="2">/);
   assert.match(html, /data-line="3" hidden>/);
   assert.match(html, /<strong data-total>₩267,000<\/strong>/);
-  assert.ok(html.includes('₩267,000 결제하기') && html.includes(`<span class="co-method__price" data-due>₩267,000</span>`));
+  assert.ok(html.includes('₩267,000 결제하기'));
   assert.ok(html.includes(copy.summary.vat(pricing.formatMoney(pricing.vatSplit(267000).vat, 'KRW'))));
   assert.ok(html.includes(copy.problems.addon_unavailable));
-  assert.equal(dataOf(html).value, 267000);
 });
 
 test('checkout page: no add-on section when none is offered; hostile add-on texts are escaped', () => {
@@ -170,7 +169,13 @@ test('checkout page: no add-on section when none is offered; hostile add-on text
   // USD: dollars, and only the add-ons with a USD price.
   const usd = page.checkoutPage({ product: main, offers, currency: 'USD', addons: pricing.addonChoices(main, all, 'USD'), values: { addon_2: '1' } });
   assert.ok(usd.includes('$246 결제하기') && !usd.includes('co-addon-3'));
-  assert.equal(dataOf(usd).value, 246);
+  // Both currencies on one page: an add-on without a dollar price is there, hidden and switched off, while PayPal is picked.
+  const both = { KRW: pricing.addonChoices(main, all, 'KRW'), USD: pricing.addonChoices(main, all, 'USD') };
+  const one = page.checkoutPage({ product: main, offers, currency: 'USD', addons: both, values: { addon_2: '1', addon_3: '1' } });
+  assert.match(one, /<li class="co-addon" data-addon-card="3" data-in="KRW" hidden>\s*<input class="co-addon__check" type="checkbox" id="co-addon-3" name="addon_3" value="1" data-addon="3" disabled>/);
+  assert.match(one, /data-addon-card="2" data-in="KRW USD">\s*<input[^>]*data-addon="2" checked>/);
+  assert.ok(one.includes('$246 결제하기'), 'the dollar total leaves out the add-on not sold in dollars');
+  assert.deepEqual(dataOf(one).addons.map((a) => [a.id, a.KRW && a.KRW.amount, a.USD && a.USD.amount]), [[3, 57000, null], [2, 47000, 4700]]);
 });
 
 test('thank-you page: the add-ons bought, and each item in the purchase event', () => {

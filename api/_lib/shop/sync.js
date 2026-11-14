@@ -35,14 +35,16 @@ async function enqueue({ customerId, orderId = null, op, payload = {}, dedupe = 
 function purchaseOps(order, product, payment = {}, addons = []) {
   const key = `o${order.id}`;
   const ops = [{ op: 'contact', payload: { name: (order.billing || {}).name || '' }, dedupe: `${key}:contact` }];
-  const tags = [...new Set([product, ...(addons || [])].flatMap((p) => [p.purchase_tag, ...(p.extra_tags || [])]).map((t) => String(t || '').trim()).filter(Boolean))];
+  // The product's tags, the pricing option's own tag (VIP…) and each add-on's.
+  const optionTag = order.price_option && order.price_option.tag;
+  const tags = [...new Set([...[product, ...(addons || [])].flatMap((p) => [p.purchase_tag, ...(p.extra_tags || [])]), optionTag].map((t) => String(t || '').trim()).filter(Boolean))];
   for (const tag of tags) ops.push({ op: 'tag_add', payload: { tag }, dedupe: `${key}:tag:${tag}` });
   ops.push({
     op: 'fields',
     payload: {
       fields: {
         ORDER_NUMBER: String(order.number),
-        ORDER_PRODUCT: order.product_name,
+        ORDER_PRODUCT: order.price_option && order.price_option.label ? `${order.product_name} · ${order.price_option.label}` : order.product_name,
         ORDER_DATE: ledger.seoul(order.paid_at || new Date()).date,
         ORDER_TOTAL: pricing.formatMoney(order.total, order.currency),
         ORDER_PLAN: order.plan === 'instalment' ? '할부' : '일시불',

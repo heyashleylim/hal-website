@@ -123,8 +123,10 @@ test('every missing or wrong field is reported at once, each with its own messag
   const r = validate.checkoutInput({}, 'KRW');
   assert.equal(r.ok, false);
   assert.deepEqual(r.errors, { name: 'name_required', email: 'email_required', phone: 'phone_required', address1: 'address1_required', postcode: 'postcode_required' });
-  const u = validate.checkoutInput({}, 'USD');
+  // The address country is asked on every checkout (Korea by default): an empty choice is a problem; abroad, no postcode needed.
+  const u = validate.checkoutInput({ country: '' }, 'USD');
   assert.deepEqual(u.errors, { name: 'name_required', email: 'email_required', phone: 'phone_required', address1: 'address1_required', country: 'country_required' });
+  assert.deepEqual(Object.keys(validate.checkoutInput({ country: 'AU' }).errors).sort(), ['address1', 'email', 'name', 'phone']);
   for (const code of [...Object.values(r.errors), ...Object.values(u.errors)]) assert.ok(copy.errors[code], `no Korean message for ${code}`);
 });
 
@@ -141,6 +143,9 @@ test('field rules', () => {
   for (const phone of ['02-123-4567', '0101234567890', '010-12-34', 'abc', '011-12-3456', '+82 2-123-4567']) bad({ phone }, 'phone', 'phone_invalid');
   for (const phone of ['12345', '1'.repeat(16), '555-CALL-NOW']) bad({ phone, phone_cc: 'US' }, 'phone', 'phone_invalid_intl', 'USD');
   bad({ postcode: '4809' }, 'postcode', 'postcode_invalid');
+  // A Korean address needs its 5-digit postcode whichever the payment method (PayPal from Korea).
+  bad({ country: 'KR', postcode: '' }, 'postcode', 'postcode_required', 'USD');
+  bad({ country: 'kr', postcode: '94105' + '1' }, 'postcode', 'postcode_invalid', 'USD');
   bad({ postcode: '480-95' }, 'postcode', 'postcode_invalid');
   bad({ postcode: 'x'.repeat(21) }, 'postcode', 'postcode_long', 'USD');
   bad({ address1: 'x'.repeat(201) }, 'address1', 'address1_long');
@@ -172,8 +177,8 @@ test('campaign values are kept short and to known names', () => {
 
 test('the country list is in Korean, without duplicates, common countries first', () => {
   const list = validate.countries();
-  assert.equal(list[0].code, 'US');
-  assert.equal(list[0].name, '미국');
+  assert.deepEqual(list.slice(0, 3).map((c) => c.code), ['KR', 'US', 'AU']);
+  assert.equal(list[1].name, '미국');
   assert.equal(new Set(list.map((c) => c.code)).size, list.length);
   assert.ok(list.length > 200);
   assert.ok(list.every((c) => c.name && c.name !== c.code), 'every country has a Korean name');
@@ -181,7 +186,7 @@ test('the country list is in Korean, without duplicates, common countries first'
 });
 
 test('every problem code the API can return has a Korean message', () => {
-  for (const code of ['invalid', 'closed', 'unavailable', 'too_many', 'provider', 'not_configured', 'cancelled', 'declined', 'network', 'server']) assert.ok(copy.problems[code], code);
+  for (const code of ['invalid', 'closed', 'unavailable', 'addon_unavailable', 'option_unavailable', 'currency_changed', 'too_many', 'provider', 'not_configured', 'cancelled', 'declined', 'network', 'server']) assert.ok(copy.problems[code], code);
 });
 
 test('phone: a country from the list (Korea by default) and the number → one international format', () => {

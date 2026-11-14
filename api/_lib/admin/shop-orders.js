@@ -9,7 +9,7 @@ const { userError, text, int } = require('./util.js');
 
 const STATUSES = ['created', 'awaiting_payment', 'paid', 'refund_requested', 'partially_refunded', 'refunded', 'expired', 'cancelled'];
 
-const ORDER_COLUMNS = `o.id, o.number, o.product_id, o.product_name, o.currency, o.plan, o.subtotal, o.discount, o.total,
+const ORDER_COLUMNS = `o.id, o.number, o.product_id, o.product_name, o.price_option, o.currency, o.plan, o.subtotal, o.discount, o.total,
   o.paid_total, o.refunded_total, (SELECT count(*)::int FROM shop_order_items i WHERE i.order_id = o.id AND i.kind = 'addon') AS addon_count, o.status, o.plan_status, o.origin, o.legacy_id, o.created_at, o.paid_at, o.provider, o.due_today,
   c.email, c.name AS customer_name`;
 

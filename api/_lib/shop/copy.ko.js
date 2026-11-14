@@ -9,7 +9,6 @@ const SUPPORT_EMAIL = 'hello@ashleylim.com';
 const copy = {
   supportEmail: SUPPORT_EMAIL,
   skip: '본문으로 건너뛰기',
-  secure: '안전 결제',
   title: '결제하기',
 
   summary: {
@@ -21,7 +20,7 @@ const copy = {
     show: '주문 내용 보기',
   },
 
-  sections: { me: '내 정보', address: '주소', method: '결제 방법' },
+  sections: { me: '내 정보', address: '주소', option: '옵션 선택', method: '결제 방법' },
 
   fields: {
     name: '이름',
@@ -43,23 +42,23 @@ const copy = {
     chooseCountry: '국가를 선택해 주세요',
   },
 
+  // The two payment methods. Card = won (CiderPay), PayPal = dollars: choosing one shows every price in its currency.
   methods: {
     card: '신용/체크카드',
-    cardFull: '일시불',
+    cardNote: '다음 화면에서 카드 정보를 입력해요. 원화(KRW)로 결제돼요.',
     paypal: 'PayPal',
-    paypalNote: 'PayPal 계정 또는 해외 카드로 결제해요.',
-    toUsd: '해외에서 결제하시나요? PayPal로 결제하기 (USD)',
-    toKrw: '한국 카드로 결제하기 (KRW)',
-    redirectCard: '다음 화면에서 카드 정보를 입력해요.',
-    redirectPaypal: '다음 화면에서 PayPal로 이동해요.',
+    paypalNote: 'PayPal 계정 또는 해외 카드로, 달러(USD)로 결제해요.',
   },
+
+  // Pricing options (기본 / VIP…): names, prices and notes come from the product in the admin.
+  options: { regular: '정가', price: '판매가' },
 
   // Default consent line: the wording already published on the WooCommerce checkout (2026-11-10).
   consent: '구매를 진행하면 <a href="/terms-and-conditions" target="_blank" rel="noopener">이용 약관</a> 및 <a href="/privacy-policy" target="_blank" rel="noopener">개인정보 보호정책</a>에 동의하는 것입니다',
 
   // docs/DESIGN.md: a primary button's label ends in an arrow.
   pay: (amount) => `${amount} 결제하기 →`,
-  side: { included: '포함 내용', reviews: '후기' },
+  side: { included: '포함 내용', reviews: '후기' }, // `included` is the default heading; a product can set its own
 
   // Add-ons offered on the checkout (Marie Forleo's "Popular add-ons" manner). The names, prices and texts of
   // each add-on come from its product in the admin.
@@ -102,6 +101,8 @@ const copy = {
     closed: '지금은 신청 기간이 아니에요.',
     unavailable: '이 결제 방법은 지금 사용할 수 없어요. 다른 방법을 선택해 주세요.',
     addon_unavailable: '선택하신 추가 상품은 지금 함께 구매할 수 없어요. 주문 내용을 확인하고 다시 시도해 주세요.',
+    option_unavailable: '선택하신 옵션은 지금 구매할 수 없어요. 페이지를 새로 고친 뒤 옵션을 다시 선택해 주세요.',
+    currency_changed: '결제 방법에 맞춰 금액을 다시 보여 드려요. 주문 내용을 확인하신 뒤 다시 눌러 주세요.',
     too_many: '짧은 시간에 요청이 너무 많았어요. 잠시 후 다시 시도해 주세요.',
     provider: '결제 화면을 여는 중에 문제가 생겼어요. 잠시 후 다시 시도해 주세요. 계속되면 ' + SUPPORT_EMAIL + '으로 알려 주세요.',
     not_configured: '지금은 결제를 진행할 수 없어요. ' + SUPPORT_EMAIL + '으로 알려 주시면 바로 도와드릴게요.',

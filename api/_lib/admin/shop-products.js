@@ -83,6 +83,63 @@ function testimonials(value) {
   });
 }
 
+// What's included on the checkout: up to 12 entries, each a short title and its paragraph ({ title, text }).
+// Plain lines (older products, or "one per line") become titles without a paragraph.
+function included(value) {
+  const raw = Array.isArray(value) ? value : String(value == null ? '' : value).split(/\r?\n/);
+  const out = raw.map((x) => (x && typeof x === 'object' ? { title: x.title, text: x.text } : { title: x, text: '' }))
+    .map((x) => ({ title: text(x.title, { max: 120, label: 'What’s included: a title' }), text: lines2(x.text, { max: 600, label: 'What’s included: a paragraph' }) }))
+    .filter((x) => x.title || x.text);
+  if (out.length > 12) throw userError('What’s included: at most 12 entries');
+  for (const x of out) if (!x.title) throw userError('What’s included: each entry needs a title (the paragraph is optional)');
+  return out;
+}
+
+const KEY = /^[a-z0-9]{1,20}$/;
+const newKey = () => Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, '') || 'opt';
+
+/*
+ * Pricing options (기본 / VIP…): none, or 2 to 6, each { key, label, note, price_krw, price_usd, compare_krw,
+ * compare_usd, tag }. Prices are typed like the product's (won; dollars → cents). Every option is sold in the same
+ * currencies, so the checkout's payment methods never depend on the option. `key` is kept once given (orders
+ * remember it); a new option gets one.
+ */
+function priceOptionsInput(value) {
+  const rows = Array.isArray(value) ? value.filter((x) => x && typeof x === 'object') : [];
+  if (!rows.length) return [];
+  if (rows.length === 1) throw userError('Pricing options: add at least two, or remove the option to sell at the product’s price');
+  if (rows.length > 6) throw userError('Pricing options: at most 6');
+  const seen = new Set();
+  const out = rows.map((r, i) => {
+    const n = `Option ${i + 1}`;
+    let key = String(r.key || '').trim();
+    if (!key) do key = newKey(); while (seen.has(key));
+    if (!KEY.test(key) || seen.has(key)) throw userError(`${n}: its key is not valid (reload the page)`);
+    seen.add(key);
+    const label = text(r.label, { max: 60, required: true, label: `${n}: name` });
+    const o = {
+      key, label,
+      note: text(r.note, { max: 200, label: `${n}: note` }),
+      price_krw: won(r.price_krw, `${n}: KRW price`),
+      price_usd: cents(r.price_usd, `${n}: USD price`),
+      compare_krw: won(r.compare_krw, `${n}: regular KRW price`),
+      compare_usd: cents(r.compare_usd, `${n}: regular USD price`),
+      tag: text(r.tag, { max: 100, label: `${n}: tag` }),
+    };
+    if (o.price_krw == null && o.price_usd == null) throw userError(`${n} (${label}): give it a KRW price, a USD price, or both`);
+    if (o.compare_krw != null && o.price_krw == null) throw userError(`${n} (${label}): a regular KRW price needs a KRW price`);
+    if (o.compare_usd != null && o.price_usd == null) throw userError(`${n} (${label}): a regular USD price needs a USD price`);
+    if (/[,\s]/.test(o.tag)) throw userError(`${n} (${label}): the tag is one ActiveCampaign tag, without spaces or commas`);
+    return o;
+  });
+  for (const cur of ['krw', 'usd']) {
+    const has = out.map((o) => o[`price_${cur}`] != null);
+    if (has.some(Boolean) && !has.every(Boolean)) throw userError(`Pricing options: give every option a ${cur.toUpperCase()} price, or none of them (the payment methods must not depend on the option)`);
+  }
+  if (new Set(out.map((o) => o.label)).size !== out.length) throw userError('Pricing options: two options have the same name');
+  return out;
+}
+
 // Checks what the product form sends and returns the columns to store. Pure: tested in tests/shop/admin-shop.test.js.
 function productInput(input) {
   const name = text(input.name, { max: 120, required: true, label: 'Name' });
@@ -92,8 +149,10 @@ function productInput(input) {
   const status = String(input.status || 'draft');
   if (!STATUSES.includes(status)) throw userError('Status must be draft, open or closed');
 
-  const price_krw = won(input.price_krw, 'KRW price');
-  const price_usd = cents(input.price_usd, 'USD price');
+  // With pricing options the product's own prices are the first option's (lists, add-on pickers and checks read them).
+  const price_options = priceOptionsInput(input.price_options);
+  const price_krw = price_options.length ? price_options[0].price_krw : won(input.price_krw, 'KRW price');
+  const price_usd = price_options.length ? price_options[0].price_usd : cents(input.price_usd, 'USD price');
   if (price_krw == null && price_usd == null) throw userError('Give the product a KRW price, a USD price, or both');
 
   const instalment_first = won(input.instalment_first, 'First payment');
@@ -102,6 +161,7 @@ function productInput(input) {
   const parts = [instalment_first, instalment_monthly, instalment_count].filter((x) => x != null).length;
   if (parts !== 0 && parts !== 3) throw userError('The instalment plan needs all three: first payment, monthly payment and number of monthly payments (or leave all three empty)');
   if (parts === 3 && price_krw == null) throw userError('The instalment plan is for KRW: add a KRW price');
+  if (parts === 3 && price_options.length) throw userError('Pricing options and an instalment plan can’t be combined yet (instalments join the options in phase 3): remove one');
 
   const sale_starts_at = seoulTime(input.sale_starts_at, 'Sale start');
   const sale_ends_at = seoulTime(input.sale_ends_at, 'Sale end');
@@ -120,6 +180,7 @@ function productInput(input) {
   const addon_ids = list(input.addon_ids, { max: 6, each: 10, label: 'Add-ons' }).map((x) => int(x, { min: 1, max: 2147483647, label: 'add-on' }));
   const addon_only = input.addon_only === true || input.addon_only === 'true' || input.addon_only === 'on';
   if (addon_only && addon_ids.length) throw userError('A product sold only as an add-on can’t offer add-ons itself');
+  if (addon_only && price_options.length) throw userError('A product sold only as an add-on can’t have pricing options');
   const compare_krw = won(input.compare_krw, 'Regular KRW price');
   const compare_usd = cents(input.compare_usd, 'Regular USD price');
   if (compare_krw != null && price_krw == null) throw userError('A regular KRW price needs a KRW price');
@@ -132,7 +193,8 @@ function productInput(input) {
   if (page && !/^\/[a-z0-9]+(?:[/-][a-z0-9]+)*$/.test(page)) throw userError('Program page must be a page of this site, like /eft or /nsmb');
   const content = {
     summary: text(c.summary, { max: 300, label: 'Summary' }),
-    included: list(c.included, { max: 12, each: 200, label: 'What’s included' }),
+    included_title: text(c.included_title, { max: 60, label: 'What’s included: heading' }),
+    included: included(c.included),
     image,
     thanks: text(c.thanks, { max: 2000, label: 'Thank-you text' }),
     page,
@@ -142,15 +204,17 @@ function productInput(input) {
     addon_note: text(c.addon_note, { max: 300, label: 'Add-on note' }),
   };
 
-  return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content, addon_ids, addon_only, compare_krw, compare_usd };
+  return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content, addon_ids, addon_only, compare_krw, compare_usd, price_options };
 }
 
-// Every way the product can be bought, priced: [{ currency, plan, total, dueToday, vat, payments, label }].
+// Every way the product can be bought, priced: [{ currency, plan, option, total, dueToday, vat, payments, label }]
+// (one entry per pricing option and currency when the product has options).
 function priced(product) {
-  return pricing.options(product).map((o) => {
-    const q = pricing.quote(product, o);
+  const keys = pricing.priceOptions(product).map((o) => o.key);
+  return pricing.options(product).flatMap((o) => (keys.length ? keys : [null]).map((option) => {
+    const q = pricing.quote(product, { ...o, option });
     return { ...q, label: pricing.formatMoney(q.total, q.currency), dueTodayLabel: pricing.formatMoney(q.dueToday, q.currency) };
-  });
+  }));
 }
 
 // Things worth a second look before opening a product (shown in the admin, never blocking).
@@ -161,6 +225,10 @@ function warnings(product, all = []) {
   if (product.status === 'open' && !product.purchase_tag) out.push('No purchase tag: buyers would not be tagged in ActiveCampaign.');
   if (product.compare_krw != null && product.price_krw != null && product.compare_krw <= product.price_krw) out.push('The regular KRW price is not higher than the price, so it is not shown.');
   if (product.compare_usd != null && product.price_usd != null && product.compare_usd <= product.price_usd) out.push('The regular USD price is not higher than the price, so it is not shown.');
+  for (const o of pricing.priceOptions(product)) {
+    if (o.compare_krw != null && o.price_krw != null && o.compare_krw <= o.price_krw) out.push(`Option “${o.label}”: the regular KRW price is not higher than its price, so it is not shown.`);
+    if (o.compare_usd != null && o.price_usd != null && o.compare_usd <= o.price_usd) out.push(`Option “${o.label}”: the regular USD price is not higher than its price, so it is not shown.`);
+  }
   // Add-ons that the checkout would leave out right now (pass the other products as `all`).
   for (const id of product.addon_ids || []) {
     const a = all.find((x) => x.id === id);
@@ -177,8 +245,9 @@ function shape(row, now, all = []) {
   return { ...row, sale: pricing.saleState(row, now), options: priced(row), warnings: warnings(row, all) };
 }
 
-const COLUMNS = ['name', 'slug', 'status', 'sale_starts_at', 'sale_ends_at', 'price_krw', 'price_usd', 'instalment_first', 'instalment_monthly', 'instalment_count', 'usd_vat', 'purchase_tag', 'extra_tags', 'legacy_ids', 'content', 'addon_ids', 'addon_only', 'compare_krw', 'compare_usd'];
-const CAST = { extra_tags: '::text[]', legacy_ids: '::int[]', addon_ids: '::int[]', addon_only: '::boolean', content: '::jsonb', sale_starts_at: '::timestamptz', sale_ends_at: '::timestamptz' };
+const COLUMNS = ['name', 'slug', 'status', 'sale_starts_at', 'sale_ends_at', 'price_krw', 'price_usd', 'instalment_first', 'instalment_monthly', 'instalment_count', 'usd_vat', 'purchase_tag', 'extra_tags', 'legacy_ids', 'content', 'addon_ids', 'addon_only', 'compare_krw', 'compare_usd', 'price_options'];
+const CAST = { extra_tags: '::text[]', legacy_ids: '::int[]', addon_ids: '::int[]', addon_only: '::boolean', content: '::jsonb', price_options: '::jsonb', sale_starts_at: '::timestamptz', sale_ends_at: '::timestamptz' };
+const JSON_COLUMNS = new Set(['content', 'price_options']);
 
 async function getProduct(id) {
   const row = await db.one('SELECT * FROM shop_products WHERE id = $1', [id]);
@@ -221,7 +290,8 @@ const actions = {
       const found = await db.query('SELECT id, name, addon_only, addon_ids FROM shop_products WHERE id = ANY($1::int[])', [p.addon_ids]);
       if (found.length !== p.addon_ids.length) throw userError('One of the chosen add-ons no longer exists: reload the page');
     }
-    const values = COLUMNS.map((c) => (c === 'content' ? JSON.stringify(p[c]) : p[c]));
+    // An option a past order was for keeps its key: a removed key is fine (the order kept its own copy).
+    const values = COLUMNS.map((c) => (JSON_COLUMNS.has(c) ? JSON.stringify(p[c]) : p[c]));
     const sql = id
       ? `UPDATE shop_products SET ${COLUMNS.map((c, i) => `${c} = $${i + 2}${CAST[c] || ''}`).join(', ')}, updated_at = now() WHERE id = $1 RETURNING *`
       : `INSERT INTO shop_products (${COLUMNS.join(', ')}) VALUES (${COLUMNS.map((c, i) => `$${i + 1}${CAST[c] || ''}`).join(', ')}) RETURNING *`;
@@ -249,7 +319,7 @@ const actions = {
     const slug = text(input.slug, { max: 60, required: true, label: 'product' });
     const product = await db.one('SELECT * FROM shop_products WHERE slug = $1', [slug]);
     if (!product) throw userError('product not found', 404);
-    const q = pricing.quote(product, { currency: String(input.currency || 'KRW').toUpperCase(), plan: String(input.plan || 'full') });
+    const q = pricing.quote(product, { currency: String(input.currency || 'KRW').toUpperCase(), plan: String(input.plan || 'full'), option: input.option ? String(input.option) : null });
     const dates = pricing.schedule(ledger.seoul(new Date()).date, q.payments.length);
     return {
       product: { slug: product.slug, name: product.name },
@@ -299,4 +369,4 @@ const actions = {
 
 const writes = ['shop-product-save', 'shop-product-delete', 'shop-settings-save'];
 
-module.exports = { section: 'shop', actions, writes, productInput, settingsInput, cents, seoulTime, warnings, testimonials };
+module.exports = { section: 'shop', actions, writes, productInput, priceOptionsInput, included, settingsInput, cents, seoulTime, warnings, testimonials };

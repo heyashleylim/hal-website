@@ -19,7 +19,8 @@ test('product form → stored columns', () => {
   assert.deepEqual([p.instalment_first, p.instalment_monthly, p.instalment_count], [930000, 930000, 2]);
   assert.deepEqual(p.extra_tags, ['customer', 'nsmb']);
   assert.deepEqual(p.legacy_ids, [2882, 4536]);
-  assert.deepEqual(p.content.included, ['라이브 그룹 코칭', '프라이빗 커뮤니티']);
+  assert.deepEqual(p.content.included, [{ title: '라이브 그룹 코칭', text: '' }, { title: '프라이빗 커뮤니티', text: '' }]);
+  assert.deepEqual(p.price_options, []);
   assert.equal(p.usd_vat, 'taxable');
   assert.equal(p.sale_starts_at, null);
 });
@@ -70,7 +71,7 @@ test('a USD-only product without a plan is fine', () => {
   const p = products.productInput({ name: 'X', slug: 'x', price_usd: '99', price_krw: '', instalment_first: '', instalment_monthly: '', instalment_count: '' });
   assert.equal(p.price_krw, null);
   assert.equal(p.status, 'draft');
-  assert.deepEqual(p.content, { summary: '', included: [], image: '', thanks: '', page: '', guarantee: '', testimonials: [], addon_details: '', addon_note: '' });
+  assert.deepEqual(p.content, { summary: '', included_title: '', included: [], image: '', thanks: '', page: '', guarantee: '', testimonials: [], addon_details: '', addon_note: '' });
 });
 
 test('guarantee and reviews are kept exactly as typed', () => {

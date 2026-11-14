@@ -127,6 +127,8 @@ One page, one job. No site navigation, no footer menu, nothing to click except p
    send it) is applied without typing.
 5. **Add-ons / order bump**: built 2026-11-13, ahead of phase 6 (Alex). Cards with "+ 추가" between the payment
    method and the order, up to 6 per product (see CLAUDE.md → Shop → Add-ons).
+   **Pricing options** (기본 / VIP…) and the card/PayPal choice: built 2026-11-14 (Alex), right before the payment
+   method (see CLAUDE.md → Shop → Pricing options). Instalment plans will join the same picker in phase 3.
 6. **Consent line + pay button** with the amount on it: `₩930,000 결제하기`. Under it: the guarantee line and the
    secure-payment note (wording by Ashley).
 

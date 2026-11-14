@@ -4,14 +4,14 @@
  * authority. Problem codes map to Korean messages in copy.ko.js (`errors`).
  */
 
-// ISO 3166-1 alpha-2 codes offered to USD buyers. Names are produced in Korean by Intl.DisplayNames.
+// ISO 3166-1 alpha-2 codes for the address and phone country lists. Names are produced in Korean by Intl.DisplayNames.
 const COUNTRY_CODES = ('AD AE AF AG AI AL AM AO AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ ' +
   'DE DJ DK DM DO DZ EC EE EG ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GT GU GW GY HK HN HR HT HU ID IE IL IM IN IQ IR IS IT JE JM JO JP ' +
   'KE KG KH KI KM KN KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ ' +
   'OM PA PE PF PG PH PK PL PM PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TG TH TJ TK TL TM TN TO TR TT TV TW TZ ' +
   'UA UG US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW').split(' ');
 const COUNTRY_SET = new Set(COUNTRY_CODES);
-const COMMON = ['US', 'CA', 'AU', 'GB', 'JP', 'SG', 'DE', 'NZ'];
+const COMMON = ['KR', 'US', 'AU', 'CA', 'JP', 'GB', 'NZ', 'SG', 'DE'];
 
 // Country calling codes for the phone field (same countries as above).
 const DIAL = {
@@ -80,7 +80,7 @@ function displayPhone(e164) {
   return m ? `0${m[1]}-${m[2]}-${m[3]}` : v;
 }
 
-// [{ code, name }] for the country list: the countries most buyers are in first, then every country by Korean name.
+// [{ code, name }] for the address country list: Korea (the default) and the countries buyers are in first, then every country by Korean name.
 function countries() {
   const names = new Intl.DisplayNames(['ko'], { type: 'region' });
   const all = COUNTRY_CODES.map((code) => ({ code, name: names.of(code) || code }));
@@ -120,11 +120,12 @@ function validEmail(value) {
 }
 
 /*
- * checkoutInput(input, 'KRW' | 'USD') → { ok: true, value } or { ok: false, errors: { field: code } }.
- * Phone (both currencies): a country from the list (Korea by default) and the number → E.164 (phoneInput).
- * KRW buyers: 5-digit postcode, address from the Kakao search. USD buyers: country and a free-form address.
+ * checkoutInput(input) → { ok: true, value } or { ok: false, errors: { field: code } }.
+ * Phone: a country from the list (Korea by default) and the number → E.164 (phoneInput).
+ * Address: its country (Korea by default). In Korea a 5-digit postcode (from the Kakao search); elsewhere a
+ * free-form address with an optional postcode. The payment method doesn't change these rules.
  */
-function checkoutInput(input, currency) {
+function checkoutInput(input) {
   const errors = {};
   const src = input && typeof input === 'object' ? input : {};
 
@@ -148,12 +149,14 @@ function checkoutInput(input, currency) {
   else if (address1.length > 200) errors.address1 = 'address1_long';
   if (address2.length > 100) errors.address2 = 'address2_long';
 
-  if (currency === 'USD') {
-    country = clean(src.country).toUpperCase();
-    if (!COUNTRY_SET.has(country)) errors.country = 'country_required';
-    if (postcode.length > 20) errors.postcode = 'postcode_long';
-  } else if (!postcode) errors.postcode = 'postcode_required';
-  else if (!/^\d{5}$/.test(postcode)) errors.postcode = 'postcode_invalid';
+  // The address's country, whatever the payment method (a buyer in Korea may pay with PayPal, one abroad by card).
+  // A form without the field (an old page) is a Korean address, as before.
+  country = src.country == null ? 'KR' : clean(src.country).toUpperCase();
+  if (!COUNTRY_SET.has(country)) errors.country = 'country_required';
+  else if (country === 'KR') {
+    if (!postcode) errors.postcode = 'postcode_required';
+    else if (!/^\d{5}$/.test(postcode)) errors.postcode = 'postcode_invalid';
+  } else if (postcode.length > 20) errors.postcode = 'postcode_long';
 
   if (Object.keys(errors).length) return { ok: false, errors };
   return { ok: true, value: { name, email, phone, country, postcode, address1, address2 } };

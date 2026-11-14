@@ -27,8 +27,10 @@ async function checkout(req, res, url) {
   const wanted = String(url.searchParams.get('currency') || '').toUpperCase();
   const currency = offers.some((o) => o.currency === wanted) ? wanted : offers[0].currency;
   const problem = PROBLEMS.has(url.searchParams.get('problem')) ? url.searchParams.get('problem') : '';
+  const addons = {};
+  for (const cur of [...new Set(offers.map((o) => o.currency))]) addons[cur] = await orders.addonChoices(product, cur);
   return sendHtml(res, 200, page.checkoutPage({
-    product, offers, currency, problem, addons: await orders.addonChoices(product, currency),
+    product, offers, currency, problem, addons,
     settings: await settings.read(), query: Object.fromEntries(url.searchParams),
   }));
 }
