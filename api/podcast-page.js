@@ -9,6 +9,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const podcast = require('./_lib/podcast.js');
+const { audioPath } = require('./_lib/rss.js');
 
 const SITE = path.join(__dirname, '..', 'site');
 let chrome = null;
@@ -45,7 +46,7 @@ function lastDay(expires) {
   return new Date(expires.getTime() - 1);
 }
 
-function layout({ title, body }) {
+function layout({ title, body, script = '/assets/js/podcast.js', head = '' }) {
   const { header, footer } = siteChrome();
   return `<!doctype html>
 <html lang="ko">
@@ -61,7 +62,7 @@ function layout({ title, body }) {
 <link rel="stylesheet" href="/assets/css/brand.css">
 <link rel="stylesheet" href="/assets/css/header.css">
 <link rel="stylesheet" href="/assets/css/footer.css">
-<link rel="stylesheet" href="/assets/css/pages/podcast.css">
+<link rel="stylesheet" href="/assets/css/pages/podcast.css">${head}
 </head>
 <body>
 <a class="skip" href="#main">본문으로 건너뛰기</a>
@@ -70,7 +71,7 @@ ${header}
 ${body}
 </main>
 ${footer}
-<script src="/assets/js/podcast.js" defer></script>
+<script src="${script}" defer></script>
 </body>
 </html>`;
 }
@@ -164,6 +165,81 @@ ${cards}
   });
 }
 
+function clock(seconds) {
+  const s = Math.max(0, Math.round(Number(seconds) || 0));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(r).padStart(2, '0');
+}
+
+/*
+ * TEST (2026-11-14): /podcast/<token>/listen plays the student's released episodes in the browser, to check on real
+ * phones whether a web student area can replace a podcast app (screen off, other apps, lock-screen controls,
+ * speed, resume). Not linked from anywhere. Audio goes through the same access-checked route as the feed
+ * (/a/<token>/<guid>), so each start counts as a download in the stats (app "Web browser").
+ */
+function listenPage({ token, student, shows }) {
+  const tracks = [];
+  for (const x of shows) {
+    if (x.access.state !== 'active') continue;
+    for (const { episode } of x.access.episodes) {
+      tracks.push({
+        src: audioPath(token, episode),
+        guid: episode.guid,
+        title: episode.title,
+        show: x.show.title,
+        art: x.show.artwork_url || '',
+        duration: Number(episode.duration_seconds) || 0,
+      });
+    }
+  }
+  if (!tracks.length) {
+    return layout({ title: '웹 플레이어', body: '<section class="pod__card"><h1 class="pod__title">웹 플레이어</h1><p>지금 들을 수 있는 에피소드가 없어요.</p></section>' });
+  }
+  const first = tracks[0];
+  const items = tracks.map((t, i) => `<li><button class="play__item" type="button" data-index="${i}"${i === 0 ? ' aria-current="true"' : ''}>
+    <span class="play__item-title">${esc(t.title)}</span>
+    <span class="play__item-meta">${t.duration ? esc(clock(t.duration)) : ''}<span class="play__item-pos" data-pos="${esc(t.guid)}"></span></span>
+  </button></li>`).join('\n');
+  // JSON for the script; "<" escaped so a title can't close the script tag.
+  const data = JSON.stringify({ student: student.id, tracks }).replace(/</g, '\\u003c');
+  return layout({
+    title: '웹 플레이어 (테스트)',
+    script: '/assets/js/podcast-player.js',
+    // Added to the Home Screen, the page opens full screen like an app (one of the things to test).
+    head: '\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-title" content="애슐리 림">',
+    body: `<section class="pod__card play" aria-labelledby="play-title">
+  <p class="pod__eyebrow">웹 플레이어 · 테스트</p>
+  <div class="play__now">
+    ${first.art ? `<img class="play__art" src="${esc(first.art)}" alt="" width="88" height="88">` : ''}
+    <div class="play__now-text">
+      <p class="play__show">${esc(first.show)}</p>
+      <h1 class="play__title" id="play-title">${esc(first.title)}</h1>
+    </div>
+  </div>
+  <audio class="play__audio" controls preload="metadata" src="${esc(first.src)}"></audio>
+  <div class="play__controls" hidden>
+    <button class="play__btn" type="button" data-skip="-15" aria-label="15초 뒤로">−15초</button>
+    <button class="play__btn play__btn--main" type="button" data-toggle aria-label="재생">재생</button>
+    <button class="play__btn" type="button" data-skip="30" aria-label="30초 앞으로">+30초</button>
+    <button class="play__btn play__btn--speed" type="button" data-speed aria-label="재생 속도 1배">1×</button>
+  </div>
+  <p class="play__resume" role="status" hidden></p>
+</section>
+
+<section class="pod__card" aria-labelledby="play-list">
+  <h2 class="pod__h2" id="play-list">에피소드</h2>
+  <ol class="play__list">${items}</ol>
+</section>
+
+<section class="pod__card pod__card--quiet play__log-card" hidden>
+  <h2 class="pod__h2">테스트 기록</h2>
+  <p class="pod__note">화면을 끄거나 다른 앱으로 갔다가 돌아오면, 그동안 재생이 계속됐는지 여기에 기록돼요.</p>
+  <ol class="play__log"></ol>
+</section>
+<script type="application/json" id="play-data">${data}</script>`,
+  });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'private, no-store');
@@ -175,7 +251,9 @@ module.exports = async function handler(req, res) {
     return res.end();
   }
 
-  const token = new URL(req.url, 'http://local').searchParams.get('token') || '';
+  const params = new URL(req.url, 'http://local').searchParams;
+  const token = params.get('token') || '';
+  const view = params.get('view');
   let data, shows;
   try {
     data = await podcast.loadStudent(token);
@@ -193,8 +271,10 @@ module.exports = async function handler(req, res) {
     return res.end(notFoundPage());
   }
   res.statusCode = 200;
+  if (view === 'listen') return res.end(listenPage({ token, student: data.student, shows }));
   return res.end(personalPage({ base: podcast.baseUrl(req), token, student: data.student, shows, query: podcast.linkQuery() }));
 };
 
 module.exports.personalPage = personalPage;
 module.exports.notFoundPage = notFoundPage;
+module.exports.listenPage = listenPage;

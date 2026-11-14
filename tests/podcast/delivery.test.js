@@ -88,3 +88,18 @@ test('older feed links (/f/<token>) keep serving the program the student had fir
   assert.equal(firstProgram([nsmb]).show.slug, 'nsmb');
   assert.equal(firstProgram([]), null);
 });
+
+test('test web player lists only released episodes of active programs, through the access-checked audio route', () => {
+  const ep = (n, title) => ({ episode: { guid: `00000000-0000-0000-0000-00000000000${n}`, title, mime_type: 'audio/mpeg', duration_seconds: 3725 } });
+  const html = page.listenPage({ token: listener.token, student: { id: 7 }, shows: [
+    { show: showA, access: { state: 'active', episodes: [ep(1, '모듈 1 </script><b>'), ep(2, '모듈 2')] } },
+    { show: showB, access: { state: 'expired', episodes: [ep(3, '만료된 모듈')] } },
+  ] });
+  assert.match(html, /src="\/a\/AAAAAAAAAAAAAAAAAAAAAA\/00000000-0000-0000-0000-000000000001\.mp3"/);
+  assert.doesNotMatch(html, /만료된 모듈/);
+  assert.doesNotMatch(html, /<\/script><b>/); // titles can't break out of the page or its JSON
+  assert.match(html, /1:02:05/);
+  assert.match(html, /noindex/);
+  const none = page.listenPage({ token: listener.token, student: { id: 7 }, shows: [] });
+  assert.match(none, /들을 수 있는 에피소드가 없어요/);
+});

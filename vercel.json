@@ -203,6 +203,10 @@
       "destination": "/api/podcast-audio?token=:token&file=:file"
     },
     {
+      "source": "/podcast/:token([A-Za-z0-9_-]+)/listen",
+      "destination": "/api/podcast-page?token=:token&view=listen"
+    },
+    {
       "source": "/podcast/:token([A-Za-z0-9_-]+)",
       "destination": "/api/podcast-page?token=:token"
     }
