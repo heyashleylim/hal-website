@@ -41,7 +41,7 @@ offline listening (iPhone limits website storage). That is the one reason for a 
 | S4 | **Community scope** | ✅ (Alex, 2026-11-14) **One space per cohort.** |
 | S5 | **Names shown in the community** | The **first name** from AC (Ashley's team keeps the Korean full name there, e.g. 김지연), editable by the student once. Ashley's posts marked as hers. |
 | S6 | **Moderation** | Posts go live immediately. Ashley's team can hide or delete any post or comment and mute a student. Email alert to the team on each new post (not comment) for the first cohorts. |
-| S7 | **Podcast feed after launch** | Keep it during phase 1 (offline listening). Decide in phase 2 whether to retire it. |
+| S7 | **Podcast feed after launch** | ✅ (Alex, 2026-11-15) **Retired.** No podcast apps and no offline listening: the student area is the only way to listen. Apps still following a feed see a notice pointing to /learn. |
 | S8 | **The Facebook group** | NSMB's private Facebook community is part of the published offer. Moving it here changes what's sold, so Ashley decides when, and the sales page copy changes then. |
 
 ---

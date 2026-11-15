@@ -28,7 +28,7 @@ const actions = {
     const rows = await db.query(
       `SELECT ${COHORT_COLUMNS},
               count(en.id)::int AS students,
-              count(en.id) FILTER (WHERE st.first_seen_at IS NOT NULL)::int AS subscribed,
+              count(en.id) FILTER (WHERE EXISTS (SELECT 1 FROM learn_sessions se WHERE se.student_id = st.id))::int AS subscribed, -- signed in to the student area
               count(en.id) FILTER (WHERE en.status = 'revoked' OR st.status = 'revoked')::int AS revoked
          FROM cohorts c LEFT JOIN enrollments en ON en.cohort_id = c.id LEFT JOIN students st ON st.id = en.student_id
         WHERE c.show_id = $1

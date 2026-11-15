@@ -55,14 +55,4 @@ a.learn__item:hover .learn__item-title{color:var(--accent)}
 .learn__install-link{margin:-4px 0 0;font-size:15px;text-align:center}
 .learn__install-link a{display:inline-flex;align-items:center;min-height:44px}
 .pod .pod__steps li{line-height:1.7}
-/* Podcast apps (collapsed) */
-.learn__feed{padding-top:0;padding-bottom:0}
-.learn__feed[open]{padding-bottom:28px}
-.learn__feed-summary{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;min-height:64px;padding:20px 0;cursor:pointer;list-style:none}
-.learn__feed-summary::-webkit-details-marker{display:none}
-.learn__feed-summary .pod__h2{margin:0}
-.learn__feed-summary::after{content:"+";font:600 22px/1 var(--font-body);color:var(--ink-2)}
-.learn__feed[open] .learn__feed-summary::after{content:"−"}
-.learn__feed-summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.learn__feed .pod__apps{margin-top:16px}
 .learn__intro{margin:-6px 0 14px;white-space:pre-line}

@@ -280,28 +280,7 @@ function chapterList(chapters) {
 }
 
 // /learn/<show>: the player (current episode), its chapters, then every module: released, listened, coming.
-// Listening in a podcast app instead (offline): the student's private feed, as on the old personal page.
-function feedSection({ show, feedUrl }) {
-  if (!feedUrl) return '';
-  const host = feedUrl.replace(/^https:\/\//, '');
-  return `<details class="pod__card learn__feed">
-  <summary class="learn__feed-summary"><span class="pod__h2">팟캐스트 앱으로 듣기</span><span class="learn__muted">인터넷 없이 듣고 싶을 때</span></summary>
-  <p>Apple 팟캐스트 같은 앱에 추가하면 미리 내려받아 인터넷 없이도 들을 수 있어요. 진도는 여기 내 강의실과 따로 기록돼요.</p>
-  <div class="pod__apps">
-    <a class="btn btn--block" href="podcast://${esc(host)}">Apple 팟캐스트에 추가</a>
-    <a class="pod__app" href="pktc://subscribe/${esc(host)}">Pocket Casts</a>
-    <a class="pod__app" href="overcast://x-callback-url/add?url=${encodeURIComponent(feedUrl)}">Overcast</a>
-  </div>
-  <label class="pod__label" for="feed-${esc(show.slug)}">나만의 구독 주소</label>
-  <div class="pod__copy">
-    <input id="feed-${esc(show.slug)}" class="pod__input" type="text" value="${esc(feedUrl)}" readonly>
-    <button class="pod__copy-btn" type="button" data-copy="#feed-${esc(show.slug)}" hidden>복사</button>
-  </div>
-  <p class="pod__note">나만을 위한 주소예요. 다른 사람과 공유하지 말아 주세요. 다른 앱에 추가하는 방법은 <a href="/learn/help#podcast-apps">이용 안내</a>에 있어요.</p>
-</details>`;
-}
-
-function programPage({ show, access, progress, current, feedUrl = '' }) {
+function programPage({ show, access, progress, current }) {
   const released = access.episodes.map((e) => e.episode);
   const upcoming = (access.scheduled || []).filter((e) => e.releaseAt > new Date() && !released.some((r) => r.id === e.episode.id));
   const cur = current || released.find((e) => !(progress.get(e.id) && progress.get(e.id).completed_at)) || released[0];
@@ -390,19 +369,10 @@ ${signOut()}`,
   ${coming ? `<h3 class="learn__h3">공개 예정</h3><ol class="learn__list">${coming}</ol>` : ''}
   ${until}
 </section>
-${feedSection({ show, feedUrl })}
 ${signOut()}
 <script type="application/json" id="learn-data">${data}</script>`,
   });
 }
-
-const APPS = [
-  ['apple', 'Apple 팟캐스트', 'iPhone · iPad · Mac', `<h3 class="learn__h3">버튼으로 추가하기</h3><ol class="pod__steps"><li>‘팟캐스트 앱으로 듣기’에서 <strong>Apple 팟캐스트에 추가</strong>를 눌러요.</li><li>앱이 열리면 <strong>팔로우</strong>를 눌러요. <strong>보관함 › 프로그램</strong>에서 언제든 찾을 수 있어요.</li></ol>
-  <h3 class="learn__h3">버튼이 안 될 때</h3><ol class="pod__steps"><li>구독 주소를 <strong>복사</strong>해요.</li><li>Apple 팟캐스트의 <strong>보관함</strong>에서 오른쪽 위 <strong>⋯</strong>를 누르고 <strong>URL로 프로그램 팔로우</strong>(Follow a Show by URL)를 골라요.</li><li>주소를 붙여 넣고 <strong>팔로우</strong>를 눌러요.</li></ol>`],
-  ['pocketcasts', 'Pocket Casts', 'iPhone · Android', `<ol class="pod__steps"><li><strong>Pocket Casts</strong> 버튼을 누르고, 앱이 열리면 <strong>구독</strong>(Subscribe)을 눌러요.</li><li>버튼이 안 되면 구독 주소를 복사해 Pocket Casts의 <strong>검색</strong> 칸에 붙여 넣어요.</li></ol>`],
-  ['overcast', 'Overcast', 'iPhone', `<ol class="pod__steps"><li><strong>Overcast</strong> 버튼을 누르고, 앱이 열리면 <strong>구독</strong>(Subscribe)을 눌러요.</li><li>버튼이 안 되면 주소를 복사해 첫 화면 오른쪽 위 <strong>+</strong> › <strong>Add URL</strong>에 붙여 넣어요.</li></ol>`],
-  ['other', '그 밖의 앱', 'Castro · Podcast Addict · AntennaPod', `<ol class="pod__steps"><li>구독 주소를 <strong>복사</strong>해요.</li><li>앱의 팟캐스트 추가 메뉴(보통 <strong>+</strong>)에서 <strong>URL로 추가</strong> 또는 <strong>RSS 피드</strong>를 골라 붙여 넣어요.</li></ol><p>Spotify, YouTube Music처럼 주소로 추가하는 기능이 없는 앱에서는 들을 수 없어요.</p>`],
-];
 
 function helpPage() {
   return layout({
@@ -412,7 +382,7 @@ function helpPage() {
   <p class="pod__eyebrow">내 강의실</p>
   <h1 class="pod__title">이용 안내</h1>
   <p class="pod__lead">내 강의실에서 프로그램의 모든 강의를 듣고, 어디까지 들었는지도 자동으로 기억돼요. 휴대폰, 태블릿, 컴퓨터 어디서든 같은 진도로 이어 들을 수 있어요.</p>
-  <p class="pod__jump"><a href="#login">로그인</a> · <a href="#app">홈 화면에 저장하기</a> · <a href="#listen">듣기</a> · <a href="#podcast-apps">팟캐스트 앱으로 듣기</a> · <a href="#faq">자주 묻는 질문</a></p>
+  <p class="pod__jump"><a href="#login">로그인</a> · <a href="#app">홈 화면에 저장하기</a> · <a href="#listen">듣기</a> · <a href="#faq">자주 묻는 질문</a></p>
 </section>
 
 <section class="pod__card" aria-labelledby="login">
@@ -442,18 +412,14 @@ function helpPage() {
   </ul>
 </section>
 
-<section class="pod__card" aria-labelledby="podcast-apps">
-  <h2 class="pod__h2" id="podcast-apps">팟캐스트 앱으로 듣기</h2>
-  <p>인터넷 없이 듣고 싶다면 강의 페이지 아래 <strong>‘팟캐스트 앱으로 듣기’</strong>를 열어 앱에 추가해 주세요. 앱에서 들은 진도는 내 강의실에 기록되지 않아요.</p>
-  ${APPS.map(([id, name, where, steps]) => `<h3 class="learn__h3" id="app-${id}">${name} <span class="pod__muted">${where}</span></h3>${steps}`).join('\n  ')}
-</section>
-
 <section class="pod__card" aria-labelledby="faq">
   <h2 class="pod__h2" id="faq">자주 묻는 질문</h2>
   <h3 class="learn__h3">새 강의가 보이지 않아요.</h3>
   <p>강의는 정해진 날짜와 시간에 공개돼요. 시간이 지났는데 보이지 않으면 페이지를 새로고침해 주세요.</p>
   <h3 class="learn__h3">다른 기기에서도 들을 수 있나요?</h3>
   <p>네. 같은 이메일로 로그인하면 어느 기기에서든 들은 곳부터 이어서 들을 수 있어요.</p>
+  <h3 class="learn__h3">팟캐스트 앱이나 오프라인으로 들을 수 있나요?</h3>
+  <p>아니요. 강의는 내 강의실에서만 들을 수 있고, 인터넷 연결이 필요해요. 휴대폰 홈 화면에 저장하면 앱처럼 열리고, 화면을 꺼도 계속 들을 수 있어요.</p>
   <h3 class="learn__h3">언제까지 들을 수 있나요?</h3>
   <p>수강 기간은 내 강의실의 프로그램 카드에 적혀 있어요.</p>
   <h3 class="learn__h3">그 밖의 문의</h3>

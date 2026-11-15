@@ -81,7 +81,7 @@ const actions = {
     return { shows: rows };
   },
 
-  // A new show with the default settings; its slug appears in students' feed addresses and can't change later.
+  // A new show with the default settings; its slug appears in the student area's addresses and can't change later.
   async 'show-create'(input) {
     const title = text(input.title, { max: 200, required: true, label: 'Title' });
     const slug = text(input.slug, { max: 40, required: true, label: 'Short name' }).toLowerCase();
@@ -143,7 +143,7 @@ const actions = {
       drip_interval_days: int(input.drip_interval_days, { min: 0, max: 60, label: 'Days between weeks' }),
       access_days: int(input.access_days, { min: 1, max: 3650, label: 'Access length' }),
       support_email: email(input.support_email, { label: 'Support email', optional: true }),
-      page_intro: text(input.page_intro, { max: 1000, label: 'Subscribe page intro' }),
+      page_intro: text(input.page_intro, { max: 1000, label: 'Program intro' }),
       ac_tag_prefix: text(input.ac_tag_prefix, { max: 60, required: true, label: 'AC tag prefix' }),
     };
     if (!/^[a-z0-9_]+$/.test(v.ac_tag_prefix)) throw userError('AC tag prefix: lowercase letters, digits and underscores only (e.g. podcast_nsmb)');

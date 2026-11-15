@@ -82,7 +82,7 @@
       <div class="admin-actions">
         <button data-tip="Change this student’s name or email" class="btn-ghost" type="button" id="d-edit">Edit</button>
         <button data-tip="Sign this student out of the student area on every device. They sign in again with a code" class="btn-ghost" type="button" id="d-signout">Sign out everywhere</button>
-        <button data-tip="Give this student a new link. The old sign-in link, their podcast feeds and every signed-in device stop working: they sign in or subscribe again" class="btn-ghost" type="button" id="d-reset">Reset link</button>
+        <button data-tip="Give this student a new sign-in link. The old link and every signed-in device stop working: they sign in again" class="btn-ghost" type="button" id="d-reset">Reset link</button>
         <button data-tip="Stop this student’s access to every program. You can restore it later" class="btn-ghost" type="button" id="d-revoke">Revoke all access</button>
         <button data-tip="Delete this student with their enrolments and listening history. This cannot be undone" class="btn-danger" type="button" id="d-delete">Delete</button>
         <button data-tip="Close this student" class="btn-ghost" type="button" data-close="detail">Close</button>
@@ -106,19 +106,11 @@
     <div class="admin-scroll" id="d-listening"></div>
     <h3 class="admin-h3">Signed-in devices</h3>
     <div class="admin-scroll" id="d-sessions"></div>
-    <div class="cols-2">
-      <div>
-        <h3 class="admin-h3">Podcast app activity</h3>
-        <ol class="timeline" id="d-events"></ol>
-      </div>
-      <div>
-        <h3 class="admin-h3">ActiveCampaign</h3>
-        <div class="admin-actions" id="d-ac-actions"></div>
-        <div id="d-ac"></div>
-        <h3 class="admin-h3">Changes in the admin</h3>
-        <ol class="timeline" id="d-history"></ol>
-      </div>
-    </div>
+    <h3 class="admin-h3">ActiveCampaign</h3>
+    <div class="admin-actions" id="d-ac-actions"></div>
+    <div id="d-ac"></div>
+    <h3 class="admin-h3">Changes in the admin</h3>
+    <ol class="timeline" id="d-history"></ol>
   </section>
 
   <section class="admin-card" aria-label="Students list">
@@ -138,10 +130,9 @@
       <label>Listening
         <select id="f-listen">
           <option value="">All</option>
-          <option value="never">Never listened (no visit, no podcast app)</option>
+          <option value="never">Never signed in</option>
           <option value="learn">Uses the student area</option>
-          <option value="app">Uses a podcast app</option>
-          <option value="behind">Behind (released episodes not heard yet)</option>
+          <option value="behind">Behind (released episodes not finished yet)</option>
         </select>
       </label>
     </div>

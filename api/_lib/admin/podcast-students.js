@@ -2,8 +2,8 @@
  * Admin API, Podcast section: students (people), their enrolments (one per cohort, any program), CSV import and
  * Sync from ActiveCampaign. Actions are routed by api/admin.js.
  *
- * A student has one token: their one-tap sign-in link to the student area (/learn/start/<token>, sent as PODCAST_LINK)
- * and their private podcast feeds (/f/<token>/<show>).
+ * A student has one token: their one-tap sign-in link to the student area (/learn/start/<token>, sent as PODCAST_LINK).
+ * (Their private podcast feeds used it too, until the feed was retired on 2026-11-15.)
  * What they can hear in a show follows release.showAccess (all their running enrolments in that show combined).
  */
 const db = require('../db.js');
@@ -11,7 +11,6 @@ const auth = require('../auth.js');
 const ac = require('../ac.js');
 const release = require('../release.js');
 const automation = require('../automation.js');
-const sharing = require('../sharing.js');
 const { userError, getShow, text, int, date, email, friendlyUnique } = require('./util.js');
 
 const MAX_IDS = 1000;
@@ -23,39 +22,18 @@ async function notifyNew(pairs, input) {
   for (const [studentId, showId] of pairs) await automation.notifyEnrolled(studentId, showId);
   return automation.acConfigured() ? automation.processOutbox({ budgetMs: 8000 }) : { skipped: 'ActiveCampaign is not configured: the updates wait in the queue' };
 }
-const NOT_A_PERSON = `e.app NOT IN ('Bot', 'Web browser', 'Unknown', 'Other') AND e.app NOT LIKE '%(server)'`;
 
-// Sharing signals over the last 7 days (api/_lib/sharing.js), for every student with activity or for one ($1).
-// Networks and countries count downloads only (feed checks can come from an app's own servers).
-function sharingSql(oneStudent) {
-  return `
-  WITH ev AS (
-    SELECT e.student_id, e.episode_id, e.kind, e.app, e.ip_hash, e.country, e.at FROM events e
-     WHERE e.at > now() - interval '${sharing.LIMITS.windowDays} days' AND ${NOT_A_PERSON}${oneStudent ? ' AND e.student_id = $1' : ''}
-       -- after a link reset, only the new link's activity counts
-       AND e.at > COALESCE((SELECT max(l.at) FROM admin_log l WHERE l.action = 'student-reset-link' AND l.target = 'student ' || e.student_id),
-                           '-infinity'::timestamptz)),
-  per AS (
-    SELECT student_id,
-           count(DISTINCT ip_hash) FILTER (WHERE kind = 'download')::int AS networks,
-           COALESCE(array_remove(array_agg(DISTINCT country) FILTER (WHERE kind = 'download'), NULL), '{}') AS countries,
-           COALESCE(array_remove(array_agg(DISTINCT app), NULL), '{}') AS apps,
-           count(*) FILTER (WHERE kind = 'download')::int AS downloads,
-           max(at) AS last_at
-      FROM ev GROUP BY student_id),
-  ep AS (
-    SELECT student_id, max(n)::int AS episode_networks
-      FROM (SELECT student_id, episode_id, count(DISTINCT ip_hash) AS n FROM ev
-             WHERE kind = 'download' AND episode_id IS NOT NULL GROUP BY student_id, episode_id) x
-     GROUP BY student_id)
-  SELECT s.id, s.email, s.name, s.status, per.networks, per.countries, per.apps, per.downloads, per.last_at,
-         COALESCE(ep.episode_networks, 0) AS episode_networks
-    FROM per JOIN students s ON s.id = per.student_id LEFT JOIN ep ON ep.student_id = per.student_id`;
-}
-
-async function sharingList() {
-  const rows = await db.query(sharingSql(false));
-  return rows.map((r) => ({ ...r, sharing: sharing.assess(r) })).filter((r) => r.sharing.suspect && r.status === 'active').sort(sharing.rank);
+// Possible account sharing in the student area: more than DEVICE_LIMIT devices signed in over the last 30 days
+// (a phone, a tablet, a computer and the Home Screen app are already 4). A reason to look, not proof.
+const DEVICE_LIMIT = 5;
+async function manyDevices() {
+  return db.query(
+    `SELECT s.id, s.email, s.name, count(*)::int AS devices, max(se.last_seen_at) AS last_at
+       FROM learn_sessions se JOIN students s ON s.id = se.student_id
+      WHERE se.created_at > now() - interval '30 days' AND s.status = 'active'
+        -- after "Sign out everywhere" or a link reset, only the new sign-ins count
+        AND se.created_at > COALESCE((SELECT max(l.at) FROM admin_log l WHERE l.action IN ('student-sign-out', 'student-reset-link') AND l.target = 'student ' || s.id), '-infinity'::timestamptz)
+      GROUP BY s.id HAVING count(*) > $1 ORDER BY count(*) DESC`, [DEVICE_LIMIT]);
 }
 
 function baseUrl(req) {
@@ -98,13 +76,7 @@ async function context() {
 }
 
 const STUDENT_SQL = `
-  WITH d AS (
-    SELECT e.student_id,
-           count(DISTINCT e.episode_id) FILTER (WHERE e.kind = 'download' AND ${NOT_A_PERSON}) AS downloaded,
-           max(e.at) FILTER (WHERE e.kind = 'download' AND ${NOT_A_PERSON}) AS last_download_at,
-           array_agg(DISTINCT e.app) FILTER (WHERE ${NOT_A_PERSON}) AS apps
-      FROM events e GROUP BY e.student_id),
-  en AS (
+  WITH en AS (
     SELECT en.student_id, json_agg(json_build_object(
              'id', en.id, 'status', en.status, 'source', en.source, 'start_override', to_char(en.start_override, 'YYYY-MM-DD'),
              'expires_override', en.expires_override, 'created_at', en.created_at, 'revoked_at', en.revoked_at,
@@ -119,16 +91,10 @@ const STUDENT_SQL = `
   se AS (
     SELECT student_id, max(last_seen_at) AS last_visit_at, count(*) FILTER (WHERE ended_at IS NULL AND expires_at > now()) AS devices
       FROM learn_sessions GROUP BY student_id),
-  h AS (
-    -- Episodes heard either way: finished in the student area, or downloaded by a podcast app.
-    SELECT student_id, count(DISTINCT episode_id) AS heard FROM (
-      SELECT student_id, episode_id FROM listening WHERE completed_at IS NOT NULL
-      UNION SELECT student_id, episode_id FROM events e WHERE e.kind = 'download' AND e.episode_id IS NOT NULL AND ${NOT_A_PERSON}) x
-     GROUP BY student_id)
-  SELECT row_to_json(st) AS student, COALESCE(en.enrollments, '[]'::json) AS enrollments, d.downloaded, d.last_download_at, d.apps,
-         l.finished, l.started, l.last_listen_at, l.listened_seconds, se.last_visit_at, se.devices, h.heard
-    FROM students st LEFT JOIN en ON en.student_id = st.id LEFT JOIN d ON d.student_id = st.id
-    LEFT JOIN l ON l.student_id = st.id LEFT JOIN se ON se.student_id = st.id LEFT JOIN h ON h.student_id = st.id`;
+  SELECT row_to_json(st) AS student, COALESCE(en.enrollments, '[]'::json) AS enrollments,
+         l.finished, l.started, l.last_listen_at, l.listened_seconds, se.last_visit_at, se.devices
+    FROM students st LEFT JOIN en ON en.student_id = st.id
+    LEFT JOIN l ON l.student_id = st.id LEFT JOIN se ON se.student_id = st.id`;
 
 // Everything the list and the detail show about one student.
 function describe(ctx, row, req, now = new Date()) {
@@ -161,11 +127,9 @@ function describe(ctx, row, req, now = new Date()) {
     ac_contact_id: s.ac_contact_id, first_seen_at: s.first_seen_at, last_seen_at: s.last_seen_at,
     created_at: s.created_at, revoked_at: s.revoked_at,
     enrollments, shows, released, expires_at: latest,
-    downloaded: Number(row.downloaded || 0), last_download_at: row.last_download_at, apps: row.apps || [],
     // Student area (/learn)
     last_visit_at: row.last_visit_at || null, devices: Number(row.devices || 0), finished: Number(row.finished || 0),
     started: Number(row.started || 0), last_listen_at: row.last_listen_at || null, listened_seconds: Number(row.listened_seconds || 0),
-    heard: Number(row.heard || 0),
     signin_url: `${baseUrl(req)}/learn/start/${s.token}`,
   };
 }
@@ -218,20 +182,9 @@ const actions = {
   async student(input, { req }) {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     const [row, ctx] = await Promise.all([loadRow(id), context()]);
-    const [events, networks, outbox, history, recent] = await Promise.all([
-      db.query(
-        `SELECT e.kind, e.at, e.app, e.country, sh.title AS show_title, ep.kind AS episode_kind, ep.number, ep.title
-           FROM events e LEFT JOIN episodes ep ON ep.id = e.episode_id LEFT JOIN shows sh ON sh.id = e.show_id
-          WHERE e.student_id = $1 ORDER BY e.at DESC LIMIT 200`, [id]),
-      // Feed checks come from the apps' servers; downloads come from the student's phone.
-      db.one(
-        `SELECT count(DISTINCT ip_hash) FILTER (WHERE at > now() - interval '7 days')::int AS networks_7d,
-                count(DISTINCT ip_hash)::int AS networks_all,
-                array_remove(array_agg(DISTINCT country), NULL) AS countries
-           FROM events e WHERE student_id = $1 AND kind = 'download' AND ${NOT_A_PERSON}`, [id]),
+    const [outbox, history] = await Promise.all([
       db.query(`SELECT op, payload, status, attempts, last_error, created_at, done_at FROM ac_outbox WHERE student_id = $1 ORDER BY created_at DESC LIMIT 50`, [id]),
       db.query(`SELECT at, admin, action, details FROM admin_log WHERE target = $1 ORDER BY at DESC LIMIT 50`, [`student ${id}`]),
-      db.one(sharingSql(true), [id]),
     ]);
     const [listening, sessions] = await Promise.all([
       db.query(
@@ -243,7 +196,7 @@ const actions = {
         `SELECT id, via, user_agent, created_at, last_seen_at, expires_at, ended_at FROM learn_sessions
           WHERE student_id = $1 ORDER BY last_seen_at DESC LIMIT 20`, [id]),
     ]);
-    return { student: describe(ctx, row, req), events, networks, outbox, history, sharing: sharing.assess(recent || {}), listening, sessions };
+    return { student: describe(ctx, row, req), outbox, history, listening, sessions };
   },
 
   // Create (no id) or update a student. On create, `cohort_id` (optional) enrols them at once.
@@ -348,8 +301,8 @@ const actions = {
     return { ended: ended.length, student: describe(await context(), await loadRow(id), req), target: `student ${id}` };
   },
 
-  // New link: the old sign-in link, every podcast feed and audio link stop working at once, and every device signed in
-  // to the student area is signed out (they sign in again with a code, or the new link).
+  // New sign-in link: the old one stops working at once, and every device signed in to the student area is signed out
+  // (they sign in again with a code, or the new link).
   async 'student-reset-link'(input, { req }) {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     await loadRow(id);
@@ -491,22 +444,20 @@ actions['podcast-overview'] = async function podcastOverview() {
             (SELECT count(*)::int FROM students) AS students,
             (SELECT count(DISTINCT en.student_id)::int FROM enrollments en JOIN students s ON s.id = en.student_id
               WHERE en.status = 'active' AND s.status = 'active') AS enrolled,
-            (SELECT count(*)::int FROM students WHERE first_seen_at IS NOT NULL) AS subscribed,
             (SELECT count(*)::int FROM ac_outbox WHERE status = 'pending') AS ac_pending,
             (SELECT count(*)::int FROM ac_outbox WHERE status = 'failed') AS ac_failed,
             (SELECT max(at) FROM webhook_log) AS last_webhook,
-            (SELECT max(at) FROM events WHERE kind = 'download') AS last_download,
             (SELECT count(DISTINCT student_id)::int FROM learn_sessions) AS learn_students,
             (SELECT count(DISTINCT student_id)::int FROM listening WHERE updated_at > now() - interval '7 days') AS learn_listening_7d,
             (SELECT count(*)::int FROM listening WHERE completed_at > now() - interval '7 days') AS learn_finished_7d,
             (SELECT max(updated_at) FROM listening) AS last_listen`);
-  row.sharing = (await sharingList()).length;
+  row.many_devices = (await manyDevices()).length;
   return { overview: row };
 };
 
-// Students whose last 7 days look like a shared link (Overview page). Read-only.
-actions['podcast-sharing'] = async function podcastSharing() {
-  return { students: await sharingList(), limits: sharing.LIMITS };
+// Students signed in on many devices lately (Overview page). Read-only.
+actions['learn-devices'] = async function learnDevices() {
+  return { students: await manyDevices(), limit: DEVICE_LIMIT };
 };
 
 const writes = ['student-save', 'students-status', 'students-enroll', 'enrollment-save', 'enrollments-status', 'enrollment-delete',

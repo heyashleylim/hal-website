@@ -6,7 +6,7 @@
  *   GET  /learn/login, POST        sign-in step 1: email → a 6-digit code by email (api/_lib/learn/auth.js, mail.js)
  *   POST /learn/verify             sign-in step 2: the code → session cookie (30 days from the last visit)
  *   GET  /learn/start/<token>      one-tap sign-in from the welcome email (PODCAST_LINK; old /podcast/<token> links redirect here)
- *   GET  /learn/help               how to sign in, save to the home screen, listen, use a podcast app (no sign-in needed)
+ *   GET  /learn/help               how to sign in, save to the home screen and listen (no sign-in needed)
  *   POST /learn/logout
  *   GET  /learn/<program>[?e=<guid>]  the player, chapters and modules of one program
  *   GET  /learn/audio/<guid>.<ext> the audio, checked against the session on every request (revoked/expired = 404)
@@ -121,8 +121,7 @@ async function program(req, res, student, slug, params) {
   const prog = await progress.forStudent(student.id);
   const wanted = params.get('e');
   const current = wanted ? (x.access.episodes.find((e) => e.episode.guid === wanted) || {}).episode : null;
-  const feedUrl = `${podcast.baseUrl(req)}/f/${student.token}/${x.show.slug}${podcast.linkQuery()}`;
-  return sendHtml(res, 200, pages.programPage({ show: x.show, access: x.access, progress: prog, current, feedUrl }));
+  return sendHtml(res, 200, pages.programPage({ show: x.show, access: x.access, progress: prog, current }));
 }
 
 // The episode a signed-in student may hear right now, or null.

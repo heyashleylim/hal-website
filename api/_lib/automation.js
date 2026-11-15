@@ -5,13 +5,12 @@
  *
  * Tags use underscores, like the rest of Ashley's AC tags. Per program (prefix = show.ac_tag_prefix, e.g. podcast_nsmb):
  *   <prefix>_enrolled            enrolled (from the webhook, or by hand with "Tell ActiveCampaign")  → welcome email
- *   <prefix>_subscribed          first time a podcast app fetched this program's feed (web listening also stops the
- *                                not_subscribed reminders below, without adding this tag)
- *   <prefix>_not_subscribed_3d   enrolled 3 days ago, an episode is out, still not subscribed       → reminder
+ *   <prefix>_subscribed          no longer added: it meant "a podcast app fetched the feed", retired 2026-11-15
+ *   <prefix>_not_subscribed_3d   enrolled 3 days ago, an episode is out, still nothing played in the student area → reminder
  *   <prefix>_not_subscribed_7d   same after 7 days
  *   <prefix>_epNN_released       week NN released for them (daily job, not for catch-up weeks)      → "new week" email
- *   <prefix>_epNN_downloaded     first download (podcast app) or first play (student area) of a week NN episode
- *   <prefix>_completed           every published Week episode downloaded or played
+ *   <prefix>_epNN_downloaded     first play of a week NN episode in the student area (name kept for Ashley's automations)
+ *   <prefix>_completed           every published Week episode played
  * Only "week" episodes count (not Q&A, Live or Bonus); several episodes of the same week give the tag once.
  *   <prefix>_expiring_30d        access ends within 30 days
  *   <prefix>_expired             access ended
@@ -98,10 +97,6 @@ async function resendWelcome(studentId, showId) {
   if (!student || !show) return;
   await enqueue({ op: 'fields', studentId, payload: { fields: { [linkField()]: pageUrl(student.token) } } });
   await enqueue({ op: 'tag_readd', studentId, showId, payload: { tag: tags(show).enrolled } });
-}
-
-async function onFirstFeed(studentId, show) {
-  await enqueue({ op: 'tag_add', studentId, showId: show.id, payload: { tag: tags(show).subscribed }, dedupe: `s${studentId}:p${show.id}:subscribed` });
 }
 
 async function onDownload(studentId, show, episode) {
@@ -219,7 +214,7 @@ async function dailyJob(now = new Date()) {
     db.query('SELECT * FROM shows'),
     db.query(`SELECT * FROM episodes WHERE status = 'published' AND blob_pathname IS NOT NULL`),
     db.query('SELECT cohort_id, episode_id, release_at FROM cohort_episode_dates'),
-    // Listening in a podcast app (the feed was fetched) or in the student area both count as "subscribed".
+    // Has listened in the student area (the podcast feed was retired on 2026-11-15; old feed events still count).
     db.query(`SELECT DISTINCT student_id, show_id FROM events WHERE kind = 'feed'
               UNION SELECT DISTINCT l.student_id, ep.show_id FROM listening l JOIN episodes ep ON ep.id = l.episode_id`),
   ]);
@@ -268,6 +263,6 @@ async function dailyJob(now = new Date()) {
 
 module.exports = {
   linkField, publicBase, pageUrl, acConfigured, tags, LINK_RESET_TAG, enqueue,
-  notifyEnrolled, pushNewLink, resendWelcome, onFirstFeed, onDownload, onRevokedByWebhook,
+  notifyEnrolled, pushNewLink, resendWelcome, onDownload, onRevokedByWebhook,
   processOutbox, backoffMs, dailyTags, dailyJob,
 };

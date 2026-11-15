@@ -73,7 +73,7 @@
     el.innerHTML = '<table class="admin-table"><thead><tr><th>Name</th><th>AC tag</th><th>Start</th><th>Status</th><th>Students</th><th>Access until</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       cohorts.map(function (c) {
         return '<tr><td>' + Admin.esc(c.name) + '</td><td><code>' + Admin.esc(c.ac_tag) + '</code></td><td class="num">' + Admin.kst(c.start_date + 'T00:00:00+09:00', false) + '</td>' +
-          '<td>' + STATUS[c.status] + '</td><td class="num">' + c.subscribed + ' / ' + c.students + ' subscribed' + (c.revoked ? ' <span class="muted">(' + c.revoked + ' revoked)</span>' : '') + '</td>' +
+          '<td>' + STATUS[c.status] + '</td><td class="num">' + c.subscribed + ' / ' + c.students + ' signed in' + (c.revoked ? ' <span class="muted">(' + c.revoked + ' revoked)</span>' : '') + '</td>' +
           '<td class="num">' + Admin.lastDay(c.expires_at) + (c.access_days ? ' <span class="muted">(' + c.access_days + ' days)</span>' : '') + '</td>' +
           '<td><div class="admin-actions"><button data-tip="See when each episode is released for this cohort, and change a date for this cohort only" class="btn-ghost" type="button" data-schedule="' + c.id + '">Schedule</button><button data-tip="Change this cohort: name, start date or ActiveCampaign tag" class="btn-ghost" type="button" data-edit="' + c.id + '">Edit</button></div></td></tr>';
       }).join('') + '</tbody></table>';

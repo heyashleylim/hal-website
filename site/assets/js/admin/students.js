@@ -56,9 +56,8 @@
     });
   }
 
-  function behind(s) { return s.state === 'active' && s.heard < s.released; }
+  function behind(s) { return s.state === 'active' && s.finished < s.released; }
   function usesLearn(s) { return Boolean(s.last_visit_at); }
-  function usesApp(s) { return Boolean(s.first_seen_at); }
   function minutes(sec) { var m = Math.round((sec || 0) / 60); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; }
 
   function filtered() {
@@ -68,9 +67,8 @@
       if (sh && !s.enrollments.some(function (e) { return String(e.show.id) === sh; })) return false;
       if (c && !s.enrollments.some(function (e) { return String(e.cohort.id) === c; })) return false;
       if (st && s.state !== st) return false;
-      if (ls === 'never' && (usesLearn(s) || usesApp(s))) return false;
+      if (ls === 'never' && usesLearn(s)) return false;
       if (ls === 'learn' && !usesLearn(s)) return false;
-      if (ls === 'app' && !usesApp(s)) return false;
       if (ls === 'behind' && !behind(s)) return false;
       return true;
     });
@@ -93,14 +91,14 @@
     } else {
       var allChecked = rows.every(function (s) { return selected.has(s.id); });
       $('list').innerHTML = '<table class="admin-table"><thead><tr><th><input type="checkbox" id="check-all" aria-label="Select all shown"' + (allChecked ? ' checked' : '') + '></th>' +
-        '<th>Student</th><th>Enrolments</th><th>Access</th><th>Last visit</th><th>Heard</th><th>Podcast app</th><th>Until</th></tr></thead><tbody>' +
+        '<th>Student</th><th>Enrolments</th><th>Access</th><th>Last visit</th><th>Finished</th><th>Listened</th><th>Until</th></tr></thead><tbody>' +
         rows.map(function (s) {
           return '<tr data-id="' + s.id + '"><td><input type="checkbox" data-check aria-label="Select ' + Admin.esc(s.email) + '"' + (selected.has(s.id) ? ' checked' : '') + '></td>' +
             '<td><button data-tip="Open this student" class="linkish" type="button" data-open>' + Admin.esc(s.name || s.email) + '</button>' + (s.name ? '<div class="muted small">' + Admin.esc(s.email) + '</div>' : '') + '</td>' +
             '<td class="chips">' + enrolChips(s) + '</td><td>' + STATE[s.state] + '</td>' +
             '<td class="num">' + (s.last_visit_at ? Admin.kst(s.last_visit_at, false) : '<span class="muted">Never</span>') + '</td>' +
-            '<td class="num" title="Finished in the student area or downloaded by a podcast app, out of the episodes released for them">' + s.heard + ' / ' + s.released + (behind(s) ? ' <span class="badge badge--warn">behind</span>' : '') + '</td>' +
-            '<td class="small">' + (s.apps.length ? Admin.esc(s.apps.join(', ')) : '–') + '</td>' +
+            '<td class="num" title="Episodes finished (90%) out of the episodes released for them">' + s.finished + ' / ' + s.released + (behind(s) ? ' <span class="badge badge--warn">behind</span>' : '') + '</td>' +
+            '<td class="num">' + (s.listened_seconds ? minutes(s.listened_seconds) : '–') + '</td>' +
             '<td class="num">' + Admin.lastDay(s.expires_at) + '</td></tr>';
         }).join('') + '</tbody></table>';
     }
@@ -138,7 +136,7 @@
     var notify = $('bulk-notify').checked;
     bulk('students-enroll', { cohort_id: c.value, notify: notify }, 'Enrol ' + selected.size + ' student(s) in ' + c.options[c.selectedIndex].text + '?' + (notify ? ' ActiveCampaign gets their link and the “enrolled” tag (this can send the welcome email).' : ''));
   });
-  $('bulk-revoke').addEventListener('click', function () { bulk('students-status', { status: 'revoked' }, 'Revoke all access (every program) for ' + selected.size + ' student(s)? Their podcasts stop working within 5 minutes.'); });
+  $('bulk-revoke').addEventListener('click', function () { bulk('students-status', { status: 'revoked' }, 'Revoke all access (every program) for ' + selected.size + ' student(s)? They are signed out of the student area at once.'); });
   $('bulk-restore').addEventListener('click', function () { bulk('students-status', { status: 'active' }); });
   $('bulk-clear').addEventListener('click', function () { selected.clear(); render(); });
 
@@ -178,13 +176,6 @@
 
   function fact(label, value) { return '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>'; }
 
-  function eventText(e) {
-    var what = e.kind === 'feed' ? 'Podcast app checked the feed' :
-      'Downloaded ' + (e.episode_kind ? Admin.episodeLabel({ kind: e.episode_kind, number: e.number }) : 'an episode') + (e.title ? ' · ' + Admin.esc(e.title) : '');
-    return '<li><span class="num">' + Admin.kst(e.at) + '</span> ' + (e.show_title && shows.length > 1 ? '<strong>' + Admin.esc(e.show_title) + '</strong> · ' : '') + what +
-      (e.app ? ' <span class="muted">· ' + Admin.esc(e.app) + (e.country ? ', ' + Admin.esc(e.country) : '') + '</span>' : '') + '</li>';
-  }
-
   function enrollmentRows(s) {
     if (!s.enrollments.length) return '<p class="muted">Not enrolled in any cohort: the student area shows them no program yet.</p>';
     return '<table class="admin-table"><thead><tr><th>Program</th><th>Cohort</th><th>Status</th><th>Own start date</th><th>Listen until</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
@@ -209,7 +200,6 @@
       $('detail-title').textContent = s.name ? s.name + ' · ' + s.email : s.email;
       $('d-revoke').textContent = s.status === 'revoked' ? 'Restore access' : 'Revoke all access';
       $('d-link').value = s.signin_url;
-      var n = r.networks || {};
       $('d-facts').innerHTML =
         fact('Access', STATE[s.state] + (s.revoked_at ? ' <span class="muted">since ' + Admin.kst(s.revoked_at, false) + '</span>' : '')) +
         s.shows.map(function (x) {
@@ -217,13 +207,9 @@
         }).join('') +
         fact('Student area', s.last_visit_at ? 'Last visit ' + Admin.kst(s.last_visit_at) + ' · ' + s.devices + ' device' + (s.devices === 1 ? '' : 's') + ' signed in' : 'Never signed in') +
         fact('Listened', s.started ? s.finished + ' finished · ' + s.started + ' started · ' + minutes(s.listened_seconds) + ' in total' : 'Nothing yet') +
-        fact('Podcast app', s.first_seen_at ? 'Subscribed ' + Admin.kst(s.first_seen_at, false) + ' · ' + s.downloaded + ' downloaded' + (s.apps.length ? ' · ' + Admin.esc(s.apps.join(', ')) : '') : 'Not used') +
-        fact('Download networks', (n.networks_7d || 0) + ' in the last 7 days · ' + (n.networks_all || 0) + ' in total' + (n.countries && n.countries.length ? ' · ' + Admin.esc(n.countries.join(', ')) : '') +
-          (r.sharing && r.sharing.suspect ? ' <span class="badge badge--warn">possible link sharing</span><br><span class="small muted">Last 7 days: ' + Admin.esc(r.sharing.reasons.join(' · ')) + '</span>' : '')) +
         fact('Added', Admin.kst(s.created_at, false) + (s.ac_contact_id ? ' · AC contact ' + Admin.esc(s.ac_contact_id) : '')) +
         (s.notes ? fact('Notes', Admin.esc(s.notes)) : '');
       $('d-enrollments').innerHTML = enrollmentRows(s);
-      $('d-events').innerHTML = r.events.length ? r.events.map(eventText).join('') : '<li class="muted">Nothing: the student hasn’t added the podcast to an app.</li>';
       $('d-listening').innerHTML = r.listening.length ? '<table class="admin-table"><thead><tr><th>Episode</th><th>Title</th><th class="num">Reached</th><th>Finished</th><th class="num">Listened</th><th>Last played</th></tr></thead><tbody>' +
         r.listening.map(function (l) {
           var pct = l.duration_seconds ? Math.min(100, Math.round(100 * l.furthest_seconds / l.duration_seconds)) : null;
@@ -262,7 +248,7 @@
         .then(function () { return refreshDetail('Dates saved.'); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
     } else if (ev.target.closest('[data-en-status]')) {
       var status = ev.target.closest('[data-en-status]').dataset.enStatus;
-      if (status === 'revoked' && !confirm('Revoke this enrolment? If it was their only one in this program, its podcast stops working for them within 5 minutes.')) return;
+      if (status === 'revoked' && !confirm('Revoke this enrolment? If it was their only one in this program, they can no longer listen to it.')) return;
       Admin.post('enrollments-status', { ids: [id], status: status }).then(function () { return refreshDetail(); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
     } else if (ev.target.closest('[data-en-delete]')) {
       if (!confirm('Remove this enrolment? To keep a record, use Revoke instead.')) return;
@@ -284,14 +270,14 @@
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
   $('d-reset').addEventListener('click', function () {
-    if (!current || !confirm('Give ' + current.email + ' a new link? The old sign-in link, the podcasts in their apps and every device signed in to the student area stop working; they sign in again with a code or the new link.')) return;
+    if (!current || !confirm('Give ' + current.email + ' a new sign-in link? The old link and every device signed in to the student area stop working; they sign in again with a code or the new link.')) return;
     Admin.post('student-reset-link', { id: current.id }).then(function (r) { return refreshDetail('New link created.' + (r.ac ? acNote(r.ac) + ' Their AC field has the new link and the tag podcast-link-reset was added.' : ' ActiveCampaign isn’t connected: send the new link yourself.')); })
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
   $('d-revoke').addEventListener('click', function () {
     if (!current) return;
     var revoke = current.status !== 'revoked';
-    if (revoke && !confirm('Revoke all access (every program) for ' + current.email + '? Their podcasts stop working within 5 minutes.')) return;
+    if (revoke && !confirm('Revoke all access (every program) for ' + current.email + '? They are signed out of the student area at once.')) return;
     Admin.post('students-status', { ids: [current.id], status: revoke ? 'revoked' : 'active' }).then(function () { return refreshDetail(); })
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
@@ -385,11 +371,10 @@
   function csvCell(v) { v = v == null ? '' : String(v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   $('export').addEventListener('click', function () {
     var rows = filtered();
-    var head = ['email', 'name', 'enrolments', 'access', 'last_visit', 'released', 'heard', 'finished_in_student_area', 'podcast_app_since', 'apps', 'listen_until', 'sign_in_link'];
+    var head = ['email', 'name', 'enrolments', 'access', 'last_visit', 'released', 'finished', 'minutes_listened', 'listen_until', 'sign_in_link'];
     var lines = [head.join(',')].concat(rows.map(function (s) {
       return [s.email, s.name, s.enrollments.map(function (e) { return e.show.slug + ':' + e.cohort.name + (e.state !== 'active' ? ' (' + STATE_TEXT[e.state] + ')' : ''); }).join(' | '),
-        STATE_TEXT[s.state], s.last_visit_at ? Admin.kstParts(s.last_visit_at).date : '', s.released, s.heard, s.finished,
-        s.first_seen_at ? Admin.kstParts(s.first_seen_at).date : '', s.apps.join(' '),
+        STATE_TEXT[s.state], s.last_visit_at ? Admin.kstParts(s.last_visit_at).date : '', s.released, s.finished, Math.round(s.listened_seconds / 60),
         s.expires_at ? Admin.kstParts(new Date(new Date(s.expires_at).getTime() - 1)).date : '', s.signin_url].map(csvCell).join(',');
     }));
     var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });

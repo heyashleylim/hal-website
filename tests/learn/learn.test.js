@@ -206,15 +206,16 @@ test('first sign-in: the home page explains how to save it on the home screen, f
   assert.match(later, /<link rel="manifest" href="\/learn.webmanifest">/);
 });
 
-test('help page and the podcast-app section that replaced the personal page', () => {
+test('help page, and no podcast feed anywhere in the student area (retired 2026-11-15)', () => {
   const help = pages.helpPage();
-  for (const id of ['login', 'app', 'listen', 'podcast-apps', 'faq']) assert.match(help, new RegExp(`id="${id}"`));
+  for (const id of ['login', 'app', 'listen', 'faq']) assert.match(help, new RegExp(`id="${id}"`));
+  assert.ok(!help.includes('id="podcast-apps"'));
+  assert.match(help, /오프라인/);
   assert.match(help, /30일/);
   const e = ep(1, 1);
   const access = { state: 'active', episodes: [{ episode: e }], scheduled: [{ episode: e, releaseAt: new Date(0) }] };
-  const html = pages.programPage({ show, access, progress: new Map(), feedUrl: 'https://www.ashleylim.com/f/TOKEN/nsmb' });
-  assert.match(html, /<details class="pod__card learn__feed">/);
-  assert.match(html, /href="podcast:\/\/www\.ashleylim\.com\/f\/TOKEN\/nsmb"/);
+  const html = pages.programPage({ show, access, progress: new Map() });
+  assert.ok(!/learn__feed|podcast:\/\/|\/f\//.test(html), 'no feed link or podcast-app button');
   assert.match(html, /<h2 class="pod__h2" id="chapters-title">Chapters<\/h2>/);
 });
 

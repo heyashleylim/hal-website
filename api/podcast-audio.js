@@ -1,36 +1,16 @@
 /*
- * GET/HEAD /a/<token>/<episode guid>.<ext> → the episode's audio, streamed from the private Blob store
- * (rewrite in vercel.json). The guid identifies the episode and therefore the show.
- *
- * Access is checked on every request: the student must have access to that show and the episode be released for them,
- * otherwise 404. Byte ranges are passed through to Blob storage (Apple Podcasts requires them).
- * A download is logged when a request starts at byte 0 and isn't a tiny probe (apps first ask for
- * a couple of bytes to read the file size); counting rules are applied later in analytics.
- *
- * Also serves the show artwork at /a/art/<slug>.<ext> (public, cached).
+ * GET/HEAD /a/art/<show slug>.<jpg|png> → the program's cover image (public, cached): used by the student area and
+ * its lock-screen info. The podcast feed's audio links (/a/<token>/<guid>.<ext>) were retired with the feed on
+ * 2026-11-15 and now answer 404.
  */
 const { Readable } = require('node:stream');
 const blob = require('@vercel/blob');
 const db = require('./_lib/db.js');
-const podcast = require('./_lib/podcast.js');
-const automation = require('./_lib/automation.js');
-const { extension } = require('./_lib/rss.js');
-const { streamEpisode } = require('./_lib/audio-stream.js');
-
-const PROBE_BYTES = 64 * 1024;
 
 function notFound(res) {
   res.statusCode = 404;
   res.setHeader('Cache-Control', 'no-store');
   res.end('Not found');
-}
-
-// Should this request count as a download? (no Range, or a Range from 0 that asks for more than a probe)
-function isDownloadStart(range) {
-  if (!range) return true;
-  const m = /^bytes=(\d+)-(\d*)$/.exec(range.trim());
-  if (!m || m[1] !== '0') return false;
-  return m[2] === '' || Number(m[2]) + 1 >= PROBE_BYTES;
 }
 
 // GET/HEAD /a/art/<show slug>.<jpg|png> → the show's cover image (public: podcast apps fetch it without a token).
@@ -77,43 +57,9 @@ module.exports = async function handler(req, res) {
     res.setHeader('Allow', 'GET, HEAD');
     return res.end();
   }
-
   const params = new URL(req.url, 'http://local').searchParams;
-  const token = params.get('token') || '';
-  if (token === 'art') return artwork(req, res, params.get('file') || '');
-  const m = /^([0-9a-f-]{36})\.([a-z0-9]{2,4})$/.exec(params.get('file') || '');
-  if (!m) return notFound(res);
-
-  let data, episode;
-  try {
-    data = await podcast.loadStudent(token);
-    if (!data) return notFound(res);
-    episode = await db.one(`SELECT * FROM episodes WHERE guid = $1`, [m[1]]);
-    const entry = episode && data.shows.find((x) => x.show.id === episode.show_id);
-    if (!entry) return notFound(res);
-    const access = await podcast.showAccess(data.student, entry);
-    if (access.state !== 'active' || !access.episodes.some((e) => e.episode.id === episode.id)) return notFound(res);
-  } catch (err) {
-    console.error('podcast-audio', err);
-    res.statusCode = 503;
-    res.setHeader('Retry-After', '60');
-    return res.end();
-  }
-  if (extension(episode.mime_type) !== m[2]) return notFound(res);
-
-  if (req.method !== 'HEAD' && isDownloadStart(req.headers.range)) {
-    try {
-      const client = podcast.clientInfo(req);
-      await podcast.logEvent({ studentId: data.student.id, showId: episode.show_id, episodeId: episode.id, kind: 'download', client });
-      if (client.app !== 'Bot' && !client.app.endsWith('(server)')) {
-        const entry = data.shows.find((x) => x.show.id === episode.show_id);
-        await automation.onDownload(data.student.id, entry.show, episode).catch((err) => console.error('automation', err.message)); // queued for AC
-      }
-    } catch (err) {
-      console.error('podcast-audio log', err.message);
-    }
-  }
-  return streamEpisode(req, res, episode);
+  if (params.get('token') === 'art') return artwork(req, res, params.get('file') || '');
+  // The podcast feed's audio links (/a/<token>/<guid>.<ext>) were retired with the feed (2026-11-15): students
+  // listen in the student area, whose audio is /learn/audio/<guid>.<ext> (checked against the session).
+  return notFound(res);
 };
-
-module.exports.isDownloadStart = isDownloadStart;

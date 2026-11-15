@@ -50,16 +50,16 @@
         </select>
       </label>
       <label class="admin-form__wide">Title<input name="title" maxlength="300" required></label>
-      <label class="admin-form__wide">Show notes <span class="hint">shown under the episode in podcast apps</span><textarea name="notes" maxlength="10000"></textarea></label>
+      <label class="admin-form__wide">Show notes <span class="hint">not shown to students at the moment</span><textarea name="notes" maxlength="10000"></textarea></label>
       <label class="admin-form__wide">Audio file <span class="hint">MP3 or M4A, up to 500 MB. Use the files Podcast Studio exports (128 kbps mono).</span><input name="file" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a"></label>
       <p class="admin-form__wide muted" id="current-audio" hidden></p>
       <label class="admin-form__wide" id="chapters-field" hidden>Chapters <span class="hint">shown in the student area’s player. One per line: time, then title (e.g. 12:30 신경계가 먼저인 이유). Read from the MP3 each time a new file is uploaded.</span><textarea name="chapters" rows="8" spellcheck="false"></textarea></label>
       <p class="admin-form__wide" id="chapters-actions" hidden><button data-tip="Read the chapters again from this episode’s MP3 file (the ones made in Podcast Studio), replacing the list above" class="btn-ghost" type="button" id="reread">Read chapters from the file</button></p>
       <div class="progress" hidden><span></span></div>
       <div class="admin-form__actions">
-        <button data-tip="Save this episode. Published episodes appear in students’ feeds on their release day" class="btn-sm" type="submit">Save</button>
+        <button data-tip="Save this episode. Published episodes appear in the student area on their release day" class="btn-sm" type="submit">Save</button>
         <button data-tip="Close this form without saving anything" class="btn-ghost" type="button" id="cancel">Cancel</button>
-        <button data-tip="Delete this episode and its audio file. It disappears from every student’s feed" class="btn-danger" type="button" id="delete" hidden>Delete episode</button>
+        <button data-tip="Delete this episode and its audio file. It disappears from the student area for everyone" class="btn-danger" type="button" id="delete" hidden>Delete episode</button>
       </div>
       <p class="admin-form__result" role="status" aria-live="polite"></p>
     </form>
