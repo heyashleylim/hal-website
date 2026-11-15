@@ -129,3 +129,14 @@ test('own start date and extended access on one enrolment', () => {
   assert.equal(a.state, 'active');
   assert.equal(a.episodes.length, 12);
 });
+
+test('a fixed release date is the same for every cohort; a cohort’s own date still wins', () => {
+  const show = { release_time: '09:00', timezone: 'Asia/Seoul' };
+  const fixed = { id: 99, day_offset: 0, status: 'published', release_at: '2026-12-01T11:00:00.000Z' };
+  for (const start of ['2026-09-01', '2026-11-20', '2027-03-01']) {
+    assert.equal(r.releaseAt({ show, cohort: { start_date: start }, listener: {}, episode: fixed }).toISOString(), '2026-12-01T11:00:00.000Z');
+  }
+  assert.equal(r.releaseAt({ show, cohort: { start_date: '2026-09-01' }, listener: {}, episode: fixed, override: new Date('2026-12-05T00:00:00Z') }).toISOString(), '2026-12-05T00:00:00.000Z');
+  assert.equal(r.releaseAt({ show, cohort: { start_date: '2026-09-01' }, listener: { start_override: '2026-10-01' }, episode: fixed }).toISOString(), '2026-12-01T11:00:00.000Z', 'own schedule: still the fixed date');
+  assert.equal(r.releaseAt({ show, cohort: { start_date: '2026-09-01' }, listener: {}, episode: { ...fixed, status: 'draft' } }), null);
+});

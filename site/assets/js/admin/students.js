@@ -1,4 +1,4 @@
-/* Admin · Podcast section: Students page — people across all programs, their enrolments, bulk actions, CSV import/export,
+/* Admin · Learning section: Students page — people across all programs, their enrolments, bulk actions, CSV import/export,
    and Sync from ActiveCampaign. */
 (function () {
   var $ = function (id) { return document.getElementById(id); };
@@ -56,7 +56,9 @@
     });
   }
 
-  function behind(s) { return s.state === 'active' && s.downloaded < s.released; }
+  function behind(s) { return s.state === 'active' && s.finished < s.released; }
+  function usesLearn(s) { return Boolean(s.last_visit_at); }
+  function minutes(sec) { var m = Math.round((sec || 0) / 60); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; }
 
   function filtered() {
     var q = $('f-q').value.trim().toLowerCase(), sh = $('f-show').value, c = $('f-cohort').value, st = $('f-state').value, ls = $('f-listen').value;
@@ -65,8 +67,8 @@
       if (sh && !s.enrollments.some(function (e) { return String(e.show.id) === sh; })) return false;
       if (c && !s.enrollments.some(function (e) { return String(e.cohort.id) === c; })) return false;
       if (st && s.state !== st) return false;
-      if (ls === 'never' && s.first_seen_at) return false;
-      if (ls === 'subscribed' && !s.first_seen_at) return false;
+      if (ls === 'never' && usesLearn(s)) return false;
+      if (ls === 'learn' && !usesLearn(s)) return false;
       if (ls === 'behind' && !behind(s)) return false;
       return true;
     });
@@ -89,14 +91,14 @@
     } else {
       var allChecked = rows.every(function (s) { return selected.has(s.id); });
       $('list').innerHTML = '<table class="admin-table"><thead><tr><th><input type="checkbox" id="check-all" aria-label="Select all shown"' + (allChecked ? ' checked' : '') + '></th>' +
-        '<th>Student</th><th>Enrolments</th><th>Access</th><th>Subscribed</th><th>Downloaded</th><th>Apps</th><th>Until</th></tr></thead><tbody>' +
+        '<th>Student</th><th>Enrolments</th><th>Access</th><th>Last visit</th><th>Finished</th><th>Listened</th><th>Until</th></tr></thead><tbody>' +
         rows.map(function (s) {
           return '<tr data-id="' + s.id + '"><td><input type="checkbox" data-check aria-label="Select ' + Admin.esc(s.email) + '"' + (selected.has(s.id) ? ' checked' : '') + '></td>' +
             '<td><button data-tip="Open this student" class="linkish" type="button" data-open>' + Admin.esc(s.name || s.email) + '</button>' + (s.name ? '<div class="muted small">' + Admin.esc(s.email) + '</div>' : '') + '</td>' +
             '<td class="chips">' + enrolChips(s) + '</td><td>' + STATE[s.state] + '</td>' +
-            '<td class="num">' + (s.first_seen_at ? Admin.kst(s.first_seen_at, false) : '<span class="muted">Not yet</span>') + '</td>' +
-            '<td class="num">' + s.downloaded + ' / ' + s.released + (behind(s) ? ' <span class="badge badge--warn">behind</span>' : '') + '</td>' +
-            '<td class="small">' + (s.apps.length ? Admin.esc(s.apps.join(', ')) : '–') + '</td>' +
+            '<td class="num">' + (s.last_visit_at ? Admin.kst(s.last_visit_at, false) : '<span class="muted">Never</span>') + '</td>' +
+            '<td class="num" title="Episodes finished (90%) out of the episodes released for them">' + s.finished + ' / ' + s.released + (behind(s) ? ' <span class="badge badge--warn">behind</span>' : '') + '</td>' +
+            '<td class="num">' + (s.listened_seconds ? minutes(s.listened_seconds) : '–') + '</td>' +
             '<td class="num">' + Admin.lastDay(s.expires_at) + '</td></tr>';
         }).join('') + '</tbody></table>';
     }
@@ -134,7 +136,7 @@
     var notify = $('bulk-notify').checked;
     bulk('students-enroll', { cohort_id: c.value, notify: notify }, 'Enrol ' + selected.size + ' student(s) in ' + c.options[c.selectedIndex].text + '?' + (notify ? ' ActiveCampaign gets their link and the “enrolled” tag (this can send the welcome email).' : ''));
   });
-  $('bulk-revoke').addEventListener('click', function () { bulk('students-status', { status: 'revoked' }, 'Revoke all access (every program) for ' + selected.size + ' student(s)? Their podcasts stop working within 5 minutes.'); });
+  $('bulk-revoke').addEventListener('click', function () { bulk('students-status', { status: 'revoked' }, 'Revoke all access (every program) for ' + selected.size + ' student(s)? They are signed out of the student area at once.'); });
   $('bulk-restore').addEventListener('click', function () { bulk('students-status', { status: 'active' }); });
   $('bulk-clear').addEventListener('click', function () { selected.clear(); render(); });
 
@@ -164,17 +166,18 @@
   });
 
   // ---------- detail ----------
-  function fact(label, value) { return '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>'; }
-
-  function eventText(e) {
-    var what = e.kind === 'feed' ? 'Podcast app checked the feed' :
-      'Downloaded ' + (e.episode_kind === 'bonus' ? 'bonus' : e.number ? 'module ' + e.number : 'an episode') + (e.title ? ' · ' + Admin.esc(e.title) : '');
-    return '<li><span class="num">' + Admin.kst(e.at) + '</span> ' + (e.show_title && shows.length > 1 ? '<strong>' + Admin.esc(e.show_title) + '</strong> · ' : '') + what +
-      (e.app ? ' <span class="muted">· ' + Admin.esc(e.app) + (e.country ? ', ' + Admin.esc(e.country) : '') + '</span>' : '') + '</li>';
+  // "iPhone · Safari", "Mac · Chrome", "Android · Chrome", "Home Screen app" is not knowable from the user agent.
+  function device(ua) {
+    ua = ua || '';
+    var os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac OS X/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'Other';
+    var br = /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /CriOS|Chrome\//.test(ua) && !/Edg/.test(ua) ? 'Chrome' : /Edg/.test(ua) ? 'Edge' : /Firefox|FxiOS/.test(ua) ? 'Firefox' : /Safari/.test(ua) ? 'Safari' : '';
+    return os + (br ? ' · ' + br : '');
   }
 
+  function fact(label, value) { return '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>'; }
+
   function enrollmentRows(s) {
-    if (!s.enrollments.length) return '<p class="muted">Not enrolled in any cohort: their page shows nothing to subscribe to.</p>';
+    if (!s.enrollments.length) return '<p class="muted">Not enrolled in any cohort: the student area shows them no program yet.</p>';
     return '<table class="admin-table"><thead><tr><th>Program</th><th>Cohort</th><th>Status</th><th>Own start date</th><th>Listen until</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       s.enrollments.map(function (e) {
         return '<tr data-enrollment="' + e.id + '"><td>' + Admin.esc(e.show.title) + '</td><td>' + Admin.esc(e.cohort.name) + '</td><td>' + STATE[e.state] + '</td>' +
@@ -196,27 +199,34 @@
       var s = r.student; current = s;
       $('detail-title').textContent = s.name ? s.name + ' · ' + s.email : s.email;
       $('d-revoke').textContent = s.status === 'revoked' ? 'Restore access' : 'Revoke all access';
-      $('d-link').value = s.page_url;
-      var n = r.networks || {};
+      $('d-link').value = s.signin_url;
       $('d-facts').innerHTML =
         fact('Access', STATE[s.state] + (s.revoked_at ? ' <span class="muted">since ' + Admin.kst(s.revoked_at, false) + '</span>' : '')) +
         s.shows.map(function (x) {
           return fact(Admin.esc(x.title), STATE[x.state] + ' · ' + x.released + ' released' + (x.next_release ? ' · next ' + Admin.kst(x.next_release) : '') + (x.expires_at ? ' · until ' + Admin.lastDay(x.expires_at) : ''));
         }).join('') +
-        fact('Downloaded', s.downloaded + ' episode' + (s.downloaded === 1 ? '' : 's')) +
-        fact('Subscribed', s.first_seen_at ? Admin.kst(s.first_seen_at) : 'Not yet') +
-        fact('Last app activity', s.last_seen_at ? Admin.kst(s.last_seen_at) : '–') +
-        fact('Apps', s.apps.length ? Admin.esc(s.apps.join(', ')) : '–') +
-        fact('Download networks', (n.networks_7d || 0) + ' in the last 7 days · ' + (n.networks_all || 0) + ' in total' + (n.countries && n.countries.length ? ' · ' + Admin.esc(n.countries.join(', ')) : '') +
-          (r.sharing && r.sharing.suspect ? ' <span class="badge badge--warn">possible link sharing</span><br><span class="small muted">Last 7 days: ' + Admin.esc(r.sharing.reasons.join(' · ')) + '</span>' : '')) +
+        fact('Student area', s.last_visit_at ? 'Last visit ' + Admin.kst(s.last_visit_at) + ' · ' + s.devices + ' device' + (s.devices === 1 ? '' : 's') + ' signed in' : 'Never signed in') +
+        fact('Listened', s.started ? s.finished + ' finished · ' + s.started + ' started · ' + minutes(s.listened_seconds) + ' in total' : 'Nothing yet') +
         fact('Added', Admin.kst(s.created_at, false) + (s.ac_contact_id ? ' · AC contact ' + Admin.esc(s.ac_contact_id) : '')) +
         (s.notes ? fact('Notes', Admin.esc(s.notes)) : '');
       $('d-enrollments').innerHTML = enrollmentRows(s);
-      $('d-events').innerHTML = r.events.length ? r.events.map(eventText).join('') : '<li class="muted">Nothing yet: the student hasn’t added a podcast to an app.</li>';
+      $('d-listening').innerHTML = r.listening.length ? '<table class="admin-table"><thead><tr><th>Episode</th><th>Title</th><th class="num">Reached</th><th>Finished</th><th class="num">Listened</th><th>Last played</th></tr></thead><tbody>' +
+        r.listening.map(function (l) {
+          var pct = l.duration_seconds ? Math.min(100, Math.round(100 * l.furthest_seconds / l.duration_seconds)) : null;
+          return '<tr><td>' + Admin.esc(Admin.episodeLabel(l)) + (shows.length > 1 ? '<div class="muted small">' + Admin.esc(l.show_title) + '</div>' : '') + '</td><td>' + Admin.esc(l.title) + '</td>' +
+            '<td class="num">' + (pct == null ? '–' : pct + '%') + '</td><td>' + (l.completed_at ? '<span class="badge badge--ok">' + Admin.kst(l.completed_at, false) + '</span>' : '<span class="muted">–</span>') + '</td>' +
+            '<td class="num">' + minutes(l.listened_seconds) + '</td><td class="small">' + Admin.kst(l.updated_at) + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<p class="muted">Nothing played in the student area yet.</p>';
+      $('d-sessions').innerHTML = r.sessions.length ? '<table class="admin-table"><thead><tr><th>Device</th><th>Signed in</th><th>Last visit</th><th>State</th></tr></thead><tbody>' +
+        r.sessions.map(function (x) {
+          var live = !x.ended_at && new Date(x.expires_at) > new Date();
+          return '<tr><td class="small">' + Admin.esc(device(x.user_agent)) + '</td><td class="small">' + Admin.kst(x.created_at) + ' · ' + (x.via === 'link' ? 'email link' : 'code') + '</td>' +
+            '<td class="small">' + Admin.kst(x.last_seen_at) + '</td><td>' + (live ? '<span class="badge badge--ok">Signed in</span>' : '<span class="badge">' + (x.ended_at ? 'Signed out' : 'Expired') + '</span>') + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<p class="muted">Never signed in.</p>';
       $('d-ac').innerHTML = r.outbox.length ? '<ol class="timeline">' + r.outbox.map(function (o) {
         return '<li><span class="num">' + Admin.kst(o.created_at) + '</span> ' + Admin.esc(o.op) + ' ' + Admin.esc(JSON.stringify(o.payload)) + ' · ' + Admin.esc(o.status) + (o.last_error ? ' <span class="is-error">' + Admin.esc(o.last_error) + '</span>' : '') + '</li>';
       }).join('') + '</ol>' : '<p class="muted">Nothing sent to ActiveCampaign yet.</p>';
-      $('d-ac-actions').innerHTML = '<button data-tip="Put this student’s personal link in their PODCAST_LINK field in ActiveCampaign" class="btn-ghost" type="button" data-ac-push>Send link to AC</button>' +
+      $('d-ac-actions').innerHTML = '<button data-tip="Put this student’s sign-in link in their PODCAST_LINK field in ActiveCampaign" class="btn-ghost" type="button" data-ac-push>Send link to AC</button>' +
         s.shows.map(function (x) { return '<button data-tip="Remove and add the ‘enrolled’ tag again in ActiveCampaign, so your welcome automation can send the email again" class="btn-ghost" type="button" data-ac-welcome="' + x.id + '">Resend welcome · ' + Admin.esc(x.title) + '</button>'; }).join('');
       $('d-history').innerHTML = r.history.length ? r.history.map(function (h) {
         return '<li><span class="num">' + Admin.kst(h.at) + '</span> ' + Admin.esc(h.action) + ' <span class="muted">by ' + Admin.esc(h.admin) + '</span></li>';
@@ -238,7 +248,7 @@
         .then(function () { return refreshDetail('Dates saved.'); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
     } else if (ev.target.closest('[data-en-status]')) {
       var status = ev.target.closest('[data-en-status]').dataset.enStatus;
-      if (status === 'revoked' && !confirm('Revoke this enrolment? If it was their only one in this program, its podcast stops working for them within 5 minutes.')) return;
+      if (status === 'revoked' && !confirm('Revoke this enrolment? If it was their only one in this program, they can no longer listen to it.')) return;
       Admin.post('enrollments-status', { ids: [id], status: status }).then(function () { return refreshDetail(); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
     } else if (ev.target.closest('[data-en-delete]')) {
       if (!confirm('Remove this enrolment? To keep a record, use Revoke instead.')) return;
@@ -254,15 +264,20 @@
   });
 
   $('d-edit').addEventListener('click', function () { if (current) openEditor(current); });
+  $('d-signout').addEventListener('click', function () {
+    if (!current || !confirm('Sign ' + current.email + ' out of the student area on every device? They sign in again with a code.')) return;
+    Admin.post('student-sign-out', { id: current.id }).then(function (r) { return refreshDetail(r.ended + ' device' + (r.ended === 1 ? '' : 's') + ' signed out.'); })
+      .catch(function (err) { Admin.say($('d-out'), err.message, true); });
+  });
   $('d-reset').addEventListener('click', function () {
-    if (!current || !confirm('Give ' + current.email + ' a new personal link? The old link and every podcast already added to their apps stop working; they must subscribe again with the new link.')) return;
+    if (!current || !confirm('Give ' + current.email + ' a new sign-in link? The old link and every device signed in to the student area stop working; they sign in again with a code or the new link.')) return;
     Admin.post('student-reset-link', { id: current.id }).then(function (r) { return refreshDetail('New link created.' + (r.ac ? acNote(r.ac) + ' Their AC field has the new link and the tag podcast-link-reset was added.' : ' ActiveCampaign isn’t connected: send the new link yourself.')); })
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
   $('d-revoke').addEventListener('click', function () {
     if (!current) return;
     var revoke = current.status !== 'revoked';
-    if (revoke && !confirm('Revoke all access (every program) for ' + current.email + '? Their podcasts stop working within 5 minutes.')) return;
+    if (revoke && !confirm('Revoke all access (every program) for ' + current.email + '? They are signed out of the student area at once.')) return;
     Admin.post('students-status', { ids: [current.id], status: revoke ? 'revoked' : 'active' }).then(function () { return refreshDetail(); })
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
@@ -356,11 +371,11 @@
   function csvCell(v) { v = v == null ? '' : String(v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   $('export').addEventListener('click', function () {
     var rows = filtered();
-    var head = ['email', 'name', 'enrolments', 'access', 'subscribed_at', 'released', 'downloaded', 'apps', 'listen_until', 'personal_page'];
+    var head = ['email', 'name', 'enrolments', 'access', 'last_visit', 'released', 'finished', 'minutes_listened', 'listen_until', 'sign_in_link'];
     var lines = [head.join(',')].concat(rows.map(function (s) {
       return [s.email, s.name, s.enrollments.map(function (e) { return e.show.slug + ':' + e.cohort.name + (e.state !== 'active' ? ' (' + STATE_TEXT[e.state] + ')' : ''); }).join(' | '),
-        STATE_TEXT[s.state], s.first_seen_at ? Admin.kstParts(s.first_seen_at).date : '', s.released, s.downloaded, s.apps.join(' '),
-        s.expires_at ? Admin.kstParts(new Date(new Date(s.expires_at).getTime() - 1)).date : '', s.page_url].map(csvCell).join(',');
+        STATE_TEXT[s.state], s.last_visit_at ? Admin.kstParts(s.last_visit_at).date : '', s.released, s.finished, Math.round(s.listened_seconds / 60),
+        s.expires_at ? Admin.kstParts(new Date(new Date(s.expires_at).getTime() - 1)).date : '', s.signin_url].map(csvCell).join(',');
     }));
     var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');

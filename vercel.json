@@ -7,13 +7,13 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "functions": {
-    "api/podcast-page.js": {
-      "includeFiles": "site/{index.html,nsmb/index.html}"
-    },
     "api/shop-page.js": {
       "includeFiles": "site/{index.html,nsmb/index.html}"
     },
     "api/shop.js": {
+      "includeFiles": "site/{index.html,nsmb/index.html}"
+    },
+    "api/learn.js": {
       "includeFiles": "site/{index.html,nsmb/index.html}"
     }
   },
@@ -86,6 +86,32 @@
         {
           "key": "Referrer-Policy",
           "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/learn/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        }
+      ]
+    },
+    {
+      "source": "/learn",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
         }
       ]
     }
@@ -203,9 +229,32 @@
       "source": "/go/youtube",
       "destination": "https://www.youtube.com/@heyashleylim",
       "permanent": false
+    },
+    {
+      "source": "/podcast/help",
+      "destination": "/learn/help",
+      "permanent": false
+    },
+    {
+      "source": "/podcast/:token([A-Za-z0-9_-]{22})/listen",
+      "destination": "/learn/start/:token",
+      "permanent": false
+    },
+    {
+      "source": "/podcast/:token([A-Za-z0-9_-]{22})",
+      "destination": "/learn/start/:token",
+      "permanent": false
     }
   ],
   "rewrites": [
+    {
+      "source": "/learn",
+      "destination": "/api/learn?path="
+    },
+    {
+      "source": "/learn/:path*",
+      "destination": "/api/learn?path=:path*"
+    },
     {
       "source": "/f/:token([A-Za-z0-9_-]+)/:show([a-z0-9-]+)",
       "destination": "/api/podcast-feed?token=:token&show=:show"
@@ -217,10 +266,6 @@
     {
       "source": "/a/:token([A-Za-z0-9_-]+)/:file",
       "destination": "/api/podcast-audio?token=:token&file=:file"
-    },
-    {
-      "source": "/podcast/:token([A-Za-z0-9_-]+)",
-      "destination": "/api/podcast-page?token=:token"
     },
     {
       "source": "/checkout/complete",

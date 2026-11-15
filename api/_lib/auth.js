@@ -76,4 +76,4 @@ function sameOrigin(req) {
   }
 }
 
-module.exports = { ADMIN_COOKIE, newToken, isToken, safeEqual, ipHash, webhookKey, adminCredentials, adminSessionToken, adminFromRequest, sameOrigin };
+module.exports = { ADMIN_COOKIE, newToken, isToken, safeEqual, ipHash, readCookie, webhookKey, adminCredentials, adminSessionToken, adminFromRequest, sameOrigin };

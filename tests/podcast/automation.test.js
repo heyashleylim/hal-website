@@ -4,7 +4,7 @@ const automation = require('../../api/_lib/automation.js');
 const { contactFrom, addedTagFrom } = require('../../api/podcast-ac.js');
 
 const show = { slug: 'nsmb', ac_tag_prefix: 'podcast_nsmb' };
-const ep = (n, releaseAt) => ({ episode: { id: n, kind: 'module', number: n }, releaseAt: new Date(releaseAt) });
+const ep = (n, releaseAt) => ({ episode: { id: n, kind: 'week', number: n }, releaseAt: new Date(releaseAt) });
 const now = new Date('2026-11-20T01:00:00Z');
 
 test('tag names per program', () => {
@@ -61,4 +61,18 @@ test('the account-level "Contact Tag Added" webhook names the added tag', () => 
   assert.equal(addedTagFrom({ tag: { name: 'x' } }), 'x');
   assert.equal(addedTagFrom({ 'contact[email]': 'a@b.kr', 'contact[tags]': 'a, b' }), null); // automation webhook: no single tag
   assert.equal(addedTagFrom({ tag: '' }), null);
+});
+
+test('week tags: only Week episodes, once per week number even with several episodes in that week', () => {
+  const now = new Date('2026-11-16T01:00:00Z');
+  const access = { state: 'active', expires: new Date('2027-11-01T00:00:00Z'), episodes: [
+    { episode: { id: 1, kind: 'week', number: 2 }, releaseAt: new Date('2026-11-16T00:00:00Z') },
+    { episode: { id: 2, kind: 'week', number: 2 }, releaseAt: new Date('2026-11-16T00:00:00Z') },
+    { episode: { id: 3, kind: 'qa', number: 2 }, releaseAt: new Date('2026-11-16T00:00:00Z') },
+    { episode: { id: 4, kind: 'live', number: null }, releaseAt: new Date('2026-11-16T00:00:00Z') },
+  ] };
+  const tags = automation.dailyTags({ show: { slug: 'nsmb', ac_tag_prefix: 'podcast_nsmb' }, access, enrolledAt: new Date('2026-11-01T00:00:00Z'), subscribed: true, now });
+  const released = tags.filter((t) => /_released$/.test(t.tag));
+  assert.deepEqual([...new Set(released.map((t) => t.key))], ['ep2-released'], 'one dedupe key for the week');
+  assert.ok(released.every((t) => t.tag === 'podcast_nsmb_ep02_released'));
 });

@@ -28,7 +28,7 @@ const actions = {
     const rows = await db.query(
       `SELECT ${COHORT_COLUMNS},
               count(en.id)::int AS students,
-              count(en.id) FILTER (WHERE st.first_seen_at IS NOT NULL)::int AS subscribed,
+              count(en.id) FILTER (WHERE EXISTS (SELECT 1 FROM learn_sessions se WHERE se.student_id = st.id))::int AS subscribed, -- signed in to the student area
               count(en.id) FILTER (WHERE en.status = 'revoked' OR st.status = 'revoked')::int AS revoked
          FROM cohorts c LEFT JOIN enrollments en ON en.cohort_id = c.id LEFT JOIN students st ON st.id = en.student_id
         WHERE c.show_id = $1
@@ -75,7 +75,7 @@ const actions = {
     const show = await getShow(input.show);
     const cohort = await getCohort(show, int(input.id, { min: 1, max: 2147483647, label: 'id' }));
     const [episodes, overrideRows] = await Promise.all([
-      db.query(`SELECT id, kind, number, title, day_offset, status, blob_pathname FROM episodes WHERE show_id = $1 ORDER BY day_offset, number NULLS LAST, id`, [show.id]),
+      db.query(`SELECT id, kind, number, title, day_offset, release_at, status, blob_pathname FROM episodes WHERE show_id = $1 ORDER BY day_offset, number NULLS LAST, id`, [show.id]),
       db.query('SELECT episode_id, release_at FROM cohort_episode_dates WHERE cohort_id = $1', [cohort.id]),
     ]);
     const overrides = new Map(overrideRows.map((r) => [r.episode_id, new Date(r.release_at)]));
@@ -84,7 +84,7 @@ const actions = {
     const rows = episodes.map((e) => {
       const at = release.releaseAt({ show, cohort, listener, episode: { ...e, status: 'published' }, override: overrides.get(e.id) });
       return {
-        id: e.id, kind: e.kind, number: e.number, title: e.title, day_offset: e.day_offset, status: e.status,
+        id: e.id, kind: e.kind, number: e.number, title: e.title, day_offset: e.day_offset, fixed: Boolean(e.release_at), status: e.status,
         has_audio: Boolean(e.blob_pathname), release_at: at, overridden: overrides.has(e.id),
         released: e.status === 'published' && Boolean(e.blob_pathname) && at <= now,
       };

@@ -19,10 +19,11 @@ hal-website/
 ├── api/waitlist.js        ← Vercel function: NSMB waitlist → ActiveCampaign (tag + Master Contact List)
 ├── api/admin.js           ← the admin API for every section (/api/admin?action=…); sections' code in api/_lib/admin/
 ├── api/podcast-*.js       ← private podcast functions for students and AC (docs/podcast-plan.md); shared code in api/_lib/ (not endpoints)
+├── api/learn.js           ← the student area 내 강의실 (/learn): sign-in, pages, audio, progress (docs/student-area-plan.md); code in api/_lib/learn/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011, 013), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -136,10 +137,11 @@ Rules for the structure:
 - Every link to an ashleylim.com page is a site path (`/eft`, `/refund-policy`, `/` for the logo; `/lifeartist2026` → `/lifeartist`) and opens in the same tab, so links follow whatever domain serves the site (www.ashleylim.com). Only payment links keep `https://ashleylim.com/?product=…`: add-to-cart links into the WooCommerce / cafe24 checkout, which stays on WordPress at ashleylim.com. `tools/rebuild/sitelinks.py` does this (gen.py runs it; run it on hand-built pages after pasting live links).
 - Public pages carry `<link rel="canonical">` naming the page on `https://www.ashleylim.com` (this site, once the domain moves to Vercel).
 
-## Private podcast
+## Programs, cohorts and students (formerly "Private podcast")
 
-Private podcasts for Ashley's programs: several **shows**, each with cohorts (weekly drip, 1-year access). A **student**
-(one per email) has one personal page listing their shows and is **enrolled** in any number of cohorts, including several
+Audio programs for Ashley's courses, heard in the student area `/learn` only: the private podcast feed was retired
+(Alex, 2026-11-15: no podcast apps, no offline listening). Several **shows**, each with cohorts (weekly drip, 1-year access). A **student**
+(one per email) listens in the student area `/learn` (below) and is **enrolled** in any number of cohorts, including several
 of the same show (they get every episode any running enrolment releases; access lasts until the latest end).
 ActiveCampaign automation and admin pages.
 Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branch.
@@ -152,20 +154,26 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   Home `/admin` (sections + system status), global `/admin/activity`, and one folder per section: `/admin/podcast/`
   (Overview, `episodes/`, `cohorts/`, `students/`, `programs/`, `automation/`). Later sections (e-commerce…) get their own
   folder. Navigation is on the left, like ActiveCampaign's admin: a dark teal icon rail (always visible: Home, sections,
-  Activity, Log out) and the current section's collapsible menu (grouped links; Podcast adds the program switcher). Content is on
+  Activity, Log out) and the current section's collapsible menu (grouped links; Learning, the `podcast` section, adds the program switcher). Content is on
   white. Drawn by `site/assets/js/admin/admin.js` (SECTIONS and ICONS; pages use `<body data-section="…">` and an empty
   `<header class="admin-bar">`); styles in `assets/css/admin/admin.css`.
   Every admin button has a `data-tip` saying what it does (shown as a tooltip by admin.js; `npm test` fails without it). API: `api/admin.js` routes actions from
   `api/_lib/admin/system.js` (health, activity) and `api/_lib/admin/podcast-*.js` (content, cohorts, students, automation);
   a new section adds its module there (unique action names). `admin_log` records each action's section.
 - "Access until" dates shown anywhere are the last listening day: access ends at 00:00 KST the day after.
+- Episode types (Alex, 2026-11-15; `api/_lib/episodes.js`): **Week, Q&A, Live, Bonus**. A week number can be shared by
+  several episodes (Week needs one; the others may name their week). Release: N days after each cohort's start, or a
+  fixed date and time for every cohort (`episodes.release_at`, Seoul time in the admin); a cohort's own date
+  (Cohorts page) still wins. Only Week episodes drive the AC week tags (`_epNN_released/_downloaded`, `_completed`),
+  once per week number.
 - Uploads go straight from the browser to the private Blob store through a short-lived signed URL (`upload-url`), so
   there's no 4.5 MB function limit. Cover art is served publicly at `/a/art/<show>.<ext>`.
 - The admin API only runs on Vercel deployments: the local `site` preview serves static files only.
-- Student URLs (rewrites in `vercel.json`, token = the student's 22 random characters): `/podcast/<token>` personal page
-  listing their shows (api/podcast-page.js, header/footer read from `site/nsmb` and `site/index.html` at runtime),
-  `/f/<token>/<show slug>` one feed per show (`/f/<token>` still works for students with one show), `/a/<token>/<guid>.mp3`
-  audio streamed from the private Vercel Blob store. `/podcast/help` is a static page. All are noindex and in robots.txt.
+- Student URLs (token = the student's 22 random characters): `/learn/start/<token>` one-tap sign-in (PODCAST_LINK).
+  Retired 2026-11-15: the personal page (`/podcast/<token>` and `/podcast/help` redirect into `/learn`), the feeds
+  `/f/<token>/<show>` (podcast apps still following one get a valid feed with no episodes and a notice pointing to
+  `/learn`, `api/podcast-feed.js`) and their audio `/a/<token>/…` (404). `/a/art/<show>.<ext>` still serves cover art.
+  All are noindex and in robots.txt.
 - In the admin, a show is called a **program** (the data model and code say `show`). The program switcher (left menu) scopes
   Episodes, Cohorts, the Programs page, imports and the AC sync; the Students page covers all programs. A cohort's AC tag
   is unique across programs.
@@ -176,8 +184,35 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   production only, `CRON_SECRET`). Webhook `POST /api/podcast-ac?key=…` (key derived from PODCAST_SECRET) enrols on purchase
   tags (set up as AC's account webhook "Contact Tag Added": it fires for every tag, non-cohort tags are ignored); `&action=revoke&tag=…` for refunds. Tags per program (underscores, like Ashley's other AC tags): `<prefix>_enrolled`,
   `_subscribed`, `_not_subscribed_3d/7d`, `_epNN_released`, `_epNN_downloaded`, `_completed`, `_expiring_30d`, `_expired`,
-  `_revoked` (prefix e.g. `podcast_nsmb`), plus `podcast_link_reset`; field `PODCAST_LINK`.
+  `_revoked` (prefix e.g. `podcast_nsmb`), plus `podcast_link_reset`; field `PODCAST_LINK` (the one-tap sign-in link).
+  With the feed retired, `_subscribed` is no longer added; `_not_subscribed_3d/7d` mean "nothing played in the student area
+  yet", and `_epNN_downloaded` / `_completed` come from first plays there (names kept for Ashley's automations). Welcome and link-reset email drafts: `docs/emails/learn-welcome.md`.
   Students added by hand only reach AC when "Tell ActiveCampaign" is ticked.
+
+## Student area "내 강의실" (/learn)
+
+Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch. Admin section "Learning" (`/admin/podcast/`).
+- `api/learn.js` (rewrites `/learn`, `/learn/:path*`), pages in `api/_lib/learn/pages.js`, player `site/assets/js/learn-player.js`,
+  styles `site/assets/css/pages/learn.css` (on top of `podcast.css`). Private: noindex, no GTM / analytics, in robots.txt.
+- Sign-in (`api/_lib/learn/auth.js`): email → 6-digit code (10 min, used once, 5 tries, 5 per hour per student, 20 requests
+  per hour per network, `learn_requests`), then an HttpOnly cookie `hal_learn` for 30 days from the last visit (Alex,
+  2026-11-15). Only hashes are stored (`learn_codes`, `learn_sessions`). `/learn/start/<token>` also signs in.
+  **Who gets a code** (Alex, 2026-11-15): purchasers (an ActiveCampaign tag starting with `purchased`, looked up only for
+  emails not enrolled here; a purchaser without a row gets one) and students enrolled in a cohort. Revoked students never.
+  The page never says whether an email qualifies. A revoked student is signed out at once.
+- First sign-in ever → `/learn?welcome=1`: a card explaining how to save the student area on the home screen (phones and
+  tablets only; `site/learn.webmanifest`, icons in `assets/img/app/`). `/learn/help` = the help page (no sign-in needed).
+- Listening needs a connection (no offline mode, no podcast app: Alex, 2026-11-15). The Overview flags students signed in
+  on more than 5 devices in 30 days (the old feed-based "link sharing" check is gone).
+- Codes are emailed through Ashley's Google Workspace with the Gmail API (`api/_lib/learn/mail.js`, no package):
+  `GOOGLE_SA_EMAIL`, `GOOGLE_SA_KEY`, `LEARN_MAIL_FROM` (service account, domain-wide delegation, `gmail.send` scope only).
+- Audio `/learn/audio/<guid>.<ext>` checks the session and access on every request (`api/_lib/audio-stream.js`, shared with
+  `/a/<token>/…`). Web listening is not logged as podcast downloads.
+- Progress (`listening`, `api/_lib/learn/progress.js`): position, furthest point, real time listened; done at 90%.
+- Chapters: `episodes.chapters` = `[{ start, title }]`, read from the MP3's ID3 CHAP frames (Podcast Studio) on upload
+  (`api/_lib/learn/chapters.js`), "Read chapters from files" on the Episodes page for older files, editable there.
+- Local: the `shop-admin` preview serves `/learn` too; codes are printed and listed at `/__fake/learn-mail`.
+  `npm run test:learn` runs the end-to-end checks (rolled back).
 
 ## Shop (e-commerce, replacing WooCommerce)
 

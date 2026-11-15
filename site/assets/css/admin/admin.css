@@ -119,8 +119,8 @@ a.home-card:hover{border-color:var(--ink)}
 .admin-bar{position:fixed;inset:0 auto 0 0;z-index:20;display:flex}
 .admin .admin-main{margin-left:var(--rail);margin-right:0;max-width:none;padding-left:clamp(20px,4vw,48px);padding-right:clamp(20px,4vw,48px)}
 .admin.has-subnav:not(.subnav-collapsed) .admin-main{margin-left:calc(var(--rail) + var(--subnav))}
-.admin-main>*{max-width:var(--w-wide)}
-.admin-main--wide>*{max-width:1240px}
+.admin-main>*{max-width:1600px}
+.admin-main--wide>*{max-width:1600px}
 .rail{width:var(--rail);height:100vh;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;background:var(--rail-bg)}
 .rail__spacer{flex:1}
 .rail__item{position:relative;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:12px;background:none;color:rgba(255,255,255,.72);cursor:pointer;text-decoration:none;transition:background-color .15s ease,color .15s ease}
