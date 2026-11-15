@@ -249,7 +249,7 @@ function chapterList(chapters) {
 }
 
 // /learn/<show>: the player (current episode), its chapters, then every module: released, listened, coming.
-function programPage({ show, access, progress, current, debug = false }) {
+function programPage({ show, access, progress, current }) {
   const released = access.episodes.map((e) => e.episode);
   const upcoming = (access.scheduled || []).filter((e) => e.releaseAt > new Date() && !released.some((r) => r.id === e.episode.id));
   const cur = current || released.find((e) => !(progress.get(e.id) && progress.get(e.id).completed_at)) || released[0];
@@ -337,11 +337,6 @@ ${signOut()}`,
   ${coming ? `<h3 class="learn__h3">공개 예정</h3><ol class="learn__list">${coming}</ol>` : ''}
   ${until}
 </section>
-${debug ? `<section class="pod__card pod__card--quiet play__log-card">
-  <h2 class="pod__h2">진단 기록</h2>
-  <p class="pod__note">재생한 뒤 화면을 잠갔다가 돌아오면, 그동안 무슨 일이 있었는지 여기에 기록돼요. 이 화면을 캡처해서 보내 주세요.</p>
-  <ol class="play__log"></ol>
-</section>` : ''}
 ${signOut()}
 <script type="application/json" id="learn-data">${data}</script>`,
   });

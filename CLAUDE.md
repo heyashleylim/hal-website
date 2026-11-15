@@ -201,8 +201,7 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch; 
 - Chapters: `episodes.chapters` = `[{ start, title }]`, read from the MP3's ID3 CHAP frames (Podcast Studio) on upload
   (`api/_lib/learn/chapters.js`), "Read chapters from files" on the Episodes page for older files, editable there.
 - Local: the `shop-admin` preview serves `/learn` too; codes are printed and listed at `/__fake/learn-mail`.
-  `npm run test:learn` runs the end-to-end checks (rolled back). `/learn/<program>?debug=1` shows a diagnostic log
-  under the player (what happened while the screen was locked).
+  `npm run test:learn` runs the end-to-end checks (rolled back).
 
 ## Shop (e-commerce, replacing WooCommerce)
 

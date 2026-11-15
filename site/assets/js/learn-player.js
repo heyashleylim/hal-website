@@ -24,14 +24,6 @@
   var chaptersCard = document.querySelector('.learn__chapters');
   var chaptersEl = document.querySelector('[data-chapters]');
   var links = Array.prototype.slice.call(document.querySelectorAll('[data-track]'));
-  // Diagnostic log, only on ?debug=1 (what happened while the screen was locked).
-  var logEl = document.querySelector('.play__log');
-  function log(text) {
-    if (!logEl) return;
-    var li = document.createElement('li');
-    li.textContent = new Date().toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) + ' · ' + text;
-    logEl.insertBefore(li, logEl.firstChild);
-  }
   document.querySelector('.play__controls').hidden = false;
 
   function pref(k, v) {
@@ -140,7 +132,7 @@
 
   // ---------- lock screen ----------
   function mediaSession() {
-    if (!('mediaSession' in navigator)) return log('Media Session 없음');
+    if (!('mediaSession' in navigator)) return;
     var t = tracks[index];
     var c = chapterIndex >= 0 ? t.chapters[chapterIndex] : null;
     try {
@@ -151,8 +143,7 @@
         artwork: data.art ? [{ src: new URL(data.art, location.href).href, sizes: '1400x1400', type: /\.png(\?|$)/.test(data.art) ? 'image/png' : 'image/jpeg' }] : [],
       });
       navigator.mediaSession.playbackState = audio.paused ? 'paused' : 'playing';
-      log('잠금 화면 정보: ' + (c ? c.title : t.title));
-    } catch (e) { log('잠금 화면 정보 오류: ' + e.message); }
+    } catch (e) {}
   }
 
   // ---------- tracks ----------
@@ -165,7 +156,7 @@
     labelEl.textContent = t.label;
     document.title = t.title + ' · ' + data.program;
     links.forEach(function (a) { if (a.getAttribute('data-track') === t.id) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current'); });
-    try { history.replaceState(null, '', '/learn/' + data.show + '?e=' + t.id + (logEl ? '&debug=1' : '')); } catch (e) {}
+    try { history.replaceState(null, '', '/learn/' + data.show + '?e=' + t.id); } catch (e) {}
     renderChapters(t);
     nowChapterEl.textContent = '';
     var pos = t.position > 5 ? t.position : 0;
@@ -182,7 +173,7 @@
     chapterIndex = -1;
     updateChapter();
     mediaSession();
-    if (autoplay) audio.play().catch(function (e) { log('재생 시작 안 됨: ' + e.name); });
+    if (autoplay) audio.play().catch(function () {});
   }
 
   function setSpeed(s) {
@@ -232,12 +223,9 @@
     });
   });
 
-  audio.addEventListener('playing', function () { log('재생 중 (' + clock(audio.currentTime) + ')'); mediaSession(); });
-  audio.addEventListener('waiting', function () { log('버퍼링…'); });
-  audio.addEventListener('stalled', function () { log('네트워크 대기 중…'); });
-  audio.addEventListener('error', function () { log('오디오 오류 (코드 ' + (audio.error && audio.error.code) + ')'); });
+  audio.addEventListener('playing', mediaSession);
   audio.addEventListener('play', function () { toggle.textContent = '일시정지'; toggle.setAttribute('aria-label', '일시정지'); audio.playbackRate = speed; lastTime = audio.currentTime; });
-  audio.addEventListener('pause', function () { log('일시정지 (' + clock(audio.currentTime) + (document.hidden ? ', 화면 꺼진 상태' : '') + ')'); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'; toggle.textContent = '재생'; toggle.setAttribute('aria-label', '재생'); if (!audio.ended) save(false); });
+  audio.addEventListener('pause', function () { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'; toggle.textContent = '재생'; toggle.setAttribute('aria-label', '재생'); if (!audio.ended) save(false); });
   audio.addEventListener('seeking', function () { lastTime = null; });
   audio.addEventListener('timeupdate', function () {
     var now = audio.currentTime;
@@ -273,22 +261,9 @@
     Object.keys(handlers).forEach(function (k) { try { navigator.mediaSession.setActionHandler(k, handlers[k]); } catch (e) {} });
   }
 
-  var hiddenAt = null;
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) {
-      hiddenAt = { time: Date.now(), pos: audio.currentTime, playing: !audio.paused };
-      log('화면 꺼짐 / 다른 앱 (' + (audio.paused ? '멈춤' : '재생 중') + ', ' + clock(audio.currentTime) + ')');
-      if (!audio.paused) beacon();
-    } else if (hiddenAt) {
-      var away = Math.round((Date.now() - hiddenAt.time) / 1000), moved = audio.currentTime - hiddenAt.pos;
-      log('돌아옴: ' + away + '초 동안 ' + Math.max(0, Math.round(moved)) + '초 재생됨' + (hiddenAt.playing && away >= 3 ? (moved > Math.min(away, 10) * 0.5 ? ' → 계속 재생됨 ✓' : ' → 멈췄어요 ✗') : ''));
-      hiddenAt = null;
-    }
-  });
+  document.addEventListener('visibilitychange', function () { if (document.hidden && !audio.paused) beacon(); });
   window.addEventListener('pagehide', function () { if (audio.currentTime) beacon(); });
 
-  var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  log('시작: ' + (standalone ? '홈 화면 앱' : '브라우저') + ' · Media Session ' + ('mediaSession' in navigator ? '있음' : '없음') + ' · ' + navigator.userAgent.replace(/^.*?\((.*?)\).*$/, '$1'));
   var start = 0;
   tracks.forEach(function (t, i) { if (t.id === data.current) start = i; });
   setSpeed(speed);

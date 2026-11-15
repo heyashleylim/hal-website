@@ -192,9 +192,3 @@ test('episode labels: Week, Q&A, Live, Bonus for the admin and the student area'
   assert.equal(label({ kind: 'module', number: 4 }), 'Week 4', 'rows from before the change read as weeks');
 });
 
-test('the player page has a diagnostic log only with ?debug=1', () => {
-  const e = ep(1, 1);
-  const access = { state: 'active', episodes: [{ episode: e }], scheduled: [{ episode: e, releaseAt: new Date(0) }] };
-  assert.ok(!pages.programPage({ show, access, progress: new Map() }).includes('play__log'));
-  assert.ok(pages.programPage({ show, access, progress: new Map(), debug: true }).includes('<ol class="play__log">'));
-});

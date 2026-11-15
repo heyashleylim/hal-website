@@ -110,7 +110,7 @@ async function program(req, res, student, slug, params) {
   const prog = await progress.forStudent(student.id);
   const wanted = params.get('e');
   const current = wanted ? (x.access.episodes.find((e) => e.episode.guid === wanted) || {}).episode : null;
-  return sendHtml(res, 200, pages.programPage({ show: x.show, access: x.access, progress: prog, current, debug: params.get('debug') === '1' }));
+  return sendHtml(res, 200, pages.programPage({ show: x.show, access: x.access, progress: prog, current }));
 }
 
 // The episode a signed-in student may hear right now, or null.

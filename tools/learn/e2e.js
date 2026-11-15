@@ -179,8 +179,6 @@ async function main() {
     r = await get('/learn/e2e-learn', cookie);
     html = await r.text();
     check('an episode moved to a future fixed date is no longer playable, and shows as coming', !html.includes(`/learn/audio/${e1.guid}`) && /Week 1 제목[\s\S]*공개 예정/.test(html.slice(html.indexOf('learn__item--coming'))));
-    r = await get('/learn/e2e-learn?debug=1', cookie);
-    check('?debug=1 shows the diagnostic log', (await r.text()).includes('진단 기록'));
 
     console.log('Real audio (an existing published episode, if the database has one)');
     const real = await one(`SELECT en.student_id, ep.guid FROM episodes ep JOIN cohorts c ON c.show_id = ep.show_id JOIN enrollments en ON en.cohort_id = c.id JOIN students st ON st.id = en.student_id
