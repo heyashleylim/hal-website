@@ -44,10 +44,10 @@
 .wlf__opt{position:relative;display:flex;align-items:center;gap:12px;min-height:56px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg);cursor:pointer;font-size:16px;line-height:1.5;transition:border-color .2s,background-color .2s,box-shadow .2s}
 .wlf__opt input{position:absolute;opacity:0;width:1px;height:1px}
 .wlf__opt .dot{flex:0 0 20px;height:20px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);transition:border-color .2s,box-shadow .2s}
-.wlf__opt:hover{border-color:var(--muted)}
-.wlf__opt input:checked + .dot{border-color:var(--deep);box-shadow:inset 0 0 0 5px var(--deep)}
-.wlf__opt:has(input:checked){border-color:var(--deep);background:var(--bg-alt)}
-.wlf__opt:has(input:focus-visible){box-shadow:0 0 0 3px rgba(8,45,46,.25)}
+.wlf__opt:hover{border-color:var(--rose)}
+.wlf__opt input:checked + .dot{border-color:var(--accent);box-shadow:inset 0 0 0 5px var(--accent)}
+.wlf__opt:has(input:checked){border-color:var(--accent);background:var(--bg-blush)}
+.wlf__opt:has(input:focus-visible){box-shadow:0 0 0 3px rgba(219,74,43,.25)}
 
 .wlf__nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px}
 .wlf__nav .btn{min-width:140px}
