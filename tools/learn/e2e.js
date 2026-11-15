@@ -62,6 +62,8 @@ async function main() {
     check('only a hash of the code is stored', stored && !stored.code_hash.includes(code) && stored.code_hash.length === 64);
     r = await fetch(base + '/learn/login', { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: 'https://evil.example' }, body: 'email=e2e.learner%40example.com' });
     check('a form from another site is refused', r.status === 403);
+    r = await fetch(base + '/learn/login', { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: 'null', 'Sec-Fetch-Site': 'same-origin', ...from() }, body: 'email=nobody2%40example.com' });
+    check('a form on this site whose browser sends Origin "null" works (iPhone Safari)', r.status === 200);
     const wrong = code === '000000' ? '111111' : '000000';
     r = await form('/learn/verify', { email: 'e2e.learner@example.com', code: wrong });
     html = await r.text();

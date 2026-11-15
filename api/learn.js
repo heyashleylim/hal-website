@@ -25,6 +25,14 @@ const { readBody, sendJson, sendHtml, redirect, sameOrigin } = require('./_lib/s
 
 const IP_CODES_PER_HOUR = 20;
 
+// A POST must come from this site. Browsers send Origin on every POST; with some referrer settings it is "null",
+// and then Sec-Fetch-Site (sent by every current browser) says whether the form was on this site.
+function fromThisSite(req) {
+  const site = req.headers['sec-fetch-site'];
+  if (site) return site === 'same-origin';
+  return sameOrigin(req);
+}
+
 // Only paths inside the student area, never another site.
 function safeNext(value) {
   const v = String(value || '');
@@ -146,7 +154,7 @@ module.exports = async function handler(req, res) {
   const method = req.method;
 
   try {
-    if (method === 'POST' && !sameOrigin(req)) return sendJson(res, 403, { error: 'origin' });
+    if (method === 'POST' && !fromThisSite(req)) return sendHtml(res, 403, pages.messagePage({ title: '다시 시도해 주세요', text: '페이지를 새로 고친 뒤 다시 시도해 주세요.' }));
     // Read a POST body before any database call: once the request has fully arrived it can't be read later.
     const body = method === 'POST' ? (await readBody(req)).data : {};
 
@@ -189,3 +197,4 @@ module.exports = async function handler(req, res) {
 };
 
 module.exports.safeNext = safeNext;
+module.exports.fromThisSite = fromThisSite;

@@ -5,7 +5,7 @@ const progress = require('../../api/_lib/learn/progress.js');
 const learnAuth = require('../../api/_lib/learn/auth.js');
 const pages = require('../../api/_lib/learn/pages.js');
 const mail = require('../../api/_lib/learn/mail.js');
-const { safeNext } = require('../../api/learn.js');
+const { safeNext, fromThisSite } = require('../../api/learn.js');
 
 test('progress: furthest point kept, listened time capped per save, done at 90% or the end', () => {
   const now = new Date('2026-11-14T00:00:00Z');
@@ -168,4 +168,15 @@ test('the Google key is accepted however it was pasted into Vercel', () => {
   }
   assert.throws(() => mail.config({ GOOGLE_SA_EMAIL: 'x', GOOGLE_SA_KEY: 'not a key at all', LEARN_MAIL_FROM: 'a@b.c' }), (err) => /not a readable private key \(16 characters, no BEGIN line\)/.test(err.message) && !err.message.includes('not a key at all'));
   assert.equal(mail.configured({ GOOGLE_SA_EMAIL: 'x', GOOGLE_SA_KEY: 'nope', LEARN_MAIL_FROM: 'a@b.c' }), false);
+});
+
+test('forms: posted from this site pass even when the browser sends Origin "null"; other sites are refused', () => {
+  const req = (headers) => ({ headers: { host: 'www.ashleylim.com', ...headers } });
+  assert.ok(fromThisSite(req({ origin: 'null', 'sec-fetch-site': 'same-origin' })), 'Safari/Chrome form post under a strict referrer policy');
+  assert.ok(fromThisSite(req({ origin: 'https://www.ashleylim.com', 'sec-fetch-site': 'same-origin' })));
+  assert.ok(!fromThisSite(req({ origin: 'null', 'sec-fetch-site': 'cross-site' })));
+  assert.ok(!fromThisSite(req({ origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' })));
+  assert.ok(!fromThisSite(req({ origin: 'https://evil.example' })), 'old browser without Sec-Fetch-Site: Origin decides');
+  assert.ok(fromThisSite(req({ origin: 'https://www.ashleylim.com' })));
+  assert.match(pages.loginPage(), /<meta name="referrer" content="same-origin">/, 'pages keep sending Origin on their own forms');
 });
