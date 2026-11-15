@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>Episodes · Podcast · Admin</title>
+<title>Episodes · Learning · Admin</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/brand.css">
@@ -18,6 +18,7 @@
   <div class="admin-head">
     <h1>Episodes <span class="admin-h1-show" data-show-title></span></h1>
     <button data-tip="Add a new episode to this program: audio file, title and release week" class="btn-sm" type="button" id="add">Add episode</button>
+    <button data-tip="Read the chapters made in Podcast Studio from every MP3 of this program that has none yet (for the student area). New uploads do this by themselves" class="btn-ghost" type="button" id="read-all">Read chapters from files</button>
   </div>
 
   <section class="admin-panel" id="editor" hidden aria-labelledby="editor-title">
@@ -26,12 +27,22 @@
       <input type="hidden" name="id">
       <label>Type
         <select name="kind">
-          <option value="module">Module</option>
+          <option value="week">Week</option>
+          <option value="qa">Q&amp;A</option>
+          <option value="live">Live</option>
           <option value="bonus">Bonus</option>
         </select>
       </label>
-      <label data-module>Module number<input name="number" type="number" min="1" max="999" inputmode="numeric"></label>
-      <label>Release day <span class="hint">days after the cohort start (module 1 = 0)</span><input name="day_offset" type="number" min="0" max="3650" inputmode="numeric" required></label>
+      <label>Week number <span class="hint" data-number-hint>several episodes can share a week</span><input name="number" type="number" min="1" max="999" inputmode="numeric"></label>
+      <label>Release
+        <select name="release_mode">
+          <option value="days">Days after each cohort starts</option>
+          <option value="date">On a fixed date (every cohort)</option>
+        </select>
+      </label>
+      <label data-release="days">Release day <span class="hint">days after the cohort start (week 1 = 0)</span><input name="day_offset" type="number" min="0" max="3650" inputmode="numeric"></label>
+      <label data-release="date" hidden>Release date <span class="hint">Seoul time</span><input name="release_date" type="date"></label>
+      <label data-release="date" hidden>Release time<input name="release_time" type="time"></label>
       <label>Status
         <select name="status">
           <option value="draft">Draft (hidden from students)</option>
@@ -39,14 +50,16 @@
         </select>
       </label>
       <label class="admin-form__wide">Title<input name="title" maxlength="300" required></label>
-      <label class="admin-form__wide">Show notes <span class="hint">shown under the episode in podcast apps</span><textarea name="notes" maxlength="10000"></textarea></label>
-      <label class="admin-form__wide">Audio file <span class="hint">MP3 or M4A, up to 500 MB. Spoken word: 64–96 kbps mono is plenty.</span><input name="file" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a"></label>
+      <label class="admin-form__wide">Show notes <span class="hint">not shown to students at the moment</span><textarea name="notes" maxlength="10000"></textarea></label>
+      <label class="admin-form__wide">Audio file <span class="hint">MP3 or M4A, up to 500 MB. Use the files Podcast Studio exports (128 kbps mono).</span><input name="file" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a"></label>
       <p class="admin-form__wide muted" id="current-audio" hidden></p>
+      <label class="admin-form__wide" id="chapters-field" hidden>Chapters <span class="hint">shown in the student area’s player. One per line: time, then title (e.g. 12:30 신경계가 먼저인 이유). Read from the MP3 each time a new file is uploaded.</span><textarea name="chapters" rows="8" spellcheck="false"></textarea></label>
+      <p class="admin-form__wide" id="chapters-actions" hidden><button data-tip="Read the chapters again from this episode’s MP3 file (the ones made in Podcast Studio), replacing the list above" class="btn-ghost" type="button" id="reread">Read chapters from the file</button></p>
       <div class="progress" hidden><span></span></div>
       <div class="admin-form__actions">
-        <button data-tip="Save this episode. Published episodes appear in students’ feeds on their release day" class="btn-sm" type="submit">Save</button>
+        <button data-tip="Save this episode. Published episodes appear in the student area on their release day" class="btn-sm" type="submit">Save</button>
         <button data-tip="Close this form without saving anything" class="btn-ghost" type="button" id="cancel">Cancel</button>
-        <button data-tip="Delete this episode and its audio file. It disappears from every student’s feed" class="btn-danger" type="button" id="delete" hidden>Delete episode</button>
+        <button data-tip="Delete this episode and its audio file. It disappears from the student area for everyone" class="btn-danger" type="button" id="delete" hidden>Delete episode</button>
       </div>
       <p class="admin-form__result" role="status" aria-live="polite"></p>
     </form>
@@ -61,28 +74,29 @@
 <script src="/assets/js/admin/admin.js"></script>
 <script>
 (function () {
-  var episodes = [], drip = 7;
+  var episodes = [], drip = 7, releaseTime = '09:00';
   var editor = document.getElementById('editor'), form = document.getElementById('form');
   var out = form.querySelector('.admin-form__result'), bar = form.querySelector('.progress'), fill = bar.firstElementChild;
 
   function load() {
     return Admin.get('episodes').then(function (r) {
       episodes = r.episodes; drip = r.drip_interval_days;
-      document.getElementById('drip-note').textContent = 'Default spacing between modules: ' + drip + ' days (Programs page). Release times follow the program\'s release time, in Seoul time.';
+      releaseTime = r.release_time || '09:00';
+      document.getElementById('drip-note').textContent = 'Default spacing between weeks: ' + drip + ' days (Programs page). Release times follow the program\'s release time, in Seoul time. A fixed date applies to every cohort; the Cohorts page can still move one episode for one cohort.';
       render();
     }).catch(function (err) { document.getElementById('list').innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
   }
 
   function render() {
     var el = document.getElementById('list');
-    if (!episodes.length) { el.innerHTML = '<p class="admin-empty">No episodes yet. Add module 1 to start.</p>'; return; }
-    el.innerHTML = '<table class="admin-table"><thead><tr><th>#</th><th>Title</th><th>Release day</th><th>Audio</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+    if (!episodes.length) { el.innerHTML = '<p class="admin-empty">No episodes yet. Add week 1 to start.</p>'; return; }
+    el.innerHTML = '<table class="admin-table"><thead><tr><th>Type</th><th>Title</th><th>Release</th><th>Audio</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       episodes.map(function (e) {
-        var label = e.kind === 'bonus' ? '<span class="badge badge--info">Bonus</span>' : e.number;
-        var audio = e.has_audio ? Admin.duration(e.duration_seconds) + ' · ' + Admin.size(e.bytes) : '<span class="badge badge--warn">No audio</span>';
+        var label = e.kind === 'week' ? Admin.episodeLabel(e) : '<span class="badge badge--info">' + Admin.esc(Admin.episodeLabel(e)) + '</span>';
+        var audio = e.has_audio ? Admin.duration(e.duration_seconds) + ' · ' + Admin.size(e.bytes) + (e.chapters.length ? '<div class="muted">' + e.chapters.length + ' chapters</div>' : '') : '<span class="badge badge--warn">No audio</span>';
         var status = e.status === 'published' ? '<span class="badge badge--ok">Published</span>' : '<span class="badge">Draft</span>';
         return '<tr data-id="' + e.id + '"><td class="num">' + label + '</td><td>' + Admin.esc(e.title) + '<div class="player-slot"></div></td>' +
-          '<td class="num">Day ' + e.day_offset + (drip ? ' <span class="muted">(week ' + (Math.floor(e.day_offset / 7) + 1) + ')</span>' : '') + '</td>' +
+          '<td class="num">' + (e.release_at ? Admin.kst(e.release_at) + ' <span class="badge badge--info">fixed date</span>' : 'Day ' + e.day_offset + (drip ? ' <span class="muted">(week ' + (Math.floor(e.day_offset / 7) + 1) + ')</span>' : '')) + '</td>' +
           '<td class="num">' + audio + '</td><td>' + status + '</td><td><div class="admin-actions">' +
           (e.has_audio ? '<button data-tip="Play this episode here, in the admin" class="btn-ghost" type="button" data-play="' + e.id + '">Listen</button>' : '') +
           '<button data-tip="Change this episode: title, audio file, release week or status" class="btn-ghost" type="button" data-edit="' + e.id + '">Edit</button></div></td></tr>';
@@ -91,12 +105,26 @@
 
   function nextNumber() {
     var max = 0;
-    episodes.forEach(function (e) { if (e.kind === 'module' && e.number > max) max = e.number; });
+    episodes.forEach(function (e) { if (e.number > max) max = e.number; });
     return max + 1;
   }
 
+  function clock(t) {
+    t = Math.max(0, Math.floor(t || 0));
+    var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+    return (h ? h + ':' + (m < 10 ? '0' : '') + m : m) + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function chapterLines(list) {
+    return (list || []).map(function (c) { return clock(c.start) + ' ' + c.title; }).join('\n');
+  }
+  var chaptersBefore = '';
+
   function syncKind() {
-    form.querySelector('[data-module]').hidden = form.kind.value !== 'module';
+    form.querySelector('[data-number-hint]').textContent = form.kind.value === 'week' ? 'several episodes can share a week' : 'optional: the week it belongs to';
+  }
+  function syncRelease() {
+    var mode = form.release_mode.value;
+    form.querySelectorAll('[data-release]').forEach(function (el) { el.hidden = el.dataset.release !== mode; });
   }
 
   function open(e) {
@@ -105,9 +133,13 @@
     bar.hidden = true; fill.style.width = '0';
     var n = nextNumber();
     form.id.value = e ? e.id : '';
-    form.kind.value = e ? e.kind : 'module';
+    form.kind.value = e ? e.kind : 'week';
     form.number.value = e ? (e.number || '') : n;
     form.day_offset.value = e ? e.day_offset : (n - 1) * drip;
+    form.release_mode.value = e && e.release_at ? 'date' : 'days';
+    var p = e && e.release_at ? Admin.kstParts(e.release_at) : null;
+    form.release_date.value = p ? p.date : '';
+    form.release_time.value = p ? p.time : releaseTime;
     form.status.value = e ? e.status : 'draft';
     form.title.value = e ? e.title : '';
     form.notes.value = e ? e.notes : '';
@@ -115,16 +147,22 @@
     cur.hidden = !(e && e.has_audio);
     cur.textContent = e && e.has_audio ? 'Current audio: ' + Admin.duration(e.duration_seconds) + ', ' + Admin.size(e.bytes) + '. Choose a file only to replace it.' : '';
     document.getElementById('delete').hidden = !e;
+    chaptersBefore = e ? chapterLines(e.chapters) : '';
+    form.chapters.value = chaptersBefore;
+    document.getElementById('chapters-field').hidden = !(e && e.has_audio);
+    document.getElementById('chapters-actions').hidden = !(e && e.has_audio && /mpeg/.test(e.mime_type));
     document.getElementById('editor-title').textContent = e ? 'Edit episode' : 'Add episode';
     syncKind();
+    syncRelease();
     editor.hidden = false;
     editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
     form.title.focus({ preventScroll: true });
   }
 
   form.kind.addEventListener('change', syncKind);
+  form.release_mode.addEventListener('change', syncRelease);
   form.number.addEventListener('input', function () {
-    if (!form.id.value && form.kind.value === 'module' && form.number.value) form.day_offset.value = (Number(form.number.value) - 1) * drip;
+    if (!form.id.value && form.number.value) form.day_offset.value = (Number(form.number.value) - 1) * drip;
   });
   document.getElementById('add').addEventListener('click', function () { open(null); });
   document.getElementById('cancel').addEventListener('click', function () { editor.hidden = true; });
@@ -146,8 +184,10 @@
     ev.preventDefault();
     var file = form.file.files[0];
     var submit = form.querySelector('[type=submit]');
-    var data = { id: form.id.value || undefined, kind: form.kind.value, number: form.number.value, day_offset: form.day_offset.value, status: form.status.value, title: form.title.value, notes: form.notes.value };
+    var data = { id: form.id.value || undefined, kind: form.kind.value, number: form.number.value, day_offset: form.day_offset.value, release_mode: form.release_mode.value, release_date: form.release_date.value, release_time: form.release_time.value, status: form.status.value, title: form.title.value, notes: form.notes.value };
     if (!data.title.trim()) { Admin.say(out, 'Add a title.', true); form.title.focus(); return; }
+    if (data.kind === 'week' && !data.number) { Admin.say(out, 'Add the week number.', true); form.number.focus(); return; }
+    if (data.release_mode === 'date' && !data.release_date) { Admin.say(out, 'Choose the release date.', true); form.release_date.focus(); return; }
     submit.disabled = true;
     var step = Promise.resolve();
     if (file) {
@@ -163,12 +203,40 @@
       Admin.say(out, 'Saving…');
       return Admin.post('episode-save', data);
     }).then(function (r) {
+      // A new file brings its own chapters; otherwise save the list if it was edited.
+      if (!file && data.id && form.chapters.value.trim() !== chaptersBefore.trim()) {
+        return Admin.post('episode-chapters', { id: data.id, chapters: form.chapters.value });
+      }
+      return r;
+    }).then(function (r) {
       Admin.say(out, 'Saved.');
       editor.hidden = true;
       return load();
     }).catch(function (err) {
       Admin.say(out, err.message, true);
     }).then(function () { submit.disabled = false; });
+  });
+
+  document.getElementById('read-all').addEventListener('click', function () {
+    var btn = this, note = document.getElementById('drip-note');
+    btn.disabled = true;
+    note.textContent = 'Reading chapters from the files…';
+    Admin.post('episodes-chapters-read', {}).then(function (r) {
+      note.textContent = 'Chapters found in ' + r.found + ' of ' + r.read + ' files' + (r.left ? ' (' + r.left + ' left: click again).' : '.');
+      return load();
+    }).catch(function (err) { note.textContent = err.message; }).then(function () { btn.disabled = false; });
+  });
+
+  document.getElementById('reread').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    Admin.say(out, 'Reading the chapters from the file…');
+    Admin.post('episode-chapters', { id: form.id.value, reread: true }).then(function (r) {
+      chaptersBefore = chapterLines(r.episode.chapters);
+      form.chapters.value = chaptersBefore;
+      Admin.say(out, r.episode.chapters.length ? r.episode.chapters.length + ' chapters read from the file and saved.' : 'This file has no chapters.');
+      return load();
+    }).catch(function (err) { Admin.say(out, err.message, true); }).then(function () { btn.disabled = false; });
   });
 
   document.getElementById('delete').addEventListener('click', function () {

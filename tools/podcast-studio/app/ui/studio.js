@@ -127,7 +127,7 @@
 
   function exportIds(ids) {
     flushSave().then(function () {
-      return api('POST', 'export', { ids: ids, bitrate: 96 });
+      return api('POST', 'export', { ids: ids, bitrate: 128 });
     }).then(refresh).catch(function (err) { alert(err.message); });
   }
 
@@ -263,7 +263,7 @@
     else if (e.state === 'done' && e.result && !msg) {
       var r = e.result;
       $('status').innerHTML = 'Exported: <strong>' + esc(r.path.split('/').pop()) + '</strong> — ' + (r.bytes / 1048576).toFixed(1) + ' MB, ' + r.bitrate +
-        ' kbps mono, ' + r.loudness_after.toFixed(1) + ' LUFS, peak ' + r.peak_after.toFixed(1) + ' dB, ' + r.chapters + ' chapters. ' +
+        ' kbps mono, ' + r.loudness_after.toFixed(1) + ' LUFS as heard, peak ' + r.peak_after.toFixed(1) + ' dB, ' + r.chapters + ' chapters. ' +
         '<button class="btn btn--sm" type="button" id="reveal">Show in Finder</button> <a class="btn btn--sm" href="/api/projects/' + p.id + '/output?t=' + encodeURIComponent(TOKEN) + '">Download</a>' +
         (r.chapters !== r.chapters_expected ? ' <strong class="is-error">Not all chapters were written.</strong>' : '');
       $('status').classList.remove('is-error');

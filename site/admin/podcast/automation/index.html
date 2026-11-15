@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>Automation · Podcast · Admin</title>
+<title>Automation · Learning · Admin</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/brand.css">
@@ -51,7 +51,7 @@
       <h2 id="daily-title">Daily job</h2>
       <button data-tip="Run the daily job now: release, reminder and expiry tags for every student" class="btn-ghost" type="button" id="daily-run">Run now</button>
     </div>
-    <p class="muted">Every day around 09:10 (Seoul) on the live site: adds the date-based tags (new module released, not subscribed after 3/7 days, access ending or ended), retries failed updates, and deletes listening data older than 13 months. On preview links it only runs with “Run now”.</p>
+    <p class="muted">Every day around 09:10 (Seoul) on the live site: adds the date-based tags (new week released, nothing played after 3/7 days, access ending or ended), retries failed updates, and deletes listening data older than 13 months. On preview links it only runs with “Run now”.</p>
     <div id="daily"></div>
   </section>
 
@@ -79,13 +79,13 @@
       var rd = r.ready;
       $('setup').innerHTML =
         row(rd.ac, rd.ac ? 'ActiveCampaign connected (AC_API_URL, AC_API_KEY).' : 'Add <code>AC_API_URL</code> and <code>AC_API_KEY</code> to this environment in Vercel (Production and Preview).') +
-        row(rd.field.ok, rd.field.ok ? 'Contact field “' + Admin.esc(rd.field.title) + '” found: it receives each student’s personal page. In AC emails, type <code>%' + Admin.esc(rd.field.perstag) + '%</code>.' :
+        row(rd.field.ok, rd.field.ok ? 'Contact field “' + Admin.esc(rd.field.title) + '” found: it receives each student’s one-tap sign-in link to the student area (내 강의실). In AC emails, type <code>%' + Admin.esc(rd.field.perstag) + '%</code>.' :
           'Create a contact field in ActiveCampaign with the personalization tag <code>' + Admin.esc(rd.field.name) + '</code> (Contacts → Fields, type text).' + (rd.field.error ? ' <span class="muted">(' + Admin.esc(rd.field.error) + ')</span>' : '')) +
         row(rd.webhook, rd.webhook ? 'Webhook ready (key derived from PODCAST_SECRET).' : 'PODCAST_SECRET is missing.') +
         (rd.production || rd.cron
           ? row(rd.cron, rd.cron ? 'Daily job secured (CRON_SECRET).' : 'Add <code>CRON_SECRET</code> (any long random text) to Production in Vercel so the daily job can run.')
           : row('info', 'Daily job: <code>CRON_SECRET</code> lives in Production only, so it can’t be checked from this preview. Here, use “Run now” below.')) +
-        row(true, 'Students’ links start with <code>' + Admin.esc(rd.public_url) + '</code>' + (rd.public_url_set ? ' (PODCAST_PUBLIC_URL).' : '. Set <code>PODCAST_PUBLIC_URL</code> in Production when the domain is ready.'));
+        row(true, 'Students’ links start with <code>' + Admin.esc(rd.public_url) + '</code>' + (rd.public_url_set ? ' (set by <code>PODCAST_PUBLIC_URL</code>).' : ' (default).'));
 
       $('hooks').innerHTML = r.webhook ?
         '<h3 class="admin-h3">1. Purchase → enrol</h3><p class="muted">Set it up once for all programs and cohorts: in ActiveCampaign, <strong>Settings → Developer → Manage Webhooks → Add</strong>, list “All Lists”, event <strong>Contact Tag Added</strong>, every source ticked, and this address. Tags that aren’t a cohort tag are ignored. (On plans with the automation <strong>Webhook</strong> action, that works too.) The student is enrolled in every cohort whose tag they have, gets their link in <code>%' + Admin.esc(rd.field.perstag || rd.field.name) + '%</code> and the tag <code>' + Admin.esc(r.tags[0].tag) + '</code>.</p>' +

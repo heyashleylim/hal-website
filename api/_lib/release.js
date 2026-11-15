@@ -3,6 +3,7 @@
  * tests/podcast/release.test.js.
  *
  * - An episode is released for a student at: the cohort's override date for that episode, if any;
+ *   otherwise the episode's own fixed date (episode.release_at, the same for every cohort);
  *   otherwise (the student's own start date, or else the cohort start) + episode.day_offset days,
  *   at show.release_time in show.timezone. A student with their own start date ignores cohort overrides.
  * - Access ends at: listener.expires_override, or else cohort start + access days (cohort, or else show)
@@ -56,6 +57,7 @@ function releaseAt({ show, cohort, listener, episode, override }) {
   if (episode.status !== 'published') return null;
   const ownSchedule = Boolean(listener && listener.start_override);
   if (override && !ownSchedule) return new Date(override);
+  if (episode.release_at) return new Date(episode.release_at);
   const start = startDay(listener, cohort);
   if (!start) return null;
   return zonedTime(addDays(start, episode.day_offset || 0), show.release_time, show.timezone);

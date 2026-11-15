@@ -11,10 +11,12 @@ window.Admin = (function () {
     home: '<path d="M4 11l8-7 8 7v9h-5v-6h-6v6H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
     podcast: '<rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     activity: '<path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    shop: '<path d="M5 8h14l-1 12H6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8V7a3 3 0 0 1 6 0v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    emails: '<rect x="3.5" y="5.5" width="17" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 7.5l8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     logout: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   };
   var SECTIONS = [
-    { key: 'podcast', label: 'Podcast', icon: 'podcast', home: '/admin/podcast', groups: [
+    { key: 'podcast', label: 'Learning', icon: 'podcast', home: '/admin/podcast', groups: [
       { items: [['/admin/podcast', 'Overview']] },
       { title: 'Manage', items: [
         ['/admin/podcast/episodes', 'Episodes'],
@@ -23,6 +25,19 @@ window.Admin = (function () {
         ['/admin/podcast/programs', 'Programs'],
       ] },
       { title: 'Automation', items: [['/admin/podcast/automation', 'ActiveCampaign']] },
+    ] },
+    { key: 'shop', label: 'Shop', icon: 'shop', home: '/admin/shop', groups: [
+      { items: [['/admin/shop', 'Overview']] },
+      { title: 'Manage', items: [
+        ['/admin/shop/orders', 'Orders'],
+        ['/admin/shop/products', 'Products'],
+      ] },
+      { title: 'Setup', items: [['/admin/shop/settings', 'Settings']] },
+    ] },
+    { key: 'emails', label: 'Emails', icon: 'emails', home: '/admin/emails', groups: [
+      { items: [['/admin/emails', 'Overview']] },
+      { title: 'Review', items: [['/admin/emails/browse', 'All emails']] },
+      { title: 'Setup', items: [['/admin/emails/sync', 'Import & sync']] },
     ] },
   ];
   var COLLAPSE_KEY = 'admin-menu-collapsed';
@@ -145,11 +160,30 @@ window.Admin = (function () {
   }
 
   // "YYYY-MM-DD" and "HH:MM" of an instant in Seoul time (for date/time inputs).
+  // Episode types (api/_lib/episodes.js): "Week 2", "Week 2 · Q&A", "Live", "Bonus".
+  var KIND_NAMES = { week: 'Week', module: 'Week', qa: 'Q&A', live: 'Live', bonus: 'Bonus' };
+  function episodeLabel(e) {
+    var n = e.number ? 'Week ' + e.number : '';
+    if (e.kind === 'week' || e.kind === 'module' || !e.kind) return n || 'Week';
+    return n ? n + ' · ' + KIND_NAMES[e.kind] : KIND_NAMES[e.kind] || e.kind;
+  }
+
   function kstParts(value) {
     var p = {};
     new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
       .formatToParts(new Date(value)).forEach(function (x) { p[x.type] = x.value; });
     return { date: p.year + '-' + p.month + '-' + p.day, time: p.hour + ':' + p.minute };
+  }
+
+  // Money in the smallest unit (won, cents) → "₩2,690,000", "$2,299", "$19.50"; negative amounts keep their sign in front.
+  function money(amount, currency) {
+    if (amount == null) return '–';
+    var abs = Math.abs(amount), sign = amount < 0 ? '-' : '';
+    if (currency === 'USD') {
+      var c = abs % 100;
+      return sign + '$' + Math.floor(abs / 100).toLocaleString('en-US') + (c ? '.' + String(c).padStart(2, '0') : '');
+    }
+    return sign + '₩' + abs.toLocaleString('en-US');
   }
 
   function size(bytes) {
@@ -189,7 +223,7 @@ window.Admin = (function () {
   }
 
   var api = {
-    esc: esc, kst: kst, kstParts: kstParts, lastDay: lastDay, size: size, duration: duration, audioDuration: audioDuration, imageSize: imageSize,
+    esc: esc, money: money, kst: kst, kstParts: kstParts, episodeLabel: episodeLabel, lastDay: lastDay, size: size, duration: duration, audioDuration: audioDuration, imageSize: imageSize,
     get: function (action, params) {
       var q = new URLSearchParams(Object.assign({ action: action, show: currentShow() }, params || {}));
       return fetch('/api/admin?' + q, { credentials: 'same-origin' }).then(handle);

@@ -1,8 +1,10 @@
 User-agent: *
 Disallow: /preview/
+Disallow: /checkout/
 Disallow: /admin/
 Disallow: /podcast/
 Disallow: /f/
 Disallow: /a/
+Disallow: /learn
 
 Sitemap: https://www.ashleylim.com/sitemap.xml

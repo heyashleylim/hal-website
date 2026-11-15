@@ -7,6 +7,11 @@ OUT="${1:-$HOME/Downloads/Podcast-Studio.zip}"
 STAGE="$(mktemp -d)"
 mkdir "$STAGE/Podcast-Studio"
 rsync -a --exclude '__pycache__' --exclude '.DS_Store' "$SRC/" "$STAGE/Podcast-Studio/"
+# VERSION = the last commit of the Studio folder, so "update" knows what's installed (left out if there are
+# uncommitted changes: the first update then simply installs the published version).
+if [ -z "$(git -C "$SRC" status --porcelain -- .)" ]; then
+  git -C "$SRC" log -1 --format='{"commit": "%H", "date": "%cI"}' -- . > "$STAGE/Podcast-Studio/VERSION"
+fi
 chmod +x "$STAGE/Podcast-Studio/podcast-studio" "$STAGE/Podcast-Studio/setup.sh" "$STAGE/Podcast-Studio/Podcast Studio.command"
 rm -f "$OUT"
 ditto -c -k --norsrc --noextattr --noacl --keepParent "$STAGE/Podcast-Studio" "$OUT"

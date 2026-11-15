@@ -7,7 +7,13 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "functions": {
-    "api/podcast-page.js": {
+    "api/shop-page.js": {
+      "includeFiles": "site/{index.html,nsmb/index.html}"
+    },
+    "api/shop.js": {
+      "includeFiles": "site/{index.html,nsmb/index.html}"
+    },
+    "api/learn.js": {
       "includeFiles": "site/{index.html,nsmb/index.html}"
     }
   },
@@ -82,6 +88,32 @@
           "value": "no-referrer"
         }
       ]
+    },
+    {
+      "source": "/learn/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        }
+      ]
+    },
+    {
+      "source": "/learn",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        }
+      ]
     }
   ],
   "redirects": [
@@ -119,9 +151,19 @@
       "permanent": true
     },
     {
-      "source": "/checkout/:path*",
-      "destination": "https://ashleylim.com/checkout/:path*",
-      "permanent": true
+      "source": "/checkout",
+      "destination": "https://ashleylim.com/checkout",
+      "permanent": false
+    },
+    {
+      "source": "/checkout/order-received/:path*",
+      "destination": "https://ashleylim.com/checkout/order-received/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/checkout/order-pay/:path*",
+      "destination": "https://ashleylim.com/checkout/order-pay/:path*",
+      "permanent": false
     },
     {
       "source": "/cart/:path*",
@@ -187,9 +229,32 @@
       "source": "/go/youtube",
       "destination": "https://www.youtube.com/@heyashleylim",
       "permanent": false
+    },
+    {
+      "source": "/podcast/help",
+      "destination": "/learn/help",
+      "permanent": false
+    },
+    {
+      "source": "/podcast/:token([A-Za-z0-9_-]{22})/listen",
+      "destination": "/learn/start/:token",
+      "permanent": false
+    },
+    {
+      "source": "/podcast/:token([A-Za-z0-9_-]{22})",
+      "destination": "/learn/start/:token",
+      "permanent": false
     }
   ],
   "rewrites": [
+    {
+      "source": "/learn",
+      "destination": "/api/learn?path="
+    },
+    {
+      "source": "/learn/:path*",
+      "destination": "/api/learn?path=:path*"
+    },
     {
       "source": "/f/:token([A-Za-z0-9_-]+)/:show([a-z0-9-]+)",
       "destination": "/api/podcast-feed?token=:token&show=:show"
@@ -203,8 +268,12 @@
       "destination": "/api/podcast-audio?token=:token&file=:file"
     },
     {
-      "source": "/podcast/:token([A-Za-z0-9_-]+)",
-      "destination": "/api/podcast-page?token=:token"
+      "source": "/checkout/complete",
+      "destination": "/api/shop-page?view=complete"
+    },
+    {
+      "source": "/checkout/:slug([a-z0-9-]+)",
+      "destination": "/api/shop-page?view=checkout&slug=:slug"
     }
   ]
 }

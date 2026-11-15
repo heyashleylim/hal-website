@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Overview · Shop · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="shop">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main">
+  <h1>Shop</h1>
+  <p class="muted">Products, orders and tax records. The checkout exists at <code>/checkout/&lt;product&gt;</code> for products set to Open, but the site’s payment links still go to WordPress until the switch.</p>
+
+  <section class="admin-card" aria-labelledby="now-title">
+    <h2 id="now-title">Now</h2>
+    <dl class="stats" id="stats" aria-live="polite"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
+  </section>
+
+  <section class="admin-card" aria-labelledby="attention-title">
+    <h2 id="attention-title">Needs attention</h2>
+    <ul class="checklist" id="attention" aria-live="polite"><li class="muted">Checking…</li></ul>
+  </section>
+
+  <section class="admin-card" aria-labelledby="money-title">
+    <h2 id="money-title">Last 30 days</h2>
+    <p class="muted">Money received and refunded, from the tax ledger. Amounts include VAT.</p>
+    <div id="money" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  function fail(err) {
+    document.getElementById('stats').innerHTML = '';
+    document.getElementById('attention').innerHTML = '<li><span class="status status--bad">Error</span><span>' + Admin.esc(err.message) + '</span></li>';
+    document.getElementById('money').innerHTML = '';
+  }
+  Admin.get('shop-overview').then(function (r) {
+    var o = r.overview;
+    document.getElementById('stats').innerHTML =
+      '<div><dt>Products on sale</dt><dd>' + o.products.open + ' <span class="small muted">of ' + o.products.total + '</span></dd></div>' +
+      '<div><dt>Paid orders</dt><dd>' + o.orders.paid + '</dd></div>' +
+      '<div><dt>Paid, last 30 days</dt><dd>' + o.orders.paid_30d + '</dd></div>';
+
+    var a = o.attention, items = [
+      [a.instalments, 'instalment(s) failed or overdue', 'No failed or overdue instalment'],
+      [a.refunds, 'refund(s) requested and not yet confirmed by the payment provider', 'No refund waiting for confirmation'],
+      [a.unpaid, 'order(s) started more than an hour ago and still unpaid', 'No unpaid order waiting'],
+      [a.ac_missing, 'paid order(s) never sent to ActiveCampaign: the buyer has no purchase tag yet. The daily job fixes it; to do it now, open the order', 'Every paid order was sent to ActiveCampaign'],
+      [a.notices, 'notice(s) from a payment provider refused or unusual in the last 14 days (open the order to see why)', 'No refused or unusual payment notice'],
+      [a.ac_failed, 'ActiveCampaign update(s) failed after 8 tries (open the order, then “Send to ActiveCampaign now”)', a.ac_pending ? a.ac_pending + ' ActiveCampaign update(s) waiting to be sent' : 'ActiveCampaign is up to date'],
+    ];
+    document.getElementById('attention').innerHTML = items.map(function (i) {
+      return '<li><span class="status ' + (i[0] ? 'status--bad">' + i[0] : 'status--ok">OK') + '</span><span>' + (i[0] ? i[1] + ' — <a href="/admin/shop/orders">see orders</a>' : i[2]) + '</span></li>';
+    }).join('');
+
+    var currencies = Object.keys(o.last30days);
+    document.getElementById('money').innerHTML = currencies.length ?
+      '<table class="admin-table"><thead><tr><th>Currency</th><th></th><th>Count</th><th>Amount</th><th>Supply</th><th>VAT</th></tr></thead><tbody>' +
+      currencies.map(function (cur) {
+        var t = o.last30days[cur];
+        return [['Received', t.approved], ['Refunded', t.cancelled], ['Net', t.net]].map(function (row, i) {
+          return '<tr>' + (i === 0 ? '<td rowspan="3">' + cur + '</td>' : '') + '<td>' + row[0] + '</td><td class="num">' + row[1].count + '</td><td class="num">' + Admin.money(row[1].amount, cur) + '</td><td class="num">' + Admin.money(row[1].supply, cur) + '</td><td class="num">' + Admin.money(row[1].vat, cur) + '</td></tr>';
+        }).join('');
+      }).join('') + '</tbody></table>' : '<p class="admin-empty">No payment in the last 30 days.</p>';
+  }).catch(fail);
+})();
+</script>
+</body>
+</html>

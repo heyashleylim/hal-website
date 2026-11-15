@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>Students · Podcast · Admin</title>
+<title>Students · Learning · Admin</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/brand.css">
@@ -81,7 +81,8 @@
       <h2 id="detail-title">Student</h2>
       <div class="admin-actions">
         <button data-tip="Change this student’s name or email" class="btn-ghost" type="button" id="d-edit">Edit</button>
-        <button data-tip="Give this student a new personal link. The old link and their app subscriptions stop working: they must subscribe again" class="btn-ghost" type="button" id="d-reset">Reset link</button>
+        <button data-tip="Sign this student out of the student area on every device. They sign in again with a code" class="btn-ghost" type="button" id="d-signout">Sign out everywhere</button>
+        <button data-tip="Give this student a new sign-in link. The old link and every signed-in device stop working: they sign in again" class="btn-ghost" type="button" id="d-reset">Reset link</button>
         <button data-tip="Stop this student’s access to every program. You can restore it later" class="btn-ghost" type="button" id="d-revoke">Revoke all access</button>
         <button data-tip="Delete this student with their enrolments and listening history. This cannot be undone" class="btn-danger" type="button" id="d-delete">Delete</button>
         <button data-tip="Close this student" class="btn-ghost" type="button" data-close="detail">Close</button>
@@ -90,7 +91,7 @@
     <p class="admin-form__result" id="d-out" role="status" aria-live="polite"></p>
     <dl class="facts" id="d-facts"></dl>
     <div class="link-row">
-      <label for="d-link">Personal page (send this to the student: it lists all their programs)</label>
+      <label for="d-link">Sign-in link (one tap signs them into the student area; it is the PODCAST_LINK in their welcome email)</label>
       <div class="inline-edit"><input id="d-link" readonly><button data-tip="Copy this link" class="btn-ghost" type="button" data-copy="d-link">Copy</button></div>
     </div>
     <h3 class="admin-h3">Enrolments</h3>
@@ -101,19 +102,15 @@
       <button data-tip="Enrol this student in the cohort selected on the left" class="btn-ghost" type="button" id="d-enrol">Enrol</button>
       <label class="check-ac"><input type="checkbox" id="d-enrol-notify"> Tell ActiveCampaign <span class="hint">fills their link and adds the “enrolled” tag, which can send the welcome email</span></label>
     </div>
-    <div class="cols-2">
-      <div>
-        <h3 class="admin-h3">Listening history</h3>
-        <ol class="timeline" id="d-events"></ol>
-      </div>
-      <div>
-        <h3 class="admin-h3">ActiveCampaign</h3>
-        <div class="admin-actions" id="d-ac-actions"></div>
-        <div id="d-ac"></div>
-        <h3 class="admin-h3">Changes in the admin</h3>
-        <ol class="timeline" id="d-history"></ol>
-      </div>
-    </div>
+    <h3 class="admin-h3">Listening in the student area</h3>
+    <div class="admin-scroll" id="d-listening"></div>
+    <h3 class="admin-h3">Signed-in devices</h3>
+    <div class="admin-scroll" id="d-sessions"></div>
+    <h3 class="admin-h3">ActiveCampaign</h3>
+    <div class="admin-actions" id="d-ac-actions"></div>
+    <div id="d-ac"></div>
+    <h3 class="admin-h3">Changes in the admin</h3>
+    <ol class="timeline" id="d-history"></ol>
   </section>
 
   <section class="admin-card" aria-label="Students list">
@@ -133,9 +130,9 @@
       <label>Listening
         <select id="f-listen">
           <option value="">All</option>
-          <option value="never">Never subscribed</option>
-          <option value="subscribed">Subscribed</option>
-          <option value="behind">Behind (missed released episodes)</option>
+          <option value="never">Never signed in</option>
+          <option value="learn">Uses the student area</option>
+          <option value="behind">Behind (released episodes not finished yet)</option>
         </select>
       </label>
     </div>

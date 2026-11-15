@@ -9,15 +9,15 @@ Then, in the browser page it opens (http://127.0.0.1:8792):
   2. Each file is analysed (waveform, pauses) and, if Whisper is installed, transcribed locally (Korean).
   3. Chapters are suggested at the longest pauses, titled with the words that follow; edit, add or delete
      them while listening (click a chapter or a transcript line to jump there).
-  4. Select files and export: mono MP3, 96 kbps, -16 LUFS, peaks at most -1 dB, chapters embedded
-     (app/encode.py). Exports go to ~/Downloads/Podcast Studio (or --out).
+  4. Select files and export: mono MP3, 128 kbps, as loud as -16 LUFS stereo, peaks at most -1 dB, chapters
+     embedded (app/encode.py: one volume change and a light peak limiter, no compression). Exports go to ~/Downloads/Podcast Studio (or --out).
 
 Everything stays on this Mac: the server listens on 127.0.0.1 only and every API call needs the
 per-session token embedded in the page. Work files live in ~/.cache/podcast-studio (delete a file
 in the UI to remove its work folder). Needs ffmpeg; transcription needs whisper-cpp + a model:
     bash setup.sh   (installs ffmpeg, whisper-cpp and the Whisper model)
 Chapter suggestions by AI come from Claude in a Claude Code session: see CLAUDE.md (commands: transcript,
-set-chapters).
+set-chapters). Updates: ./podcast-studio update (app/updater.py, from GitHub).
 """
 import argparse
 import json
@@ -50,7 +50,7 @@ UI = Path(__file__).resolve().parent / 'ui'
 PLAYABLE = {'.mp3', '.m4a', '.aac', '.wav', '.mp4', '.m4v', '.mov', '.ogg', '.oga', '.opus', '.flac', '.webm'}
 ACCEPTED = PLAYABLE | {'.aif', '.aiff', '.caf', '.mkv'}
 PEAKS_PER_SECOND = 10
-BITRATES = (64, 80, 96, 112, 128)
+BITRATES = encode.BITRATES
 
 TOKEN = secrets.token_urlsafe(24)
 OUT_DIR = HOME / 'Downloads' / 'Podcast Studio'
@@ -140,7 +140,7 @@ def compute_peaks(src):
 
 def detect_silences(src):
     r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', str(src), '-vn', '-af', 'silencedetect=noise=-35dB:d=0.7', '-f', 'null', '-'],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     out, start = [], None
     for line in r.stderr.splitlines():
         m = re.search(r'silence_start: (-?[\d.]+)', line)
@@ -211,7 +211,7 @@ def transcribe(pid):
         p = load(pid)
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(source_path(p)), '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', str(wav)], check=True)
         cmd = [binary, '-m', str(MODEL), '-l', 'ko', '-t', str(max(4, (os.cpu_count() or 8) - 2)), '-pp', '-ml', '80', '-sow', '-oj', '-of', str(d / 'whisper'), '-f', str(wav)]
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
         last = -1
         tail = []
         for line in proc.stdout:
@@ -474,7 +474,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if method == 'POST' and parts == ['export']:
             body = self.read_json()
-            bitrate = int(body.get('bitrate') or 96)
+            bitrate = int(body.get('bitrate') or encode.DEFAULT_BITRATE)
             if bitrate not in BITRATES:
                 raise ValueError('unsupported bitrate')
             ids = [i for i in body.get('ids', []) if isinstance(i, str)]
@@ -629,10 +629,10 @@ def cli(argv):
     c = sub.add_parser('set-chapters', help='replace a file\'s chapters from JSON [{"start": seconds or "m:ss", "title": "..."}]')
     c.add_argument('file')
     c.add_argument('json', help='path to a JSON file, or - for stdin')
-    e = sub.add_parser('export', help='export files now (mono MP3, -16 LUFS, chapters) to the export folder')
+    e = sub.add_parser('export', help='export files now (mono MP3, -16 LUFS as heard, chapters) to the export folder')
     e.add_argument('file', nargs='?', help='id, id prefix or part of the file name')
     e.add_argument('--all', action='store_true', help='every analysed file')
-    e.add_argument('--bitrate', type=int, default=96, choices=BITRATES)
+    e.add_argument('--bitrate', type=int, default=encode.DEFAULT_BITRATE, choices=BITRATES)
     e.add_argument('--out', type=Path, help='export folder (default: ~/Downloads/Podcast Studio)')
     args = ap.parse_args(argv)
     PROJECTS.mkdir(parents=True, exist_ok=True)
@@ -668,14 +668,14 @@ def cli(argv):
             r = load(p['id']).get('export', {})
             if r.get('state') == 'done':
                 x = r['result']
-                print(f'  → {x["path"]}  ({x["bytes"] / 1048576:.1f} MB, {x["loudness_after"]:.1f} LUFS, peak {x["peak_after"]:.1f} dB, {x["chapters"]} chapters)')
+                print(f'  → {x["path"]}  ({x["bytes"] / 1048576:.1f} MB, {x["loudness_after"]:.1f} LUFS as heard, peak {x["peak_after"]:.1f} dB, {x["chapters"]} chapters)')
             else:
                 print(f'  ✗ {r.get("error")}')
 
 
 def main(argv=None):
     global OUT_DIR
-    ap = argparse.ArgumentParser(prog='podcast-studio start', description='Podcast Studio: chapters + mono MP3, -16 LUFS, on this Mac.')
+    ap = argparse.ArgumentParser(prog='podcast-studio start', description='Podcast Studio: chapters + mono MP3, -16 LUFS as heard, on this Mac.')
     ap.add_argument('--port', type=int, default=8792)
     ap.add_argument('--out', type=Path, default=OUT_DIR, help='export folder (default: ~/Downloads/Podcast Studio)')
     ap.add_argument('--no-open', action='store_true', help="don't open the browser")
@@ -711,7 +711,13 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] in ('status', 'list', 'transcript', 'set-chapters', 'export', '-h', '--help'):
+    if len(sys.argv) > 1 and sys.argv[1] in ('update', 'version'):
+        import updater
+        if sys.argv[1] == 'version':
+            print(json.dumps(updater.installed() or {'commit': 'unknown'}))
+            sys.exit(0)
+        sys.exit(updater.main(sys.argv[2:]))
+    elif len(sys.argv) > 1 and sys.argv[1] in ('status', 'list', 'transcript', 'set-chapters', 'export', '-h', '--help'):
         cli(sys.argv[1:])
     elif len(sys.argv) > 1 and sys.argv[1] == 'start':
         main(sys.argv[2:])

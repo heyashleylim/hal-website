@@ -52,7 +52,7 @@ Static HTML + vanilla JS that calls one admin API. Labels in English (decided 20
    - Pages: subscribe-page intro text, support email.
    - The data model allows several shows, so EFT or SWITCH could get a podcast later without rework.
 3. **Episodes**
-   - Upload the MP3 straight from the browser to Blob (no 4.5 MB function limit). Duration and size are read automatically, with a warning above 128 kbps (spoken word: 64–96 kbps mono is plenty).
+   - Upload the MP3 straight from the browser to Blob (no 4.5 MB function limit). Duration and size are read automatically. Podcast Studio exports 128 kbps mono.
    - Fields: title, show notes, episode number, **release day offset** (module 1 = day 0, module 2 = day 7…), status (draft/published).
    - Actions: replace audio, reorder, built-in player for preview.
    - "Bonus" episodes can be released to everyone at once or to chosen cohorts.
@@ -288,7 +288,7 @@ Ashley asks Claude Code to unzip and set it up; `CLAUDE.md` inside tells Claude 
 ffmpeg, whisper-cpp, Whisper large-v3-turbo q5 model), open, suggest chapters and export; `START HERE.txt` is
 for her. A browser UI served on 127.0.0.1: batch upload, waveform player, chapter editor, chapters suggested
 from pauses or by Claude in her Claude Code session (`podcast-studio transcript` / `set-chapters`, no API key),
-batch export: mono MP3 96 kbps, −16 LUFS, peaks ≤ −1 dB, ID3 chapters.
+batch export: mono MP3 128 kbps, −16 LUFS as heard (−19 LUFS mono), peaks ≤ −1 dB, ID3 chapters. No compression: one volume change and a light oversampled limiter (2026-11-12: the earlier loudnorm export compressed and clipped).
 
 ## 10. Several shows, students and enrolments (2026-10-25)
 

@@ -14,6 +14,7 @@ let fieldCacheAt = 0;
 async function ac(path, options = {}) {
   if (!process.env.AC_API_URL || !process.env.AC_API_KEY) throw new Error('AC_API_URL / AC_API_KEY not set');
   const res = await fetch(process.env.AC_API_URL.trim().replace(/\/$/, '') + '/api/3' + path, {
+    signal: AbortSignal.timeout(20000), // a stuck ActiveCampaign call must not hold up a payment notice or the daily job
     ...options,
     headers: { 'Api-Token': process.env.AC_API_KEY.trim(), 'Content-Type': 'application/json', Accept: 'application/json' },
   });
@@ -71,6 +72,34 @@ async function contactHasTags(contactId, candidates) {
     if (id && have.has(String(id))) out.push(name);
   }
   return out;
+}
+
+// Every tag whose name starts with "purchased" (purchased_eft, purchased_nsmb_11_202609…): Map(id → name).
+// Refreshed every 10 minutes; a new product's tag is picked up on the next refresh.
+let purchaseTags = null;
+let purchaseTagsAt = 0;
+async function purchaseTagMap() {
+  if (purchaseTags && Date.now() - purchaseTagsAt < 10 * 60 * 1000) return purchaseTags;
+  const map = new Map();
+  for (let offset = 0; offset < 5000; offset += 100) {
+    const body = await ac(`/tags?search=purchased&limit=100&offset=${offset}`);
+    const tags = body.tags || [];
+    for (const t of tags) if (String(t.tag).toLowerCase().startsWith('purchased')) map.set(String(t.id), String(t.tag));
+    if (tags.length < 100) break;
+  }
+  purchaseTags = map;
+  purchaseTagsAt = Date.now();
+  return map;
+}
+
+// What this email bought according to ActiveCampaign: { contact: { id, firstName }, tags: ['purchased_eft', …] },
+// or null when the email isn't an AC contact. tags is empty for a contact who never bought anything.
+async function purchasesByEmail(email) {
+  const contact = await findContactByEmail(email);
+  if (!contact) return null;
+  const [map, have] = await Promise.all([purchaseTagMap(), contactTagIds(contact.id)]);
+  const tags = have.map((ct) => map.get(ct.tagId)).filter(Boolean);
+  return { contact: { id: String(contact.id), firstName: contact.firstName || '' }, tags };
 }
 
 async function addTag(contactId, name, { description } = {}) {
@@ -201,6 +230,7 @@ function resetCaches() {
   listIds.clear();
   optionCache.clear();
   fieldCache = null;
+  purchaseTags = null;
 }
 
-module.exports = { findContactByEmail, getContact, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, findField, fieldOptions, syncContact, updateContactFields, subscribeToList, resetCaches };
+module.exports = { request: ac, findContactByEmail, getContact, tagId, contactHasTags, contactsWithTag, addTag, removeTag, fieldId, findField, fieldOptions, syncContact, updateContactFields, subscribeToList, resetCaches, purchasesByEmail };

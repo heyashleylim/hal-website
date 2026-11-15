@@ -21,6 +21,15 @@
         "--no-open"
       ],
       "port": 8792
+    },
+    {
+      "name": "shop-admin",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--env-file-if-exists=.env.local",
+        "tools/shop/dev-server.js"
+      ],
+      "port": 8793
     }
   ]
 }
