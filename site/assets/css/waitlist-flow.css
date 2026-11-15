@@ -62,7 +62,8 @@
 .wlf__done{text-align:center;padding:12px 0}
 .wlf__done:focus{outline:none}
 .wlf__done h3,.wlf__done h4{font-size:22px;line-height:1.45;margin-bottom:12px}
-.wlf__done p{color:var(--ink-2);line-height:1.6}
+.wlf__done [data-done-title]{margin-bottom:20px}
+.wlf__done p{color:var(--ink-2);line-height:1.6;max-width:23em;margin:0 auto;text-wrap:balance}
 
 @media (max-width:767px){
   .wlf__q{font-size:17px}
