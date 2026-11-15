@@ -16,7 +16,7 @@ window.Admin = (function () {
     logout: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   };
   var SECTIONS = [
-    { key: 'podcast', label: 'Podcast', icon: 'podcast', home: '/admin/podcast', groups: [
+    { key: 'podcast', label: 'Learning', icon: 'podcast', home: '/admin/podcast', groups: [
       { items: [['/admin/podcast', 'Overview']] },
       { title: 'Manage', items: [
         ['/admin/podcast/episodes', 'Episodes'],

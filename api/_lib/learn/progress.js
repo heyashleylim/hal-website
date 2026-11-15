@@ -32,7 +32,7 @@ async function save(studentId, episode, input, now = new Date()) {
        listened_seconds = listening.listened_seconds + (EXCLUDED.listened_seconds - $8),
        completed_at = COALESCE(listening.completed_at, EXCLUDED.completed_at), updated_at = EXCLUDED.updated_at`,
     [studentId, episode.id, row.position_seconds, row.furthest_seconds, row.listened_seconds, row.completed_at, now, old ? old.listened_seconds : 0]);
-  return row;
+  return { ...row, first: !old };
 }
 
 // Map(episode id → row) for one student.

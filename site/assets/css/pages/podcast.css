@@ -1,4 +1,4 @@
-/* Private podcast pages for students: /podcast/<token> (api/podcast-page.js) and /podcast/help. */
+/* Student area pages (/learn, api/_lib/learn/pages.js); learn.css adds its own parts. */
 /* One column that never grows past the screen (minmax(0,…)): a long word, URL or input can't push the cards wider on phones. */
 .pod{max-width:var(--w-narrow);margin:0 auto;padding:40px var(--gutter) 72px;display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
 .pod__card{min-width:0;background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--r-lg);padding:32px 28px;line-height:1.7;overflow-wrap:break-word}
@@ -45,7 +45,7 @@
 .pod__apps .btn{min-height:52px;padding-top:12px;padding-bottom:12px}
 .pod__h3{font:600 16px/1.5 var(--font-body);margin:22px 0 10px}
 .pod__card--intro .pod__title{margin-bottom:10px}
-/* TEST web player: /podcast/<token>/listen (assets/js/podcast-player.js) */
+/* Player of the student area (/learn, assets/js/learn-player.js) */
 .play__now{display:flex;align-items:center;gap:16px;margin-bottom:18px}
 .play__art{flex:none;width:88px;height:88px;border-radius:var(--r-md);object-fit:cover;background:var(--bg-alt)}
 .play__now-text{min-width:0}
@@ -63,6 +63,4 @@
 .play__item{display:flex;flex-direction:column;gap:4px;width:100%;min-height:56px;padding:12px 4px;border:0;border-bottom:1px solid var(--line-soft);background:none;text-align:left;font:500 16px/1.5 var(--font-body);color:var(--ink);cursor:pointer;word-break:keep-all}
 .play__item[aria-current="true"] .play__item-title{color:var(--accent);font-weight:700}
 .play__item-meta{font-size:13px;color:var(--muted)}
-.play__log{margin:12px 0 0;padding-left:1.2em;font-size:14px;line-height:1.6;color:var(--ink-2)}
-.play__log li+li{margin-top:6px}
 .pod button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}

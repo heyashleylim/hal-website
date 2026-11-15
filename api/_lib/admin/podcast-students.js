@@ -2,7 +2,8 @@
  * Admin API, Podcast section: students (people), their enrolments (one per cohort, any program), CSV import and
  * Sync from ActiveCampaign. Actions are routed by api/admin.js.
  *
- * A student has one personal link (/podcast/<token>) listing every show they're enrolled in.
+ * A student has one token: their one-tap sign-in link to the student area (/learn/start/<token>, sent as PODCAST_LINK)
+ * and their private podcast feeds (/f/<token>/<show>).
  * What they can hear in a show follows release.showAccess (all their running enrolments in that show combined).
  */
 const db = require('../db.js');
@@ -110,9 +111,24 @@ const STUDENT_SQL = `
              'cohort', json_build_object('id', c.id, 'show_id', c.show_id, 'name', c.name, 'ac_tag', c.ac_tag,
                                          'start_date', to_char(c.start_date, 'YYYY-MM-DD'), 'access_days', c.access_days))
              ORDER BY c.show_id, c.start_date) AS enrollments
-      FROM enrollments en JOIN cohorts c ON c.id = en.cohort_id GROUP BY en.student_id)
-  SELECT row_to_json(st) AS student, COALESCE(en.enrollments, '[]'::json) AS enrollments, d.downloaded, d.last_download_at, d.apps
-    FROM students st LEFT JOIN en ON en.student_id = st.id LEFT JOIN d ON d.student_id = st.id`;
+      FROM enrollments en JOIN cohorts c ON c.id = en.cohort_id GROUP BY en.student_id),
+  l AS (
+    SELECT student_id, count(*) FILTER (WHERE completed_at IS NOT NULL) AS finished, count(*) AS started,
+           max(updated_at) AS last_listen_at, sum(listened_seconds) AS listened_seconds
+      FROM listening GROUP BY student_id),
+  se AS (
+    SELECT student_id, max(last_seen_at) AS last_visit_at, count(*) FILTER (WHERE ended_at IS NULL AND expires_at > now()) AS devices
+      FROM learn_sessions GROUP BY student_id),
+  h AS (
+    -- Episodes heard either way: finished in the student area, or downloaded by a podcast app.
+    SELECT student_id, count(DISTINCT episode_id) AS heard FROM (
+      SELECT student_id, episode_id FROM listening WHERE completed_at IS NOT NULL
+      UNION SELECT student_id, episode_id FROM events e WHERE e.kind = 'download' AND e.episode_id IS NOT NULL AND ${NOT_A_PERSON}) x
+     GROUP BY student_id)
+  SELECT row_to_json(st) AS student, COALESCE(en.enrollments, '[]'::json) AS enrollments, d.downloaded, d.last_download_at, d.apps,
+         l.finished, l.started, l.last_listen_at, l.listened_seconds, se.last_visit_at, se.devices, h.heard
+    FROM students st LEFT JOIN en ON en.student_id = st.id LEFT JOIN d ON d.student_id = st.id
+    LEFT JOIN l ON l.student_id = st.id LEFT JOIN se ON se.student_id = st.id LEFT JOIN h ON h.student_id = st.id`;
 
 // Everything the list and the detail show about one student.
 function describe(ctx, row, req, now = new Date()) {
@@ -146,7 +162,11 @@ function describe(ctx, row, req, now = new Date()) {
     created_at: s.created_at, revoked_at: s.revoked_at,
     enrollments, shows, released, expires_at: latest,
     downloaded: Number(row.downloaded || 0), last_download_at: row.last_download_at, apps: row.apps || [],
-    page_url: `${baseUrl(req)}/podcast/${s.token}`,
+    // Student area (/learn)
+    last_visit_at: row.last_visit_at || null, devices: Number(row.devices || 0), finished: Number(row.finished || 0),
+    started: Number(row.started || 0), last_listen_at: row.last_listen_at || null, listened_seconds: Number(row.listened_seconds || 0),
+    heard: Number(row.heard || 0),
+    signin_url: `${baseUrl(req)}/learn/start/${s.token}`,
   };
 }
 
@@ -213,7 +233,17 @@ const actions = {
       db.query(`SELECT at, admin, action, details FROM admin_log WHERE target = $1 ORDER BY at DESC LIMIT 50`, [`student ${id}`]),
       db.one(sharingSql(true), [id]),
     ]);
-    return { student: describe(ctx, row, req), events, networks, outbox, history, sharing: sharing.assess(recent || {}) };
+    const [listening, sessions] = await Promise.all([
+      db.query(
+        `SELECT l.position_seconds, l.furthest_seconds, l.listened_seconds, l.completed_at, l.started_at, l.updated_at,
+                ep.kind, ep.number, ep.title, ep.duration_seconds, sh.title AS show_title
+           FROM listening l JOIN episodes ep ON ep.id = l.episode_id JOIN shows sh ON sh.id = ep.show_id
+          WHERE l.student_id = $1 ORDER BY sh.id, ep.number NULLS LAST, ep.id`, [id]),
+      db.query(
+        `SELECT id, via, user_agent, created_at, last_seen_at, expires_at, ended_at FROM learn_sessions
+          WHERE student_id = $1 ORDER BY last_seen_at DESC LIMIT 20`, [id]),
+    ]);
+    return { student: describe(ctx, row, req), events, networks, outbox, history, sharing: sharing.assess(recent || {}), listening, sessions };
   },
 
   // Create (no id) or update a student. On create, `cohort_id` (optional) enrols them at once.
@@ -310,11 +340,21 @@ const actions = {
     return { deleted: id, target: `student ${row.student_id}`, log: { enrollment: id, cohort_id: row.cohort_id } };
   },
 
-  // New personal link: every feed, audio link and the page of the old link stop working at once.
+  // Signs the student out of the student area on every device (they sign in again with a code).
+  async 'student-sign-out'(input, { req }) {
+    const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
+    await loadRow(id);
+    const ended = await db.query(`UPDATE learn_sessions SET ended_at = now() WHERE student_id = $1 AND ended_at IS NULL RETURNING id`, [id]);
+    return { ended: ended.length, student: describe(await context(), await loadRow(id), req), target: `student ${id}` };
+  },
+
+  // New link: the old sign-in link, every podcast feed and audio link stop working at once, and every device signed in
+  // to the student area is signed out (they sign in again with a code, or the new link).
   async 'student-reset-link'(input, { req }) {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     await loadRow(id);
     await db.query(`UPDATE students SET token = $2, first_seen_at = NULL, updated_at = now() WHERE id = $1`, [id, auth.newToken()]);
+    await db.query(`UPDATE learn_sessions SET ended_at = now() WHERE student_id = $1 AND ended_at IS NULL`, [id]);
     // AC gets the new link and podcast-link-reset (an automation can email it).
     await automation.pushNewLink(id);
     const ac = automation.acConfigured() ? await automation.processOutbox({ budgetMs: 8000 }) : null;
@@ -455,7 +495,11 @@ actions['podcast-overview'] = async function podcastOverview() {
             (SELECT count(*)::int FROM ac_outbox WHERE status = 'pending') AS ac_pending,
             (SELECT count(*)::int FROM ac_outbox WHERE status = 'failed') AS ac_failed,
             (SELECT max(at) FROM webhook_log) AS last_webhook,
-            (SELECT max(at) FROM events WHERE kind = 'download') AS last_download`);
+            (SELECT max(at) FROM events WHERE kind = 'download') AS last_download,
+            (SELECT count(DISTINCT student_id)::int FROM learn_sessions) AS learn_students,
+            (SELECT count(DISTINCT student_id)::int FROM listening WHERE updated_at > now() - interval '7 days') AS learn_listening_7d,
+            (SELECT count(*)::int FROM listening WHERE completed_at > now() - interval '7 days') AS learn_finished_7d,
+            (SELECT max(updated_at) FROM listening) AS last_listen`);
   row.sharing = (await sharingList()).length;
   return { overview: row };
 };
@@ -466,6 +510,6 @@ actions['podcast-sharing'] = async function podcastSharing() {
 };
 
 const writes = ['student-save', 'students-status', 'students-enroll', 'enrollment-save', 'enrollments-status', 'enrollment-delete',
-  'student-reset-link', 'student-delete', 'students-import', 'ac-sync'];
+  'student-reset-link', 'student-sign-out', 'student-delete', 'students-import', 'ac-sync'];
 
 module.exports = { section: 'podcast', actions, writes, parseCsv };

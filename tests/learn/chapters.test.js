@@ -44,7 +44,7 @@ test('chapters: files without a tag, or a tag without chapters, have none; broke
 
 test('chapters: a missing title is named, duplicates and times past the end are dropped', () => {
   assert.deepEqual(chapters.clean([{ start: 30, title: ' ' }, { start: 0, title: '처음' }, { start: 30, title: 'dup' }, { start: 999, title: 'late' }], 600),
-    [{ start: 0, title: '처음' }, { start: 30, title: '챕터 2' }]);
+    [{ start: 0, title: '처음' }, { start: 30, title: 'Chapter 2' }]);
   assert.deepEqual(chapters.clean('nope'), []);
 });
 

@@ -39,7 +39,7 @@ function notice(state, show) {
 }
 
 function buildFeed({ base, show, token, state, items, now = new Date(), query = '' }) {
-  const pageUrl = `${base}/podcast/${token}`;
+  const pageUrl = `${base}/learn`;
   const feedUrl = `${base}/f/${token}/${show.slug}${query}`;
   const description = [notice(state, show), show.description].filter(Boolean).join('\n\n') || show.title;
 

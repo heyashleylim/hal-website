@@ -5,12 +5,13 @@
  *
  * Tags use underscores, like the rest of Ashley's AC tags. Per program (prefix = show.ac_tag_prefix, e.g. podcast_nsmb):
  *   <prefix>_enrolled            enrolled (from the webhook, or by hand with "Tell ActiveCampaign")  → welcome email
- *   <prefix>_subscribed          first time a podcast app fetched this program's feed
+ *   <prefix>_subscribed          first time a podcast app fetched this program's feed (web listening also stops the
+ *                                not_subscribed reminders below, without adding this tag)
  *   <prefix>_not_subscribed_3d   enrolled 3 days ago, an episode is out, still not subscribed       → reminder
  *   <prefix>_not_subscribed_7d   same after 7 days
  *   <prefix>_epNN_released       week NN released for them (daily job, not for catch-up weeks)      → "new week" email
- *   <prefix>_epNN_downloaded     first download of a week NN episode
- *   <prefix>_completed           every published Week episode downloaded
+ *   <prefix>_epNN_downloaded     first download (podcast app) or first play (student area) of a week NN episode
+ *   <prefix>_completed           every published Week episode downloaded or played
  * Only "week" episodes count (not Q&A, Live or Bonus); several episodes of the same week give the tag once.
  *   <prefix>_expiring_30d        access ends within 30 days
  *   <prefix>_expired             access ended
@@ -35,8 +36,9 @@ function publicBase(env = process.env) {
   return 'https://www.ashleylim.com';
 }
 
+// The link in PODCAST_LINK (welcome email): one tap signs the student into the student area (/learn).
 function pageUrl(token) {
-  return `${publicBase()}/podcast/${token}`;
+  return `${publicBase()}/learn/start/${token}`;
 }
 
 function acConfigured() {
@@ -109,7 +111,10 @@ async function onDownload(studentId, show, episode) {
   const done = await db.one(
     `SELECT (SELECT count(*) FROM episodes WHERE show_id = $2 AND kind = 'week' AND status = 'published')::int AS total,
             (SELECT count(DISTINCT e.episode_id) FROM events e JOIN episodes ep ON ep.id = e.episode_id
-              WHERE e.student_id = $1 AND ep.show_id = $2 AND ep.kind = 'week' AND e.kind = 'download')::int AS downloaded`,
+              WHERE e.student_id = $1 AND ep.show_id = $2 AND ep.kind = 'week' AND e.kind = 'download')::int
+            + (SELECT count(*) FROM listening l JOIN episodes ep ON ep.id = l.episode_id
+              WHERE l.student_id = $1 AND ep.show_id = $2 AND ep.kind = 'week' AND ep.status = 'published'
+                AND NOT EXISTS (SELECT 1 FROM events e WHERE e.student_id = $1 AND e.episode_id = l.episode_id AND e.kind = 'download'))::int AS downloaded`,
     [studentId, show.id],
   );
   if (done.total > 0 && done.downloaded >= done.total) {
@@ -214,7 +219,9 @@ async function dailyJob(now = new Date()) {
     db.query('SELECT * FROM shows'),
     db.query(`SELECT * FROM episodes WHERE status = 'published' AND blob_pathname IS NOT NULL`),
     db.query('SELECT cohort_id, episode_id, release_at FROM cohort_episode_dates'),
-    db.query(`SELECT DISTINCT student_id, show_id FROM events WHERE kind = 'feed'`),
+    // Listening in a podcast app (the feed was fetched) or in the student area both count as "subscribed".
+    db.query(`SELECT DISTINCT student_id, show_id FROM events WHERE kind = 'feed'
+              UNION SELECT DISTINCT l.student_id, ep.show_id FROM listening l JOIN episodes ep ON ep.id = l.episode_id`),
   ]);
   const showMap = new Map(shows.map((s) => [s.id, s]));
   const subscribed = new Set(feeds.map((f) => `${f.student_id}:${f.show_id}`));
@@ -248,8 +255,12 @@ async function dailyJob(now = new Date()) {
   const cleaned = await db.one(
     `WITH a AS (DELETE FROM events WHERE at < now() - interval '13 months' RETURNING 1),
           b AS (DELETE FROM webhook_log WHERE at < now() - interval '180 days' RETURNING 1),
-          c AS (DELETE FROM ac_outbox WHERE status = 'done' AND done_at < now() - interval '90 days' RETURNING 1)
-     SELECT (SELECT count(*) FROM a)::int AS events, (SELECT count(*) FROM b)::int AS webhooks, (SELECT count(*) FROM c)::int AS outbox`);
+          c AS (DELETE FROM ac_outbox WHERE status = 'done' AND done_at < now() - interval '90 days' RETURNING 1),
+          d AS (DELETE FROM learn_codes WHERE created_at < now() - interval '30 days' RETURNING 1),
+          e AS (DELETE FROM learn_requests WHERE at < now() - interval '30 days' RETURNING 1),
+          f AS (DELETE FROM learn_sessions WHERE (ended_at IS NOT NULL OR expires_at < now()) AND last_seen_at < now() - interval '90 days' RETURNING 1)
+     SELECT (SELECT count(*) FROM a)::int AS events, (SELECT count(*) FROM b)::int AS webhooks, (SELECT count(*) FROM c)::int AS outbox,
+            (SELECT count(*) FROM d)::int + (SELECT count(*) FROM e)::int + (SELECT count(*) FROM f)::int AS sign_in`);
   const result = { at: now.toISOString(), checked: groups.size, queued, sent, cleaned };
   await db.query(`INSERT INTO settings (key, value) VALUES ('daily-job', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`, [JSON.stringify(result)]);
   return result;

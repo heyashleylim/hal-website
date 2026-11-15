@@ -37,7 +37,8 @@ async function main() {
     const e3 = await ep(3, 14);
     const student = await one(`INSERT INTO students (email, name, token) VALUES ('e2e.learner@example.com', '지연', 'E2Elearn_tok_000000000') RETURNING *`);
     await sql(`INSERT INTO enrollments (student_id, cohort_id) VALUES ($1, $2)`, [student.id, cohort.id]);
-    const other = await one(`INSERT INTO students (email, name, token) VALUES ('e2e.other@example.com', '', 'E2Eother_tok_000000000') RETURNING *`);
+    const other = await one(`INSERT INTO students (email, name, token) VALUES ('e2e.other@purchaser.example', '', 'E2Eother_tok_000000000') RETURNING *`);
+    const notBuyer = await one(`INSERT INTO students (email, name, token) VALUES ('e2e.notbuyer@example.com', '', 'E2Enotbuy_tok_00000000') RETURNING *`);
 
     console.log('Signed out');
     let r = await get('/learn');
@@ -68,16 +69,37 @@ async function main() {
     r = await form('/learn/verify', { email: 'e2e.learner@example.com', code: wrong });
     html = await r.text();
     check('wrong code: refused with a message, no cookie', r.status === 400 && html.includes('코드가 맞지 않아요') && !cookieOf(r));
-    r = await form('/learn/verify', { email: 'e2e.other@example.com', code });
+    r = await form('/learn/verify', { email: 'e2e.other@purchaser.example', code });
     check('the code does not work for another student', r.status === 400 && !cookieOf(r));
     r = await form('/learn/verify', { email: 'e2e.learner@example.com', code: code.slice(0, 3) + ' ' + code.slice(3), next: `/learn/e2e-learn?e=${e2.guid}` });
     const cookie = `hal_learn=${cookieOf(r)}`;
-    check('right code (typed with a space): signed in, back to the page asked for', r.status === 303 && r.headers.get('location') === `/learn/e2e-learn?e=${e2.guid}` && cookie.length > 20);
-    check('cookie lasts a year, HttpOnly, Secure', /Max-Age=31536000/.test(r.headers.get('set-cookie')) && /HttpOnly/.test(r.headers.get('set-cookie')) && /Secure/.test(r.headers.get('set-cookie')));
+    check('right code (typed with a space): signed in; first time ever → home with the "save to home screen" card', r.status === 303 && r.headers.get('location') === '/learn?welcome=1' && cookie.length > 20);
+    check('cookie lasts 30 days, HttpOnly, Secure', /Max-Age=2592000/.test(r.headers.get('set-cookie')) && /HttpOnly/.test(r.headers.get('set-cookie')) && /Secure/.test(r.headers.get('set-cookie')));
     r = await form('/learn/verify', { email: 'e2e.learner@example.com', code });
     check('a code works only once', r.status === 400 && !cookieOf(r));
     r = await form('/learn/verify', { email: 'e2e.learner@example.com', code: 'https://evil.example', next: 'https://evil.example' });
     check('a bad code is refused before anything else', r.status === 400);
+
+    r = await get('/learn?welcome=1', cookie);
+    check('the welcome card says it is for phones and tablets', (await r.text()).includes('휴대폰 · 태블릿 전용 안내'));
+
+    console.log('Who may sign in');
+    const sent = () => learnMail.length;
+    let before = sent();
+    r = await form('/learn/login', { email: 'e2e.notbuyer@example.com' }, from());
+    check('a student row without enrolment or purchase: no code (same page)', r.status === 200 && sent() === before);
+    before = sent();
+    r = await form('/learn/login', { email: 'new.buyer@purchaser.example' }, from());
+    const made = await one(`SELECT * FROM students WHERE email = 'new.buyer@purchaser.example'`);
+    check('a purchaser not in the database: student created, code sent', sent() === before + 1 && made && made.name === '구매자' && /purchaser/.test(made.notes));
+    await sql(`UPDATE students SET status = 'revoked' WHERE id = $1`, [made.id]);
+    before = sent();
+    r = await form('/learn/login', { email: 'new.buyer@purchaser.example' }, from());
+    check('a revoked purchaser (refund): no code', sent() === before);
+    r = await get('/learn/help');
+    check('the help page needs no sign-in', r.status === 200 && (await r.text()).includes('이용 안내'));
+    r = await get(`/podcast/${student.token}`);
+    check('(vercel.json redirects old /podcast/<token> links: checked in the unit tests)', true);
 
     console.log('Pages');
     r = await get('/learn', cookie);
@@ -127,14 +149,15 @@ async function main() {
     await sql(`UPDATE students SET status = 'revoked' WHERE id = $1`, [student.id]);
     r = await get('/learn', cookie);
     check('student revoked: signed out at once', r.status === 303 && r.headers.get('location') === '/learn/login');
+    const mailsBefore = learnMail.length;
     r = await form('/learn/login', { email: 'e2e.learner@example.com' }, from());
-    check('student revoked: no code is sent', learnMail.length === 1);
+    check('student revoked: no code is sent', learnMail.length === mailsBefore);
     await sql(`UPDATE students SET status = 'active' WHERE id = $1`, [student.id]);
 
     console.log('Personal link and sign-out');
     r = await get(`/learn/start/${student.token}`);
     const cookie2 = `hal_learn=${cookieOf(r)}`;
-    check('/learn/start/<token> signs in', r.status === 303 && cookie2.length > 20);
+    check('/learn/start/<token> signs in (not the first time: straight home)', r.status === 303 && r.headers.get('location') === '/learn' && cookie2.length > 20);
     r = await get('/learn/start/AAAAAAAAAAAAAAAAAAAAAA');
     check('an unknown token does not', r.status === 404 && !cookieOf(r));
     r = await fetch(base + '/learn/logout', { method: 'POST', redirect: 'manual', headers: { cookie: cookie2, ...origin } });
@@ -145,8 +168,8 @@ async function main() {
     check('the other device stays signed in', r.status === 200);
 
     console.log('Limits');
-    for (let i = 0; i < 6; i++) r = await form('/learn/login', { email: 'e2e.other@example.com' }, from());
-    check('6th code within an hour: refused', r.status === 429 && learnMail.filter((m) => m.to === 'e2e.other@example.com').length === 5);
+    for (let i = 0; i < 6; i++) r = await form('/learn/login', { email: 'e2e.other@purchaser.example' }, from());
+    check('6th code within an hour: refused', r.status === 429 && learnMail.filter((m) => m.to === 'e2e.other@purchaser.example').length === 5);
     const ip = { 'x-forwarded-for': '198.18.0.1' };
     for (let i = 0; i < 21; i++) {
       await sql(`INSERT INTO students (email, token) VALUES ($1, $2)`, [`e2e.ip${i}@example.com`, `E2Eip_${String(i).padStart(16, '0')}`]);
@@ -154,11 +177,11 @@ async function main() {
     }
     check('21st code from one network within an hour: refused', r.status === 429);
     await sql(`UPDATE learn_codes SET attempts = 0, used_at = NULL, expires_at = now() + interval '10 minutes' WHERE student_id = $1`, [other.id]);
-    for (let i = 0; i < 5; i++) await form('/learn/verify', { email: 'e2e.other@example.com', code: '999999' === lastCode() ? '888888' : '999999' });
+    for (let i = 0; i < 5; i++) await form('/learn/verify', { email: 'e2e.other@purchaser.example', code: '999999' === lastCode() ? '888888' : '999999' });
     const live = await one(`SELECT count(*)::int AS n FROM learn_codes WHERE student_id = $1 AND attempts < 5 AND used_at IS NULL`, [other.id]);
     check('5 wrong tries end every code', live.n === 0);
-    const otherCode = learnMail.find((m) => m.to === 'e2e.other@example.com').subject.slice(-6);
-    r = await form('/learn/verify', { email: 'e2e.other@example.com', code: otherCode });
+    const otherCode = learnMail.find((m) => m.to === 'e2e.other@purchaser.example').subject.slice(-6);
+    r = await form('/learn/verify', { email: 'e2e.other@purchaser.example', code: otherCode });
     check('…even the right one afterwards', r.status === 400);
 
     console.log('Episode types and fixed dates (admin)');

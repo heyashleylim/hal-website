@@ -69,7 +69,7 @@ const actions = {
         { tag: t.expiring, when: 'Their access ends within 30 days.' },
         { tag: t.expired, when: 'Their access ended (in the last 7 days).' },
         { tag: t.revoked, when: 'Access revoked by the refund webhook.' },
-        { tag: automation.LINK_RESET_TAG, when: 'Their personal link was reset in the admin (re-added each time). Email the new %' + (field.perstag || automation.linkField()) + '%.' },
+        { tag: automation.LINK_RESET_TAG, when: 'Their sign-in link was reset in the admin (re-added each time). Email the new %' + (field.perstag || automation.linkField()) + '%.' },
       ],
       counts, outbox, webhooks,
       daily: daily ? { ...daily.value, updated_at: daily.updated_at } : null,

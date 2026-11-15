@@ -2,7 +2,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { isDownloadStart } = require('../../api/podcast-audio.js');
 const { appName } = require('../../api/_lib/podcast.js');
-const page = require('../../api/podcast-page.js');
 
 test('download counting skips probes and later chunks', () => {
   assert.ok(isDownloadStart(undefined));
@@ -35,34 +34,6 @@ const showB = { slug: 'eft', title: 'EFT 팟캐스트', support_email: '', page_
 const enrollments = [{ enrollment: { status: 'active' }, cohort: { name: '1기' } }];
 const activeAccess = { state: 'active', episodes: [{}, {}], next: { releaseAt: new Date('2026-11-16T00:00:00Z') }, expires: new Date('2027-11-01T15:00:00Z') };
 
-test('personal page: one card per show, per-show feed links, escaped names, no-JS copy field', () => {
-  const html = page.personalPage({ base, token: listener.token, student: { name: '<b>' }, shows: [
-    { show: showA, enrollments, access: activeAccess },
-    { show: showB, enrollments, access: { state: 'expired', episodes: [], next: null, expires: new Date('2027-11-01T15:00:00Z') } },
-  ] });
-  assert.match(html, /<h1 class="pod__title">나의 팟캐스트<\/h1>/);
-  assert.match(html, /href="podcast:\/\/www\.ashleylim\.com\/f\/AAAAAAAAAAAAAAAAAAAAAA\/nsmb"/);
-  assert.match(html, /href="pktc:\/\/subscribe\/www\.ashleylim\.com\/f\/AAAAAAAAAAAAAAAAAAAAAA\/nsmb"/);
-  assert.match(html, /overcast:\/\/x-callback-url\/add\?url=https%3A%2F%2Fwww\.ashleylim\.com%2Ff%2FAAAAAAAAAAAAAAAAAAAAAA%2Fnsmb/);
-  assert.match(html, /id="feed-nsmb" class="pod__input" type="text" value="https:\/\/www\.ashleylim\.com\/f\/AAAAAAAAAAAAAAAAAAAAAA\/nsmb" readonly/);
-  assert.doesNotMatch(html, /\/f\/AAAAAAAAAAAAAAAAAAAAAA\/eft/); // expired show: no subscribe buttons
-  assert.match(html, /수강 기간이 2027년 11월 1일에 끝나/);
-  assert.match(html, /&lt;b&gt;님/);
-  assert.doesNotMatch(html, /<b>님/);
-  assert.match(html, /11월 16일 \(월\) 오전 9:00/);
-  assert.match(html, /2027년 11월 1일까지/); // last listening day (access ends 2 Nov 00:00 KST)
-  assert.match(html, /<meta name="robots" content="noindex/);
-  assert.doesNotMatch(html, /googletagmanager|_vercel\/insights/);
-});
-
-test('personal page: a single show uses its title; no shows yet', () => {
-  const one = page.personalPage({ base, token: listener.token, student: { name: '' }, shows: [{ show: showA, enrollments, access: activeAccess }] });
-  assert.match(one, /<h1 class="pod__title">내성만방 팟캐스트<\/h1>/);
-  const none = page.personalPage({ base, token: listener.token, student: { name: '' }, shows: [] });
-  assert.match(none, /아직 등록된 프로그램이 없어요/);
-  assert.doesNotMatch(none, /podcast:\/\//);
-});
-
 test('preview deployments add the protection bypass to app links; production never does', () => {
   const { linkQuery } = require('../../api/_lib/podcast.js');
   assert.equal(linkQuery({ VERCEL_ENV: 'preview', VERCEL_AUTOMATION_BYPASS_SECRET: 'a b' }), '?x-vercel-protection-bypass=a%20b');
@@ -74,11 +45,6 @@ test('preview deployments add the protection bypass to app links; production nev
   assert.match(xml, /\/f\/AAAAAAAAAAAAAAAAAAAAAA\/nsmb\?x-vercel-protection-bypass=s" rel="self"/);
 });
 
-test('personal page with one program shows its title once', () => {
-  const html = page.personalPage({ base, token: listener.token, student: { name: '' }, shows: [{ show: showA, enrollments, access: activeAccess }] });
-  assert.equal((html.match(/내성만방 팟캐스트<\/h[12]>/g) || []).length, 1);
-});
-
 test('older feed links (/f/<token>) keep serving the program the student had first', () => {
   const { firstProgram } = require('../../api/podcast-feed.js');
   const en = (at) => ({ enrollment: { created_at: at }, cohort: {} });
@@ -87,19 +53,4 @@ test('older feed links (/f/<token>) keep serving the program the student had fir
   assert.equal(firstProgram([eft, nsmb]).show.slug, 'nsmb');
   assert.equal(firstProgram([nsmb]).show.slug, 'nsmb');
   assert.equal(firstProgram([]), null);
-});
-
-test('test web player lists only released episodes of active programs, through the access-checked audio route', () => {
-  const ep = (n, title) => ({ episode: { guid: `00000000-0000-0000-0000-00000000000${n}`, title, mime_type: 'audio/mpeg', duration_seconds: 3725 } });
-  const html = page.listenPage({ token: listener.token, student: { id: 7 }, shows: [
-    { show: showA, access: { state: 'active', episodes: [ep(1, '모듈 1 </script><b>'), ep(2, '모듈 2')] } },
-    { show: showB, access: { state: 'expired', episodes: [ep(3, '만료된 모듈')] } },
-  ] });
-  assert.match(html, /src="\/a\/AAAAAAAAAAAAAAAAAAAAAA\/00000000-0000-0000-0000-000000000001\.mp3"/);
-  assert.doesNotMatch(html, /만료된 모듈/);
-  assert.doesNotMatch(html, /<\/script><b>/); // titles can't break out of the page or its JSON
-  assert.match(html, /1:02:05/);
-  assert.match(html, /noindex/);
-  const none = page.listenPage({ token: listener.token, student: { id: 7 }, shows: [] });
-  assert.match(none, /들을 수 있는 에피소드가 없어요/);
 });

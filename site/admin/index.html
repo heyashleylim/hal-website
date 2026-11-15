@@ -19,8 +19,8 @@
 
   <div class="home-grid">
     <a class="home-card" href="/admin/podcast">
-      <h2>Podcast</h2>
-      <p class="muted">Private podcasts: programs, episodes, cohorts, students and ActiveCampaign automation.</p>
+      <h2>Learning</h2>
+      <p class="muted">The student area (내 강의실) and private podcasts: programs, episodes, cohorts, students and ActiveCampaign automation.</p>
       <dl class="stats" id="podcast-stats"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
     </a>
     <a class="home-card" href="/admin/shop">
@@ -56,7 +56,7 @@
     document.getElementById('podcast-stats').innerHTML =
       '<div><dt>Programs</dt><dd>' + o.programs + '</dd></div>' +
       '<div><dt>Students enrolled</dt><dd>' + o.enrolled + '</dd></div>' +
-      '<div><dt>Subscribed</dt><dd>' + o.subscribed + '</dd></div>' +
+      '<div><dt>Listening (7 days)</dt><dd>' + o.learn_listening_7d + '</dd></div>' +
       (o.ac_failed ? '<div><dt>AC updates failed</dt><dd class="is-error">' + o.ac_failed + '</dd></div>' : '');
   }).catch(function () { document.getElementById('podcast-stats').innerHTML = ''; });
 

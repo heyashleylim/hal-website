@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>Overview · Podcast · Admin</title>
+<title>Overview · Learning · Admin</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/brand.css">
@@ -15,7 +15,8 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="admin-bar"></header>
 <main id="main" class="admin-main">
-  <h1>Podcast</h1>
+  <h1>Learning</h1>
+  <p class="muted explain">The student area <a href="/learn" target="_blank" rel="noopener">내 강의실</a> (www.ashleylim.com/learn): students sign in with their purchase email, listen to the released episodes with chapters, and their progress is saved. Each program also has a private podcast feed for students who prefer a podcast app.</p>
 
   <section class="admin-card" aria-labelledby="numbers-title">
     <h2 id="numbers-title">At a glance <span class="muted small">(all programs)</span></h2>
@@ -25,10 +26,10 @@
 
   <section class="admin-card" aria-labelledby="sharing-title">
     <h2 id="sharing-title">Possible link sharing <span class="muted small">(last 7 days)</span></h2>
-    <p class="muted small">Students whose personal link was used from more than 2 networks, more than 1 country or more than
+    <p class="muted small">Students whose private podcast feed was used from more than 2 networks, more than 1 country or more than
       1 podcast app, or with one episode downloaded from more than 1 network. A single phone can trip these (home Wi-Fi and
       mobile data are 2 networks), so they are reasons to look, not proof: open the student, then reset their link if needed
-      (they get the new one by email, and the old link stops working at once).</p>
+      (they get the new one by email; the old link, their feeds and every signed-in device stop working at once).</p>
     <div id="sharing" aria-live="polite"><p class="admin-empty">Loading…</p></div>
     <p class="admin-form__result" id="sharing-out" role="status"></p>
   </section>
@@ -36,7 +37,7 @@
   <div class="home-grid">
     <a class="home-card" href="/admin/podcast/episodes"><h2>Episodes</h2><p class="muted">Upload and schedule each program’s episodes: weeks, Q&amp;As, lives and bonuses.</p></a>
     <a class="home-card" href="/admin/podcast/cohorts"><h2>Cohorts</h2><p class="muted">Start dates, AC tags and each cohort’s release schedule.</p></a>
-    <a class="home-card" href="/admin/podcast/students"><h2>Students</h2><p class="muted">Enrolments, links, listening, import and Sync from ActiveCampaign.</p></a>
+    <a class="home-card" href="/admin/podcast/students"><h2>Students</h2><p class="muted">Enrolments, sign-in link, listening progress, devices, import and Sync from ActiveCampaign.</p></a>
     <a class="home-card" href="/admin/podcast/programs"><h2>Programs</h2><p class="muted">Create programs; cover art, release time, access length.</p></a>
     <a class="home-card" href="/admin/podcast/automation"><h2>Automation</h2><p class="muted">ActiveCampaign webhooks, tags, queue and daily job.</p></a>
   </div>
@@ -51,8 +52,12 @@
       '<div><dt>Published episodes</dt><dd>' + o.episodes + '</dd></div>' +
       '<div><dt>Students</dt><dd>' + o.students + '</dd></div>' +
       '<div><dt>Enrolled now</dt><dd>' + o.enrolled + '</dd></div>' +
-      '<div><dt>Subscribed</dt><dd>' + o.subscribed + '</dd></div>' +
-      '<div><dt>Last download</dt><dd class="small">' + (o.last_download ? Admin.kst(o.last_download) : '–') + '</dd></div>';
+      '<div><dt>Signed in to the student area</dt><dd>' + o.learn_students + '</dd></div>' +
+      '<div><dt>Listening (last 7 days)</dt><dd>' + o.learn_listening_7d + '</dd></div>' +
+      '<div><dt>Episodes finished (7 days)</dt><dd>' + o.learn_finished_7d + '</dd></div>' +
+      '<div><dt>Last listening</dt><dd class="small">' + (o.last_listen ? Admin.kst(o.last_listen) : '–') + '</dd></div>' +
+      '<div><dt>Podcast app users</dt><dd>' + o.subscribed + '</dd></div>' +
+      '<div><dt>Last podcast download</dt><dd class="small">' + (o.last_download ? Admin.kst(o.last_download) : '–') + '</dd></div>';
     var items = [];
     if (o.ac_failed) items.push('<li><span class="status status--bad">Check</span><span>' + o.ac_failed + ' ActiveCampaign update(s) failed: <a href="/admin/podcast/automation">Automation</a> → Retry failed.</span></li>');
     if (o.ac_pending) items.push('<li><span class="status status--info">Info</span><span>' + o.ac_pending + ' ActiveCampaign update(s) waiting to be sent.</span></li>');
@@ -71,14 +76,14 @@
             '<td class="badges">' + s.sharing.reasons.map(function (x) { return '<span class="badge badge--warn">' + Admin.esc(x) + '</span>'; }).join(' ') + '</td>' +
             '<td class="num">' + s.downloads + '</td><td class="small">' + Admin.kst(s.last_at) + '</td>' +
             '<td><div class="admin-actions"><a class="btn-ghost" data-tip="Open this student’s details: listening history, networks and apps" href="/admin/podcast/students/#' + s.id + '">Open</a>' +
-            '<button class="btn-ghost" type="button" data-tip="Give this student a new personal link. The old link stops working at once; AC emails them the new one" data-reset="' + s.id + '" data-email="' + Admin.esc(s.email) + '">Reset link</button></div></td></tr>';
+            '<button class="btn-ghost" type="button" data-tip="Give this student a new link. The old link, their podcast feeds and every signed-in device stop working at once; AC emails them the new one" data-reset="' + s.id + '" data-email="' + Admin.esc(s.email) + '">Reset link</button></div></td></tr>';
         }).join('') + '</tbody></table></div>';
     }).catch(function (err) { box.innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
   }
   box.addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-reset]');
     if (!b) return;
-    if (!confirm('Give ' + b.dataset.email + ' a new personal link? The old link and every podcast already added to their apps stop working; they must subscribe again with the new link.')) return;
+    if (!confirm('Give ' + b.dataset.email + ' a new link? The old sign-in link, the podcasts in their apps and every device signed in to the student area stop working; they sign in again with a code or the new link.')) return;
     b.disabled = true;
     Admin.post('student-reset-link', { id: Number(b.dataset.reset) })
       .then(function (r) { Admin.say(out, 'New link created for ' + b.dataset.email + '.' + (r.ac ? ' ActiveCampaign has the new link and the tag podcast_link_reset.' : ' ActiveCampaign isn’t connected: send the new link yourself.')); return loadSharing(); })

@@ -17,7 +17,8 @@
  * and its translations are a stand-in (each line prefixed with [EN]): no translation service is called.
  *
  * The student area (/learn) runs too. Sign-in emails are never sent: the code is printed in this server's output
- * and listed at /__fake/learn-mail.
+ * and listed at /__fake/learn-mail. Purchasers (ActiveCampaign tags starting with "purchased") are faked: any address
+ * @purchaser.example.
  *
  * tools/shop/e2e.js starts the same server to run the end-to-end checks.
  */
@@ -105,6 +106,10 @@ async function start({ port = Number(process.env.PORT || 8793), quiet = false } 
     learnMail.unshift({ at: new Date().toISOString(), to: msg.to, subject: msg.subject, text: msg.text });
     say(`[learn] email to ${msg.to}: ${msg.subject}`);
   });
+
+  // Who bought something (normally ActiveCampaign's "purchased…" tags): here, any address at purchaser.example.
+  require(path.join(root, 'api', '_lib', 'learn', 'auth.js')).setPurchaseLookup(async (email) => (
+    /@purchaser\.example$/.test(email) ? { contact: { id: 'fake-' + email, firstName: '구매자' }, tags: ['purchased_test'] } : null));
 
   const auth = require(path.join(root, 'api', '_lib', 'auth.js'));
   const handlers = {

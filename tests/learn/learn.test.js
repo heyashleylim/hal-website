@@ -37,14 +37,14 @@ test('sign-in input: emails and 6-digit codes are normalised, anything else refu
   for (let i = 0; i < 200; i++) assert.match(learnAuth.newCode(), /^\d{6}$/);
 });
 
-test('session cookie: HttpOnly, Secure, SameSite=Lax, a year by default (Alex: "at least a week")', () => {
-  assert.ok(learnAuth.SESSION_DAYS >= 7);
+test('session cookie: HttpOnly, Secure, SameSite=Lax, 30 days (Alex, 2026-11-15)', () => {
+  assert.equal(learnAuth.SESSION_DAYS, 30);
   const c = learnAuth.cookieHeader('x', learnAuth.SESSION_DAYS * 86400);
   assert.match(c, /HttpOnly/);
   assert.match(c, /Secure/);
   assert.match(c, /SameSite=Lax/);
   assert.match(c, /Path=\//);
-  assert.match(c, /Max-Age=31536000/);
+  assert.match(c, /Max-Age=2592000/);
 });
 
 test('after sign-in, only addresses inside the student area are followed', () => {
@@ -192,3 +192,40 @@ test('episode labels: Week, Q&A, Live, Bonus for the admin and the student area'
   assert.equal(label({ kind: 'module', number: 4 }), 'Week 4', 'rows from before the change read as weeks');
 });
 
+
+test('first sign-in: the home page explains how to save it on the home screen, for phones and tablets only', () => {
+  const base = { student: { name: '' }, shows: [], progress: new Map(), resume: null };
+  const first = pages.homePage({ ...base, welcome: true });
+  assert.match(first, /휴대폰 · 태블릿 전용 안내/);
+  assert.match(first, /홈 화면에 추가/);
+  assert.match(first, /iPhone · iPad \(Safari\)/);
+  assert.match(first, /Android \(Chrome\)/);
+  const later = pages.homePage(base);
+  assert.ok(!later.includes('휴대폰 · 태블릿 전용 안내'));
+  assert.match(later, /href="\/learn\/help#app"/);
+  assert.match(later, /<link rel="manifest" href="\/learn.webmanifest">/);
+});
+
+test('help page and the podcast-app section that replaced the personal page', () => {
+  const help = pages.helpPage();
+  for (const id of ['login', 'app', 'listen', 'podcast-apps', 'faq']) assert.match(help, new RegExp(`id="${id}"`));
+  assert.match(help, /30일/);
+  const e = ep(1, 1);
+  const access = { state: 'active', episodes: [{ episode: e }], scheduled: [{ episode: e, releaseAt: new Date(0) }] };
+  const html = pages.programPage({ show, access, progress: new Map(), feedUrl: 'https://www.ashleylim.com/f/TOKEN/nsmb' });
+  assert.match(html, /<details class="pod__card learn__feed">/);
+  assert.match(html, /href="podcast:\/\/www\.ashleylim\.com\/f\/TOKEN\/nsmb"/);
+  assert.match(html, /<h2 class="pod__h2" id="chapters-title">Chapters<\/h2>/);
+});
+
+test('old personal links (/podcast/<token>) and the old help page go to the student area', () => {
+  const v = require('../../vercel.json');
+  const to = (src) => (v.redirects.find((r) => r.source === src) || {}).destination;
+  assert.equal(to('/podcast/:token([A-Za-z0-9_-]{22})'), '/learn/start/:token');
+  assert.equal(to('/podcast/:token([A-Za-z0-9_-]{22})/listen'), '/learn/start/:token');
+  assert.equal(to('/podcast/help'), '/learn/help');
+  assert.ok(!v.rewrites.some((r) => /podcast-page/.test(r.destination)));
+  const manifest = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '../../site/learn.webmanifest'), 'utf8'));
+  assert.equal(manifest.start_url, '/learn');
+  assert.equal(manifest.display, 'standalone');
+});

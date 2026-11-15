@@ -4,8 +4,9 @@
  *
  *   GET  /learn                    home: continue listening, one card per program (sign-in required)
  *   GET  /learn/login, POST        sign-in step 1: email → a 6-digit code by email (api/_lib/learn/auth.js, mail.js)
- *   POST /learn/verify             sign-in step 2: the code → session cookie (1 year from the last visit)
- *   GET  /learn/start/<token>      the personal podcast link signs in too (same token as /podcast/<token>)
+ *   POST /learn/verify             sign-in step 2: the code → session cookie (30 days from the last visit)
+ *   GET  /learn/start/<token>      one-tap sign-in from the welcome email (PODCAST_LINK; old /podcast/<token> links redirect here)
+ *   GET  /learn/help               how to sign in, save to the home screen, listen, use a podcast app (no sign-in needed)
  *   POST /learn/logout
  *   GET  /learn/<program>[?e=<guid>]  the player, chapters and modules of one program
  *   GET  /learn/audio/<guid>.<ext> the audio, checked against the session on every request (revoked/expired = 404)
@@ -18,6 +19,7 @@ const podcast = require('./_lib/podcast.js');
 const learnAuth = require('./_lib/learn/auth.js');
 const mail = require('./_lib/learn/mail.js');
 const progress = require('./_lib/learn/progress.js');
+const automation = require('./_lib/automation.js');
 const pages = require('./_lib/learn/pages.js');
 const { streamEpisode } = require('./_lib/audio-stream.js');
 const { extension } = require('./_lib/rss.js');
@@ -57,10 +59,17 @@ async function sendCode(req, res, data) {
   if (!email) return sendHtml(res, 400, pages.loginPage({ email: data.email || '', message: 'bad-email', next }));
   const ipHash = podcast.clientInfo(req).ipHash;
   if (ipHash) {
-    const fromIp = await db.one(`SELECT count(*)::int AS n FROM learn_codes WHERE ip_hash = $1 AND created_at > now() - interval '1 hour'`, [ipHash]);
+    const fromIp = await db.one(`SELECT count(*)::int AS n FROM learn_requests WHERE ip_hash = $1 AND at > now() - interval '1 hour'`, [ipHash]);
     if (fromIp.n >= IP_CODES_PER_HOUR) return sendHtml(res, 429, pages.loginPage({ email, message: 'too-many', next }));
+    await db.query('INSERT INTO learn_requests (ip_hash) VALUES ($1)', [ipHash]);
   }
-  const result = await learnAuth.createCode(email, { ipHash });
+  let result;
+  try {
+    result = await learnAuth.createCode(email, { ipHash });
+  } catch (err) {
+    console.error('learn purchase check', err.message); // ActiveCampaign unreachable
+    return sendHtml(res, 503, pages.loginPage({ email, message: 'check-failed', next }));
+  }
   if (result.error === 'too-many') return sendHtml(res, 429, pages.codePage({ email, message: 'too-many', next }));
   if (result.code) {
     try {
@@ -82,11 +91,13 @@ async function verify(req, res, data) {
   if (!code) return sendHtml(res, 400, pages.codePage({ email, message: 'bad-code', next: safeNext(data.next) }));
   const result = await learnAuth.checkCode(email, code);
   if (result.error) return sendHtml(res, 400, pages.codePage({ email, message: result.error, next: safeNext(data.next) }));
+  const first = await learnAuth.isFirstSession(result.student.id);
   await learnAuth.startSession(res, result.student.id, { via: 'code', userAgent: req.headers['user-agent'] });
-  return redirect(res, 303, next);
+  // First sign-in ever: the home page shows how to save the student area on the home screen.
+  return redirect(res, 303, first ? '/learn?welcome=1' : next);
 }
 
-async function home(req, res, student) {
+async function home(req, res, student, params) {
   const shows = await programs(student);
   const prog = await progress.forStudent(student.id);
   // Continue: the most recent episode not finished that the student can still hear.
@@ -99,7 +110,7 @@ async function home(req, res, student) {
     }
     if (resume) break;
   }
-  return sendHtml(res, 200, pages.homePage({ student, shows, progress: prog, resume }));
+  return sendHtml(res, 200, pages.homePage({ student, shows, progress: prog, resume, welcome: params.get('welcome') === '1' }));
 }
 
 async function program(req, res, student, slug, params) {
@@ -110,7 +121,8 @@ async function program(req, res, student, slug, params) {
   const prog = await progress.forStudent(student.id);
   const wanted = params.get('e');
   const current = wanted ? (x.access.episodes.find((e) => e.episode.guid === wanted) || {}).episode : null;
-  return sendHtml(res, 200, pages.programPage({ show: x.show, access: x.access, progress: prog, current }));
+  const feedUrl = `${podcast.baseUrl(req)}/f/${student.token}/${x.show.slug}${podcast.linkQuery()}`;
+  return sendHtml(res, 200, pages.programPage({ show: x.show, access: x.access, progress: prog, current, feedUrl }));
 }
 
 // The episode a signed-in student may hear right now, or null.
@@ -143,6 +155,11 @@ async function saveProgress(req, res, student, data) {
   const episode = await audibleEpisode(student, guid);
   if (!episode) return sendJson(res, 404, { error: 'not-available' });
   const row = await progress.save(student.id, episode, { position: data.position, played: data.played, ended: data.ended === true || data.ended === 'true' });
+  // First play of a Week episode: the same AC tags as a first download in a podcast app (queued, never blocking).
+  if (row.first) {
+    const show = await db.one('SELECT * FROM shows WHERE id = $1', [episode.show_id]);
+    await automation.onDownload(student.id, show, episode).catch((err) => console.error('learn automation', err.message));
+  }
   return sendJson(res, 200, { ok: true, done: Boolean(row.completed_at) });
 }
 
@@ -173,9 +190,12 @@ module.exports = async function handler(req, res) {
     if (start && method === 'GET') {
       const student = await db.one(`SELECT id FROM students WHERE token = $1 AND status = 'active'`, [start[1]]);
       if (!student) return sendHtml(res, 404, pages.loginPage({ message: 'link-invalid' }));
+      const first = await learnAuth.isFirstSession(student.id);
       await learnAuth.startSession(res, student.id, { via: 'link', userAgent: req.headers['user-agent'] });
-      return redirect(res, 303, '/learn');
+      return redirect(res, 303, first ? '/learn?welcome=1' : '/learn');
     }
+
+    if (route === 'help' && (method === 'GET' || method === 'HEAD')) return sendHtml(res, 200, pages.helpPage());
 
     const student = await learnAuth.studentFromRequest(req, res);
     if (route === 'progress' && method === 'POST') return saveProgress(req, res, student, body);
@@ -185,7 +205,7 @@ module.exports = async function handler(req, res) {
     if (method !== 'GET' && method !== 'HEAD') return sendJson(res, 405, { error: 'method' });
     const here = '/learn' + (route ? `/${route}` : '') + (params.get('e') ? `?e=${params.get('e')}` : '');
     if (!student) return loginRedirect(res, safeNext(here));
-    if (!route) return home(req, res, student);
+    if (!route) return home(req, res, student, params);
     if (/^[a-z0-9-]+$/.test(route)) return program(req, res, student, route, params);
     return sendHtml(res, 404, pages.messagePage({ title: '페이지를 찾을 수 없어요', text: '주소를 다시 확인해 주세요.' }));
   } catch (err) {

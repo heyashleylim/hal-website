@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>Automation · Podcast · Admin</title>
+<title>Automation · Learning · Admin</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/brand.css">
@@ -79,7 +79,7 @@
       var rd = r.ready;
       $('setup').innerHTML =
         row(rd.ac, rd.ac ? 'ActiveCampaign connected (AC_API_URL, AC_API_KEY).' : 'Add <code>AC_API_URL</code> and <code>AC_API_KEY</code> to this environment in Vercel (Production and Preview).') +
-        row(rd.field.ok, rd.field.ok ? 'Contact field “' + Admin.esc(rd.field.title) + '” found: it receives each student’s personal page. In AC emails, type <code>%' + Admin.esc(rd.field.perstag) + '%</code>.' :
+        row(rd.field.ok, rd.field.ok ? 'Contact field “' + Admin.esc(rd.field.title) + '” found: it receives each student’s one-tap sign-in link to the student area (내 강의실). In AC emails, type <code>%' + Admin.esc(rd.field.perstag) + '%</code>.' :
           'Create a contact field in ActiveCampaign with the personalization tag <code>' + Admin.esc(rd.field.name) + '</code> (Contacts → Fields, type text).' + (rd.field.error ? ' <span class="muted">(' + Admin.esc(rd.field.error) + ')</span>' : '')) +
         row(rd.webhook, rd.webhook ? 'Webhook ready (key derived from PODCAST_SECRET).' : 'PODCAST_SECRET is missing.') +
         (rd.production || rd.cron

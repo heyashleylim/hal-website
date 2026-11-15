@@ -87,7 +87,7 @@ function clean(list, duration = null) {
     .filter((c) => Number.isFinite(c.start) && (!duration || c.start < duration))
     .sort((a, b) => a.start - b.start)
     .filter((c) => (seen.has(c.start) ? false : seen.add(c.start)))
-    .map((c, i) => ({ start: c.start, title: c.title || `챕터 ${i + 1}` }));
+    .map((c, i) => ({ start: c.start, title: c.title || `Chapter ${i + 1}` }));
 }
 
 // "0:00 Intro\n12:30 Title" (also H:MM:SS) → [{ start, title }]. Lines that don't start with a time are refused.
