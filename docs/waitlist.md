@@ -133,7 +133,7 @@ the AC contact, starts the double opt-in and saves the answers, exactly like the
 5. **Q2:** same, saved to `wl_q2`.
 6. **Q3:** a message with three **quick replies**. On each reply, add the action *Set User Field* `wl_q3` to
    `a`, `b` or `c`:
-   - ⓐ 네, 다음 기수 때 시작하고 싶어요 → `a`
+   - ⓐ 네! 다음 기수 때 시작하고 싶어요 → `a`
    - ⓑ 시작하고 싶지만 시기나 비용을 고민 중이에요 → `b`
    - ⓒ 아직은 소식만 받아보고 싶어요 → `c`
 7. **Email:** *User Input* → reply type **Email**, save to the system field **Email**.
