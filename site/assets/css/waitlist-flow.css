@@ -51,8 +51,10 @@
 
 .wlf__nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px}
 .wlf__nav .btn{min-width:140px}
-.wlf__back,.wlf__link{background:none;border:0;font:inherit;font-size:15px;color:var(--ink-2);padding:10px 4px;min-height:44px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
-.wlf__back:hover,.wlf__link:hover{color:var(--ink)}
+.wlf__link{background:none;border:0;font:inherit;font-size:15px;color:var(--ink-2);padding:10px 4px;min-height:44px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.wlf__link:hover{color:var(--ink)}
+.wlf__back{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:14px 26px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);font:600 16px/1.4 var(--font-body);color:var(--ink-2);cursor:pointer;transition:border-color .2s,color .2s;touch-action:manipulation}
+.wlf__back:hover,.wlf__back:focus-visible{border-color:var(--muted);color:var(--ink)}
 .wlf__back[hidden]{display:none}
 .wlf__notyou{margin-top:10px;text-align:center}
 .wlf__notyou[hidden]{display:none}
@@ -65,6 +67,7 @@
 @media (max-width:767px){
   .wlf__q{font-size:17px}
   .wlf__nav .btn{min-width:0;flex:1}
+  .wlf__back{font-size:15px;padding:10px 20px}
 }
 @media (prefers-reduced-motion:reduce){
   .wlf__step.is-in{animation:none}

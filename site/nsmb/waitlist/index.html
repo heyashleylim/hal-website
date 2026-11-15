@@ -40,7 +40,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 .wl-card h1 .accent{color:var(--accent)}
 .wl-card__intro{color:var(--ink-2);line-height:1.6;margin-bottom:28px}
 .wl-card__intro p+p{margin-top:10px}
-.wl-card__more{margin-top:24px;text-align:center;font-size:15px}
+.wl-card__more{margin-top:24px;text-align:center;font-size:13.5px}
+.wl-card__more .is-done-text,.wl-card.is-done .wl-card__more .is-start-text{display:none}
+.wl-card.is-done .wl-card__more .is-done-text{display:inline}
 .wl-card__more a{color:var(--ink-2)}
 .wl-card.is-started .wl-card__intro{display:none}
 .wl-card.is-started h1{font-size:20px;margin-bottom:20px}
@@ -130,7 +132,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         <p class="form-msg wlf__msg" role="status" aria-live="polite"></p>
       </div>
-    <p class="wl-card__more"><a href="/nsmb">내성만방이 어떤 프로그램인지 먼저 둘러볼래요 →</a></p>
+    <p class="wl-card__more"><a href="/nsmb"><span class="is-start-text">내성만방이 어떤 프로그램인지 먼저 둘러볼래요 →</span><span class="is-done-text">내성만방 페이지로 돌아가기 →</span></a></p>
   </div>
 </main>
 
