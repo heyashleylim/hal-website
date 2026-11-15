@@ -35,7 +35,7 @@ const actions = {
     const bypass = podcast.linkQuery().replace(/^\?/, '&');
     const hook = key ? `${baseUrl(req)}/api/podcast-ac?key=${key}${bypass}` : null;
     const cohorts = await db.query(`SELECT name, ac_tag FROM cohorts WHERE show_id = $1 ORDER BY start_date`, [show.id]);
-    const modules = await db.query(`SELECT number FROM episodes WHERE show_id = $1 AND kind = 'module' AND number IS NOT NULL ORDER BY number`, [show.id]);
+    const modules = await db.query(`SELECT number FROM episodes WHERE show_id = $1 AND kind = 'week' AND number IS NOT NULL GROUP BY number ORDER BY number`, [show.id]);
     const [counts, outbox, webhooks, daily] = await Promise.all([
       db.one(`SELECT count(*) FILTER (WHERE status = 'pending')::int AS pending, count(*) FILTER (WHERE status = 'failed')::int AS failed,
                      count(*) FILTER (WHERE status = 'done')::int AS done FROM ac_outbox`),
@@ -63,9 +63,9 @@ const actions = {
         { tag: t.subscribed, when: 'Their podcast app fetched this program\'s feed for the first time.' },
         { tag: t.notSubscribed3, when: '3 days after enrolling (and after the first release) without subscribing. Reminder email.' },
         { tag: t.notSubscribed7, when: 'Same after 7 days.' },
-        { tag: t.released(sample).replace(/_ep\d+_/, '_epNN_'), when: 'Module NN was released for them (e.g. ' + t.released(sample) + '). "New module" email. Not added for modules already out when they enrolled.' },
-        { tag: t.downloaded(sample).replace(/_ep\d+_/, '_epNN_'), when: 'They downloaded module NN for the first time.' },
-        { tag: t.completed, when: 'They downloaded every published module.' },
+        { tag: t.released(sample).replace(/_ep\d+_/, '_epNN_'), when: 'Week NN was released for them (e.g. ' + t.released(sample) + '). "New week" email. Not added for weeks already out when they enrolled.' },
+        { tag: t.downloaded(sample).replace(/_ep\d+_/, '_epNN_'), when: 'They downloaded an episode of week NN (type Week) for the first time.' },
+        { tag: t.completed, when: 'They downloaded every published Week episode (Q&A, Live and Bonus don’t count).' },
         { tag: t.expiring, when: 'Their access ends within 30 days.' },
         { tag: t.expired, when: 'Their access ended (in the last 7 days).' },
         { tag: t.revoked, when: 'Access revoked by the refund webhook.' },

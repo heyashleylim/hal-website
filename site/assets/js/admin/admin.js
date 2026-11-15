@@ -160,6 +160,14 @@ window.Admin = (function () {
   }
 
   // "YYYY-MM-DD" and "HH:MM" of an instant in Seoul time (for date/time inputs).
+  // Episode types (api/_lib/episodes.js): "Week 2", "Week 2 · Q&A", "Live", "Bonus".
+  var KIND_NAMES = { week: 'Week', module: 'Week', qa: 'Q&A', live: 'Live', bonus: 'Bonus' };
+  function episodeLabel(e) {
+    var n = e.number ? 'Week ' + e.number : '';
+    if (e.kind === 'week' || e.kind === 'module' || !e.kind) return n || 'Week';
+    return n ? n + ' · ' + KIND_NAMES[e.kind] : KIND_NAMES[e.kind] || e.kind;
+  }
+
   function kstParts(value) {
     var p = {};
     new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -215,7 +223,7 @@ window.Admin = (function () {
   }
 
   var api = {
-    esc: esc, money: money, kst: kst, kstParts: kstParts, lastDay: lastDay, size: size, duration: duration, audioDuration: audioDuration, imageSize: imageSize,
+    esc: esc, money: money, kst: kst, kstParts: kstParts, episodeLabel: episodeLabel, lastDay: lastDay, size: size, duration: duration, audioDuration: audioDuration, imageSize: imageSize,
     get: function (action, params) {
       var q = new URLSearchParams(Object.assign({ action: action, show: currentShow() }, params || {}));
       return fetch('/api/admin?' + q, { credentials: 'same-origin' }).then(handle);

@@ -5,7 +5,7 @@ const { buildFeed, audioPath } = require('../../api/_lib/rss.js');
 const base = 'https://www.ashleylim.com';
 const show = { slug: 'nsmb', title: '내성만방 & 팟캐스트', description: '설명 <b>', author: '애슐리 림', owner_email: 'a@b.kr', support_email: 'help@b.kr', language: 'ko', category: 'Education', artwork_url: '/assets/img/podcast/nsmb.jpg' };
 const token = 'AAAAAAAAAAAAAAAAAAAAAA';
-const ep = (n, extra = {}) => ({ id: n, guid: `00000000-0000-4000-8000-00000000000${n}`, kind: 'module', number: n, title: `모듈 ${n}`, notes: 'x ]]> y', bytes: 1234, duration_seconds: 1800, mime_type: 'audio/mpeg', ...extra });
+const ep = (n, extra = {}) => ({ id: n, guid: `00000000-0000-4000-8000-00000000000${n}`, kind: 'week', number: n, title: `모듈 ${n}`, notes: 'x ]]> y', bytes: 1234, duration_seconds: 1800, mime_type: 'audio/mpeg', ...extra });
 
 test('active feed lists released episodes, newest first, with absolute URLs', () => {
   const xml = buildFeed({

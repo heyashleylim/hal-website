@@ -9,7 +9,9 @@ const chapters = require('../learn/chapters.js');
 const crypto = require('node:crypto');
 const blob = require('@vercel/blob');
 const db = require('../db.js');
-const { userError, getShow, text, int, time, email, friendlyUnique } = require('./util.js');
+const { userError, getShow, text, int, date, time, email, friendlyUnique } = require('./util.js');
+const release = require('../release.js');
+const { KINDS } = require('../episodes.js');
 
 const AUDIO_TYPES = { 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'aac' };
 const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png' };
@@ -28,7 +30,7 @@ function showOut(show) {
 
 function episodeOut(e) {
   return {
-    id: e.id, guid: e.guid, kind: e.kind, number: e.number, title: e.title, notes: e.notes, day_offset: e.day_offset,
+    id: e.id, guid: e.guid, kind: e.kind, number: e.number, title: e.title, notes: e.notes, day_offset: e.day_offset, release_at: e.release_at || null,
     status: e.status, has_audio: Boolean(e.blob_pathname), bytes: e.bytes == null ? null : Number(e.bytes),
     duration_seconds: e.duration_seconds, mime_type: e.mime_type, updated_at: e.updated_at,
     chapters: Array.isArray(e.chapters) ? e.chapters : [],
@@ -138,7 +140,7 @@ const actions = {
       category: text(input.category, { max: 100, label: 'Category' }) || 'Education',
       copyright: text(input.copyright, { max: 200, label: 'Copyright' }),
       release_time: time(input.release_time, { label: 'Release time' }),
-      drip_interval_days: int(input.drip_interval_days, { min: 0, max: 60, label: 'Days between modules' }),
+      drip_interval_days: int(input.drip_interval_days, { min: 0, max: 60, label: 'Days between weeks' }),
       access_days: int(input.access_days, { min: 1, max: 3650, label: 'Access length' }),
       support_email: email(input.support_email, { label: 'Support email', optional: true }),
       page_intro: text(input.page_intro, { max: 1000, label: 'Subscribe page intro' }),
@@ -195,8 +197,8 @@ const actions = {
 
   async episodes(input) {
     const show = await getShow(input.show);
-    const rows = await db.query(`SELECT * FROM episodes WHERE show_id = $1 ORDER BY day_offset, number NULLS LAST, id`, [show.id]);
-    return { episodes: rows.map(episodeOut), drip_interval_days: show.drip_interval_days };
+    const rows = await db.query(`SELECT * FROM episodes WHERE show_id = $1 ORDER BY release_at NULLS FIRST, day_offset, number NULLS LAST, id`, [show.id]);
+    return { episodes: rows.map(episodeOut), drip_interval_days: show.drip_interval_days, release_time: show.release_time, timezone: show.timezone };
   },
 
   // Creates or updates an episode. `pathname` (from upload-url) attaches new audio and replaces the old file.
@@ -206,11 +208,15 @@ const actions = {
     const existing = id ? await db.one('SELECT * FROM episodes WHERE id = $1 AND show_id = $2', [id, show.id]) : null;
     if (id && !existing) throw userError('episode not found', 404);
 
-    const kind = input.kind === 'bonus' ? 'bonus' : 'module';
-    const number = kind === 'module' ? int(input.number, { min: 1, max: 999, label: 'Module number' }) : null;
+    const kind = KINDS.includes(input.kind) ? input.kind : 'week';
+    // Week needs its number; Q&A, Live and Bonus may name the week they belong to. Several episodes can share a week.
+    const number = int(input.number, { min: 1, max: 999, label: 'Week number', optional: kind !== 'week' });
     const title = text(input.title, { max: 300, required: true, label: 'Title' });
     const notes = text(input.notes, { max: 10000, label: 'Show notes' });
-    const dayOffset = int(input.day_offset, { min: 0, max: 3650, label: 'Release day' });
+    // Release: N days after each cohort's start, or one fixed date and time (Seoul time by default) for every cohort.
+    const fixed = input.release_mode === 'date';
+    const dayOffset = fixed ? int(input.day_offset, { min: 0, max: 3650, label: 'Release day', optional: true }) || 0 : int(input.day_offset, { min: 0, max: 3650, label: 'Release day' });
+    const releaseAt = fixed ? release.zonedTime(date(input.release_date, { label: 'Release date' }), time(input.release_time || show.release_time, { label: 'Release time' }), show.timezone).toISOString() : null;
     const status = input.status === 'published' ? 'published' : 'draft';
 
     let audio = null;
@@ -221,7 +227,7 @@ const actions = {
     if (status === 'published' && !audio && !(existing && existing.blob_pathname)) throw userError('add the audio file before publishing');
     const duration = input.duration_seconds === '' || input.duration_seconds == null ? null : int(input.duration_seconds, { min: 1, max: 86400, label: 'Duration' });
 
-    const fields = { kind, number, title, notes, day_offset: dayOffset, status };
+    const fields = { kind, number: number || null, title, notes, day_offset: dayOffset, release_at: releaseAt, status };
     if (audio) Object.assign(fields, { blob_pathname: audio.pathname, bytes: audio.size, mime_type: audio.contentType, duration_seconds: duration });
     // Chapters made in Podcast Studio are inside the MP3 (ID3): read them from the new file for the student area.
     if (audio && audio.contentType === 'audio/mpeg') {
@@ -238,7 +244,7 @@ const actions = {
       existing
         ? db.one(`UPDATE episodes SET ${keys.map((k, i) => `${k} = $${i + 2}`).join(', ')}, updated_at = now() WHERE id = $1 RETURNING *`, [existing.id, ...values])
         : db.one(`INSERT INTO episodes (show_id, ${keys.join(', ')}) VALUES ($1, ${keys.map((_, i) => `$${i + 2}`).join(', ')}) RETURNING *`, [show.id, ...values]),
-      { episodes_module_number: `module ${number} already exists` },
+      {},
     );
     if (audio && existing && existing.blob_pathname && existing.blob_pathname !== audio.pathname) await deleteQuietly(existing.blob_pathname);
     return { episode: episodeOut(row), target: `episode ${row.id}` };

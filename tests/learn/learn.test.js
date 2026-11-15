@@ -82,7 +82,7 @@ test('code email: the code in the subject and body, Ashley’s sign-off, names e
 });
 
 const show = { slug: 'nsmb', title: '내성만방', artwork_url: '/a/art/nsmb.jpg?v=1' };
-const ep = (id, n, extra = {}) => ({ id, guid: `00000000-0000-0000-0000-00000000000${id}`, kind: 'module', number: n, title: `모듈 ${n} 제목`, duration_seconds: 3000, mime_type: 'audio/mpeg', chapters: [], ...extra });
+const ep = (id, n, extra = {}) => ({ id, guid: `00000000-0000-0000-0000-00000000000${id}`, kind: 'week', number: n, title: `Week ${n} 제목`, duration_seconds: 3000, mime_type: 'audio/mpeg', chapters: [], ...extra });
 
 test('program page: player on the first unfinished module, chapters, listened badges, coming modules, data for the script', () => {
   const e1 = ep(1, 1), e2 = ep(2, 2, { chapters: [{ start: 0, title: '들어가며' }, { start: 312.4, title: '<b>신경계</b>' }] }), e3 = ep(3, 3);
@@ -90,7 +90,7 @@ test('program page: player on the first unfinished module, chapters, listened ba
   const access = { state: 'active', episodes: [{ episode: e1 }, { episode: e2 }], scheduled: [{ episode: e1, releaseAt: new Date(0) }, { episode: e2, releaseAt: new Date(0) }, { episode: e3, releaseAt: future }], expires: new Date('2027-11-14T15:00:00Z') };
   const prog = new Map([[1, { completed_at: new Date(), position_seconds: 0 }], [2, { completed_at: null, position_seconds: 125 }]]);
   const html = pages.programPage({ show, access, progress: prog, current: null });
-  assert.match(html, /<h1 class="play__title" id="play-title">모듈 2 제목<\/h1>/);
+  assert.match(html, /<h1 class="play__title" id="play-title">Week 2 제목<\/h1>/);
   assert.match(html, /src="\/learn\/audio\/00000000-0000-0000-0000-000000000002\.mp3"/);
   assert.match(html, /2:05부터 이어서 들어요/);
   assert.match(html, /다 들음/);
@@ -179,4 +179,22 @@ test('forms: posted from this site pass even when the browser sends Origin "null
   assert.ok(!fromThisSite(req({ origin: 'https://evil.example' })), 'old browser without Sec-Fetch-Site: Origin decides');
   assert.ok(fromThisSite(req({ origin: 'https://www.ashleylim.com' })));
   assert.match(pages.loginPage(), /<meta name="referrer" content="same-origin">/, 'pages keep sending Origin on their own forms');
+});
+
+test('episode labels: Week, Q&A, Live, Bonus for the admin and the student area', () => {
+  const { label, studentLabel } = require('../../api/_lib/episodes.js');
+  assert.equal(label({ kind: 'week', number: 2 }), 'Week 2');
+  assert.equal(label({ kind: 'qa', number: 2 }), 'Week 2 · Q&A');
+  assert.equal(label({ kind: 'live', number: null }), 'Live');
+  assert.equal(label({ kind: 'bonus' }), 'Bonus');
+  assert.equal(studentLabel({ kind: 'live', number: 3 }), 'Week 3 · 라이브');
+  assert.equal(studentLabel({ kind: 'bonus' }), '보너스');
+  assert.equal(label({ kind: 'module', number: 4 }), 'Week 4', 'rows from before the change read as weeks');
+});
+
+test('the player page has a diagnostic log only with ?debug=1', () => {
+  const e = ep(1, 1);
+  const access = { state: 'active', episodes: [{ episode: e }], scheduled: [{ episode: e, releaseAt: new Date(0) }] };
+  assert.ok(!pages.programPage({ show, access, progress: new Map() }).includes('play__log'));
+  assert.ok(pages.programPage({ show, access, progress: new Map(), debug: true }).includes('<ol class="play__log">'));
 });

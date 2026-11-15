@@ -53,7 +53,7 @@ function buildFeed({ base, show, token, state, items, now = new Date(), query = 
       `<enclosure url="${esc(base + audioPath(token, episode) + query)}" length="${Number(episode.bytes) || 0}" type="${esc(episode.mime_type || 'audio/mpeg')}"/>`,
     ];
     if (episode.duration_seconds) lines.push(`<itunes:duration>${Number(episode.duration_seconds)}</itunes:duration>`);
-    if (episode.kind === 'module' && episode.number) lines.push(`<itunes:episode>${Number(episode.number)}</itunes:episode>`);
+    if (episode.kind === 'week' && episode.number) lines.push(`<itunes:episode>${Number(episode.number)}</itunes:episode>`);
     lines.push(`<itunes:episodeType>${episode.kind === 'bonus' ? 'bonus' : 'full'}</itunes:episodeType>`, '</item>');
     return lines.join('\n');
   });

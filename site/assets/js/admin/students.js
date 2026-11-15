@@ -168,7 +168,7 @@
 
   function eventText(e) {
     var what = e.kind === 'feed' ? 'Podcast app checked the feed' :
-      'Downloaded ' + (e.episode_kind === 'bonus' ? 'bonus' : e.number ? 'module ' + e.number : 'an episode') + (e.title ? ' · ' + Admin.esc(e.title) : '');
+      'Downloaded ' + (e.episode_kind ? Admin.episodeLabel({ kind: e.episode_kind, number: e.number }) : 'an episode') + (e.title ? ' · ' + Admin.esc(e.title) : '');
     return '<li><span class="num">' + Admin.kst(e.at) + '</span> ' + (e.show_title && shows.length > 1 ? '<strong>' + Admin.esc(e.show_title) + '</strong> · ' : '') + what +
       (e.app ? ' <span class="muted">· ' + Admin.esc(e.app) + (e.country ? ', ' + Admin.esc(e.country) : '') + '</span>' : '') + '</li>';
   }

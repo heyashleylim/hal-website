@@ -9,7 +9,8 @@ const { extension } = require('./rss.js');
 
 function filenameFor(episode) {
   const ext = extension(episode.mime_type);
-  return episode.kind === 'module' && episode.number ? `module-${String(episode.number).padStart(2, '0')}.${ext}` : `episode.${ext}`;
+  const kind = episode.kind === 'week' ? '' : `-${episode.kind}`;
+  return episode.number ? `week-${String(episode.number).padStart(2, '0')}${kind}.${ext}` : `${episode.kind || 'episode'}.${ext}`;
 }
 
 async function streamEpisode(req, res, episode, { cache = 'private, max-age=86400' } = {}) {

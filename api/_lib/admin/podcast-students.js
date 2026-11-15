@@ -81,7 +81,7 @@ function accessEnd(show, lastDay) {
 async function context() {
   const [shows, episodes, overrideRows] = await Promise.all([
     db.query('SELECT * FROM shows ORDER BY id'),
-    db.query(`SELECT id, show_id, kind, number, day_offset, status, blob_pathname FROM episodes WHERE status = 'published' AND blob_pathname IS NOT NULL`),
+    db.query(`SELECT id, show_id, kind, number, day_offset, release_at, status, blob_pathname FROM episodes WHERE status = 'published' AND blob_pathname IS NOT NULL`),
     db.query('SELECT cohort_id, episode_id, release_at FROM cohort_episode_dates'),
   ]);
   const byCohort = new Map();

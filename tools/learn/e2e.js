@@ -31,7 +31,7 @@ async function main() {
     const show = await one(`INSERT INTO shows (slug, title, author, ac_tag_prefix) VALUES ('e2e-learn', 'E2E 프로그램', '애슐리 림', 'podcast_e2e') RETURNING *`);
     const today = new Date().toISOString().slice(0, 10);
     const cohort = await one(`INSERT INTO cohorts (show_id, name, ac_tag, start_date) VALUES ($1, 'E2E기', 'e2e_learn_tag', $2::date - 8) RETURNING *`, [show.id, today]);
-    const ep = (n, day, chapters = '[]') => one(`INSERT INTO episodes (show_id, kind, number, title, day_offset, status, blob_pathname, bytes, duration_seconds, chapters) VALUES ($1, 'module', $2, $3, $4, 'published', 'podcast/e2e/none.mp3', 1000, 600, $5) RETURNING *`, [show.id, n, `모듈 ${n} 제목`, day, chapters]);
+    const ep = (n, day, chapters = '[]') => one(`INSERT INTO episodes (show_id, kind, number, title, day_offset, status, blob_pathname, bytes, duration_seconds, chapters) VALUES ($1, 'week', $2, $3, $4, 'published', 'podcast/e2e/none.mp3', 1000, 600, $5) RETURNING *`, [show.id, n, `Week ${n} 제목`, day, chapters]);
     const e1 = await ep(1, 0);
     const e2 = await ep(2, 7, JSON.stringify([{ start: 0, title: '들어가며' }, { start: 120, title: '신경계가 먼저인 이유' }]));
     const e3 = await ep(3, 14);
@@ -86,14 +86,14 @@ async function main() {
     check('home: private (no-store, noindex), no GTM', /no-store/.test(r.headers.get('cache-control')) && /noindex/.test(r.headers.get('x-robots-tag')) && !html.includes('googletagmanager'));
     r = await get('/learn/e2e-learn', cookie);
     html = await r.text();
-    check('program page: player on module 1, two released, module 3 coming', r.status === 200 && html.includes('id="play-title">모듈 1 제목') && html.includes('모듈 3 제목') && html.includes('공개 예정'));
+    check('program page: player on module 1, two released, module 3 coming', r.status === 200 && html.includes('id="play-title">Week 1 제목') && html.includes('Week 3 제목') && html.includes('공개 예정'));
     check('program page: module 3 is not playable', !html.includes(`/learn/audio/${e3.guid}`));
     r = await get(`/learn/e2e-learn?e=${e2.guid}`, cookie);
     html = await r.text();
-    check('?e= opens module 2 with its chapters', html.includes('id="play-title">모듈 2 제목') && html.includes('신경계가 먼저인 이유') && html.includes('2:00'));
+    check('?e= opens module 2 with its chapters', html.includes('id="play-title">Week 2 제목') && html.includes('신경계가 먼저인 이유') && html.includes('2:00'));
     r = await get(`/learn/e2e-learn?e=${e3.guid}`, cookie);
     html = await r.text();
-    check('?e= of a module not released yet falls back to a released one', html.includes('id="play-title">모듈 1 제목'));
+    check('?e= of a module not released yet falls back to a released one', html.includes('id="play-title">Week 1 제목'));
     r = await get('/learn/unknown-program', cookie);
     check('a program the student is not in: 404', r.status === 404);
 
@@ -115,7 +115,7 @@ async function main() {
     check('home: continue listening shows module 2 at 1:01', html.includes('이어 듣기') && html.includes(`?e=${e2.guid}`) && html.includes('1:01부터 이어서'));
     r = await get('/learn/e2e-learn', cookie);
     html = await r.text();
-    check('program page: module 1 marked done, player opens module 2 (first unfinished)', html.includes('다 들음') && html.includes('id="play-title">모듈 2 제목') && html.includes('1:01부터 이어서 들어요'));
+    check('program page: module 1 marked done, player opens module 2 (first unfinished)', html.includes('다 들음') && html.includes('id="play-title">Week 2 제목') && html.includes('1:01부터 이어서 들어요'));
 
     console.log('Access ends');
     await sql(`UPDATE enrollments SET status = 'revoked' WHERE student_id = $1`, [student.id]);
@@ -160,6 +160,27 @@ async function main() {
     const otherCode = learnMail.find((m) => m.to === 'e2e.other@example.com').subject.slice(-6);
     r = await form('/learn/verify', { email: 'e2e.other@example.com', code: otherCode });
     check('…even the right one afterwards', r.status === 400);
+
+    console.log('Episode types and fixed dates (admin)');
+    const admin = async (action, body) => (await fetch(`${base}/api/admin?action=${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...origin }, body: JSON.stringify({ show: 'e2e-learn', ...body }) })).json();
+    let a = await admin('episode-save', { kind: 'week', number: '2', title: 'Week 2 두 번째', day_offset: '7', status: 'draft' });
+    check('a second episode with the same week number is accepted', a.episode && a.episode.number === 2, JSON.stringify(a));
+    a = await admin('episode-save', { kind: 'qa', number: '', title: 'Q&A 모음', day_offset: '7', status: 'draft' });
+    check('Q&A without a week number is accepted', a.episode && a.episode.kind === 'qa' && a.episode.number === null, JSON.stringify(a));
+    a = await admin('episode-save', { kind: 'week', number: '', title: 'x', day_offset: '0', status: 'draft' });
+    check('Week without a number is refused', a.error && /Week number/.test(a.error), JSON.stringify(a));
+    a = await admin('episode-save', { kind: 'live', number: '3', title: '라이브 3', release_mode: 'date', release_date: '2026-12-01', release_time: '20:00', status: 'draft' });
+    check('a fixed date is stored in Seoul time (20:00 KST = 11:00 UTC)', a.episode && new Date(a.episode.release_at).toISOString() === '2026-12-01T11:00:00.000Z', JSON.stringify(a));
+    a = await admin('episode-save', { kind: 'nonsense', number: '1', title: 'y', day_offset: '0', status: 'draft' });
+    check('an unknown type becomes Week', a.episode && a.episode.kind === 'week');
+    const future = new Date(Date.now() + 3 * 864e5);
+    await sql(`UPDATE episodes SET release_at = $2 WHERE id = $1`, [e1.id, future]);
+    await sql(`UPDATE enrollments SET status = 'active' WHERE student_id = $1`, [student.id]);
+    r = await get('/learn/e2e-learn', cookie);
+    html = await r.text();
+    check('an episode moved to a future fixed date is no longer playable, and shows as coming', !html.includes(`/learn/audio/${e1.guid}`) && /Week 1 제목[\s\S]*공개 예정/.test(html.slice(html.indexOf('learn__item--coming'))));
+    r = await get('/learn/e2e-learn?debug=1', cookie);
+    check('?debug=1 shows the diagnostic log', (await r.text()).includes('진단 기록'));
 
     console.log('Real audio (an existing published episode, if the database has one)');
     const real = await one(`SELECT en.student_id, ep.guid FROM episodes ep JOIN cohorts c ON c.show_id = ep.show_id JOIN enrollments en ON en.cohort_id = c.id JOIN students st ON st.id = en.student_id

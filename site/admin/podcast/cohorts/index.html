@@ -26,7 +26,7 @@
       <input type="hidden" name="id">
       <label>Name <span class="hint">e.g. 2기</span><input name="name" maxlength="60" required></label>
       <label>ActiveCampaign tag <span class="hint">the tag that puts a buyer in this cohort (unique across shows)</span><input name="ac_tag" maxlength="100" required autocapitalize="none" spellcheck="false"></label>
-      <label>Start date <span class="hint">module 1 is released this day</span><input name="start_date" type="date" required></label>
+      <label>Start date <span class="hint">week 1 is released this day</span><input name="start_date" type="date" required></label>
       <label>Access length (days) <span class="hint" id="access-hint">empty = program default</span><input name="access_days" type="number" min="1" max="3650" inputmode="numeric"></label>
       <p class="admin-form__wide muted">Changing the start date moves this cohort's whole schedule and the end of access of its students (except enrolments whose dates were set by hand).</p>
       <div class="admin-form__actions">
@@ -146,11 +146,11 @@
       document.getElementById('schedule-note').textContent = 'Times are Seoul time. Students of this cohort can listen until ' + Admin.lastDay(r.expires_at) + ' (included). "Change" moves one episode for this cohort only.';
       var el = document.getElementById('schedule-list');
       if (!r.episodes.length) { el.innerHTML = '<p class="admin-empty">No episodes yet.</p>'; return; }
-      el.innerHTML = '<table class="admin-table"><thead><tr><th>#</th><th>Title</th><th>Release</th><th>State</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+      el.innerHTML = '<table class="admin-table"><thead><tr><th>Type</th><th>Title</th><th>Release</th><th>State</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
         r.episodes.map(function (e) {
           var p = Admin.kstParts(e.release_at);
-          return '<tr data-episode="' + e.id + '"><td class="num">' + (e.kind === 'bonus' ? 'Bonus' : e.number) + '</td><td>' + Admin.esc(e.title) + '</td>' +
-            '<td class="num">' + Admin.kst(e.release_at) + (e.overridden ? ' <span class="badge badge--info">changed</span>' : '') + '</td><td>' + state(e) + '</td>' +
+          return '<tr data-episode="' + e.id + '"><td class="num">' + Admin.esc(Admin.episodeLabel(e)) + '</td><td>' + Admin.esc(e.title) + '</td>' +
+            '<td class="num">' + Admin.kst(e.release_at) + (e.overridden ? ' <span class="badge badge--info">changed</span>' : e.fixed ? ' <span class="badge">fixed date</span>' : '') + '</td><td>' + state(e) + '</td>' +
             '<td><div class="inline-edit"><label class="sr-only" for="d' + e.id + '">Date</label><input id="d' + e.id + '" type="date" value="' + p.date + '">' +
             '<label class="sr-only" for="t' + e.id + '">Time</label><input id="t' + e.id + '" type="time" value="' + p.time + '">' +
             '<button data-tip="Use the date on the left for this episode, in this cohort only" class="btn-ghost" type="button" data-save>Change</button>' + (e.overridden ? '<button data-tip="Go back to the program’s normal release date for this episode" class="btn-ghost" type="button" data-clear>Reset</button>' : '') + '</div></td></tr>';

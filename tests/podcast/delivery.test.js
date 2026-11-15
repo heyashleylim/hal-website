@@ -69,7 +69,7 @@ test('preview deployments add the protection bypass to app links; production nev
   assert.equal(linkQuery({ VERCEL_ENV: 'production', VERCEL_AUTOMATION_BYPASS_SECRET: 'x' }), '');
   assert.equal(linkQuery({ VERCEL_ENV: 'preview' }), '');
   const { buildFeed } = require('../../api/_lib/rss.js');
-  const xml = buildFeed({ base, show: { ...show, slug: 'nsmb' }, token: listener.token, state: 'active', query: '?x-vercel-protection-bypass=s', items: [{ episode: { id: 1, guid: 'g', kind: 'module', number: 1, title: 't', bytes: 1, mime_type: 'audio/mpeg' }, releaseAt: new Date() }] });
+  const xml = buildFeed({ base, show: { ...show, slug: 'nsmb' }, token: listener.token, state: 'active', query: '?x-vercel-protection-bypass=s', items: [{ episode: { id: 1, guid: 'g', kind: 'week', number: 1, title: 't', bytes: 1, mime_type: 'audio/mpeg' }, releaseAt: new Date() }] });
   assert.match(xml, /\/a\/AAAAAAAAAAAAAAAAAAAAAA\/g\.mp3\?x-vercel-protection-bypass=s"/);
   assert.match(xml, /\/f\/AAAAAAAAAAAAAAAAAAAAAA\/nsmb\?x-vercel-protection-bypass=s" rel="self"/);
 });

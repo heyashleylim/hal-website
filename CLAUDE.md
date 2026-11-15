@@ -22,7 +22,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -159,6 +159,11 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   `api/_lib/admin/system.js` (health, activity) and `api/_lib/admin/podcast-*.js` (content, cohorts, students, automation);
   a new section adds its module there (unique action names). `admin_log` records each action's section.
 - "Access until" dates shown anywhere are the last listening day: access ends at 00:00 KST the day after.
+- Episode types (Alex, 2026-11-15; `api/_lib/episodes.js`): **Week, Q&A, Live, Bonus**. A week number can be shared by
+  several episodes (Week needs one; the others may name their week). Release: N days after each cohort's start, or a
+  fixed date and time for every cohort (`episodes.release_at`, Seoul time in the admin); a cohort's own date
+  (Cohorts page) still wins. Only Week episodes drive the AC week tags (`_epNN_released/_downloaded`, `_completed`),
+  once per week number.
 - Uploads go straight from the browser to the private Blob store through a short-lived signed URL (`upload-url`), so
   there's no 4.5 MB function limit. Cover art is served publicly at `/a/art/<show>.<ext>`.
 - The admin API only runs on Vercel deployments: the local `site` preview serves static files only.
@@ -196,7 +201,8 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch; 
 - Chapters: `episodes.chapters` = `[{ start, title }]`, read from the MP3's ID3 CHAP frames (Podcast Studio) on upload
   (`api/_lib/learn/chapters.js`), "Read chapters from files" on the Episodes page for older files, editable there.
 - Local: the `shop-admin` preview serves `/learn` too; codes are printed and listed at `/__fake/learn-mail`.
-  `npm run test:learn` runs the end-to-end checks (rolled back).
+  `npm run test:learn` runs the end-to-end checks (rolled back). `/learn/<program>?debug=1` shows a diagnostic log
+  under the player (what happened while the screen was locked).
 
 ## Shop (e-commerce, replacing WooCommerce)
 

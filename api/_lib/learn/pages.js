@@ -8,6 +8,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { extension } = require('../rss.js');
+const { studentLabel } = require('../episodes.js');
 
 const SITE = path.join(__dirname, '..', '..', '..', 'site');
 let chrome = null;
@@ -47,9 +48,7 @@ const fullDate = (date) => kst(date, { year: 'numeric', month: 'long', day: 'num
 // Access ends at 00:00 KST the day after the last listening day: show that last day.
 const lastDay = (expires) => new Date(expires.getTime() - 1);
 
-function episodeLabel(episode) {
-  return episode.kind === 'module' && episode.number ? `모듈 ${episode.number}` : '보너스';
-}
+const episodeLabel = studentLabel;
 
 function audioUrl(episode) {
   return `/learn/audio/${episode.guid}.${extension(episode.mime_type)}`;
@@ -209,8 +208,8 @@ function homePage({ student, shows, progress, resume }) {
     const c = programCounts(x.access, progress);
     const active = x.access.state === 'active';
     const facts = active ? `<ul class="pod__status">
-    <li><span>공개된 모듈</span><strong>${c.released}개${c.total > c.released ? ` / 전체 ${c.total}개` : ''}</strong></li>
-    <li><span>다 들은 모듈</span><strong>${c.done}개</strong></li>
+    <li><span>공개된 강의</span><strong>${c.released}개${c.total > c.released ? ` / 전체 ${c.total}개` : ''}</strong></li>
+    <li><span>다 들은 강의</span><strong>${c.done}개</strong></li>
     <li><span>다음 공개</span><strong>${x.access.next ? esc(releaseDate(x.access.next.releaseAt)) : '모두 공개되었어요'}</strong></li>
     ${x.access.expires ? `<li><span>수강 기간</span><strong>${esc(fullDate(lastDay(x.access.expires)))}까지</strong></li>` : ''}
   </ul>` : `<p class="pod__notice">${statusLine(x.access)}</p>`;
@@ -250,7 +249,7 @@ function chapterList(chapters) {
 }
 
 // /learn/<show>: the player (current episode), its chapters, then every module: released, listened, coming.
-function programPage({ show, access, progress, current }) {
+function programPage({ show, access, progress, current, debug = false }) {
   const released = access.episodes.map((e) => e.episode);
   const upcoming = (access.scheduled || []).filter((e) => e.releaseAt > new Date() && !released.some((r) => r.id === e.episode.id));
   const cur = current || released.find((e) => !(progress.get(e.id) && progress.get(e.id).completed_at)) || released[0];
@@ -291,8 +290,8 @@ function programPage({ show, access, progress, current }) {
       body: `<p class="learn__back"><a href="/learn">← 내 강의실</a></p>
 <section class="pod__card">
   <p class="pod__eyebrow">${esc(show.title)}</p>
-  <h1 class="pod__title">아직 공개된 모듈이 없어요</h1>
-  ${access.next ? `<p>첫 모듈은 ${esc(releaseDate(access.next.releaseAt))}에 공개돼요.</p>` : ''}
+  <h1 class="pod__title">아직 공개된 강의가 없어요</h1>
+  ${access.next ? `<p>첫 강의는 ${esc(releaseDate(access.next.releaseAt))}에 공개돼요.</p>` : ''}
   ${until}
 </section>
 ${coming ? `<section class="pod__card"><h2 class="pod__h2">공개 예정</h2><ol class="learn__list">${coming}</ol></section>` : ''}
@@ -338,6 +337,11 @@ ${signOut()}`,
   ${coming ? `<h3 class="learn__h3">공개 예정</h3><ol class="learn__list">${coming}</ol>` : ''}
   ${until}
 </section>
+${debug ? `<section class="pod__card pod__card--quiet play__log-card">
+  <h2 class="pod__h2">진단 기록</h2>
+  <p class="pod__note">재생한 뒤 화면을 잠갔다가 돌아오면, 그동안 무슨 일이 있었는지 여기에 기록돼요. 이 화면을 캡처해서 보내 주세요.</p>
+  <ol class="play__log"></ol>
+</section>` : ''}
 ${signOut()}
 <script type="application/json" id="learn-data">${data}</script>`,
   });

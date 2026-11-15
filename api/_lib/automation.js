@@ -8,9 +8,10 @@
  *   <prefix>_subscribed          first time a podcast app fetched this program's feed
  *   <prefix>_not_subscribed_3d   enrolled 3 days ago, an episode is out, still not subscribed       → reminder
  *   <prefix>_not_subscribed_7d   same after 7 days
- *   <prefix>_epNN_released       module NN released for them (daily job, not for catch-up modules)  → "new module" email
- *   <prefix>_epNN_downloaded     first download of module NN
- *   <prefix>_completed           every published module downloaded
+ *   <prefix>_epNN_released       week NN released for them (daily job, not for catch-up weeks)      → "new week" email
+ *   <prefix>_epNN_downloaded     first download of a week NN episode
+ *   <prefix>_completed           every published Week episode downloaded
+ * Only "week" episodes count (not Q&A, Live or Bonus); several episodes of the same week give the tag once.
  *   <prefix>_expiring_30d        access ends within 30 days
  *   <prefix>_expired             access ended
  *   <prefix>_revoked             access revoked through the webhook (refund)
@@ -102,13 +103,13 @@ async function onFirstFeed(studentId, show) {
 }
 
 async function onDownload(studentId, show, episode) {
-  if (episode.kind !== 'module' || !episode.number) return;
+  if (episode.kind !== 'week' || !episode.number) return;
   const t = tags(show);
   await enqueue({ op: 'tag_add', studentId, showId: show.id, payload: { tag: t.downloaded(episode.number) }, dedupe: `s${studentId}:p${show.id}:ep${episode.number}-downloaded` });
   const done = await db.one(
-    `SELECT (SELECT count(*) FROM episodes WHERE show_id = $2 AND kind = 'module' AND status = 'published')::int AS total,
+    `SELECT (SELECT count(*) FROM episodes WHERE show_id = $2 AND kind = 'week' AND status = 'published')::int AS total,
             (SELECT count(DISTINCT e.episode_id) FROM events e JOIN episodes ep ON ep.id = e.episode_id
-              WHERE e.student_id = $1 AND ep.show_id = $2 AND ep.kind = 'module' AND e.kind = 'download')::int AS downloaded`,
+              WHERE e.student_id = $1 AND ep.show_id = $2 AND ep.kind = 'week' AND e.kind = 'download')::int AS downloaded`,
     [studentId, show.id],
   );
   if (done.total > 0 && done.downloaded >= done.total) {
@@ -185,8 +186,8 @@ function dailyTags({ show, access, enrolledAt, subscribed, now }) {
   if (access.state === 'active') {
     for (const item of access.episodes) {
       const e = item.episode;
-      // Released in the last 2 days, and not a catch-up module released before they enrolled.
-      if (e.kind === 'module' && e.number && now - item.releaseAt < 2 * DAY && item.releaseAt >= new Date(enrolledAt.getTime() - 60 * 60 * 1000)) {
+      // Released in the last 2 days, and not a catch-up week released before they enrolled.
+      if (e.kind === 'week' && e.number && now - item.releaseAt < 2 * DAY && item.releaseAt >= new Date(enrolledAt.getTime() - 60 * 60 * 1000)) {
         out.push({ tag: t.released(e.number), key: `ep${e.number}-released` });
       }
     }
