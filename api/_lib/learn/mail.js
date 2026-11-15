@@ -22,16 +22,52 @@ function setTransport(fn) {
   cachedToken = null;
 }
 
+// The private key however it was pasted into Vercel: the whole JSON file, the private_key value with or without its
+// quotes, "\n" written as two characters, or real line breaks turned into spaces. → { key: PEM, email? }
+function readKey(value) {
+  let text = String(value || '').trim();
+  let email = '';
+  if (text.startsWith('{')) {
+    try {
+      const json = JSON.parse(text);
+      text = String(json.private_key || '');
+      email = String(json.client_email || '');
+    } catch (_) { /* not JSON after all */ }
+  }
+  text = text.replace(/^["']+|["',]+$/g, '').replace(/\\r/g, '').replace(/\\n/g, '\n').replace(/\r/g, '').trim();
+  const m = /-----BEGIN ([A-Z ]*PRIVATE KEY)-----([\s\S]*?)-----END \1-----/.exec(text);
+  const label = m ? m[1] : 'PRIVATE KEY';
+  const body = (m ? m[2] : text).replace(/[^A-Za-z0-9+/=]/g, '');
+  if (!body) return { key: '', email };
+  const pem = `-----BEGIN ${label}-----\n${body.replace(/.{64}/g, '$&\n').replace(/\n$/, '')}\n-----END ${label}-----\n`;
+  return { key: pem, email };
+}
+
+// Why a key can't be used, without showing any of it.
+function describeKey(value) {
+  const t = String(value || '').trim();
+  return `${t.length} characters, ${t.startsWith('{') ? 'starts like a JSON file' : t.includes('BEGIN') ? 'has a BEGIN line' : 'no BEGIN line'}`;
+}
+
 function config(env = process.env) {
-  const email = (env.GOOGLE_SA_EMAIL || '').trim();
-  const key = (env.GOOGLE_SA_KEY || '').replace(/\\n/g, '\n').trim();
+  const parsed = readKey(env.GOOGLE_SA_KEY);
+  const email = (env.GOOGLE_SA_EMAIL || '').trim().replace(/^["']|["']$/g, '') || parsed.email;
   const from = (env.LEARN_MAIL_FROM || '').trim();
-  if (!email || !key || !from) return null;
-  return { email, key, from, name: (env.LEARN_MAIL_NAME || '애슐리 림').trim() };
+  if (!email || !parsed.key || !from) return null;
+  try {
+    crypto.createPrivateKey(parsed.key);
+  } catch (_) {
+    throw new Error(`GOOGLE_SA_KEY is not a readable private key (${describeKey(env.GOOGLE_SA_KEY)}): paste the "private_key" value from the JSON file`);
+  }
+  return { email, key: parsed.key, from, name: (env.LEARN_MAIL_NAME || '애슐리 림').trim() };
 }
 
 function configured(env = process.env) {
-  return Boolean(transport || config(env));
+  try {
+    return Boolean(transport || config(env));
+  } catch (_) {
+    return false;
+  }
 }
 
 const b64url = (s) => Buffer.from(s).toString('base64url');
@@ -102,4 +138,4 @@ async function send({ to, subject, text, html }, { env = process.env, fetchImpl 
   }
 }
 
-module.exports = { send, configured, setTransport, mime, config };
+module.exports = { send, configured, setTransport, mime, config, readKey };

@@ -148,3 +148,24 @@ test('email through Gmail: a signed service-account token, then one UTF-8 MIME m
   assert.equal(mail.configured({}), false);
   await assert.rejects(mail.send({ to: 'a@b.com', subject: 's', text: 't', html: 'h' }, { env: {}, fetchImpl }), /not set up/);
 });
+
+test('the Google key is accepted however it was pasted into Vercel', () => {
+  const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const json = JSON.stringify({ type: 'service_account', client_email: 'sa@p.iam.gserviceaccount.com', private_key: pem });
+  const forms = {
+    'as in the file': pem,
+    'escaped \\n, with quotes and comma': JSON.stringify(pem) + ',',
+    'line breaks turned into spaces': pem.replace(/\n/g, ' '),
+    'the whole JSON file': json,
+    'Windows line breaks': pem.replace(/\n/g, '\r\n'),
+  };
+  for (const [name, value] of Object.entries(forms)) {
+    const cfg = mail.config({ GOOGLE_SA_EMAIL: name === 'the whole JSON file' ? '' : 'sa@p.iam.gserviceaccount.com', GOOGLE_SA_KEY: value, LEARN_MAIL_FROM: 'hello@ashleylim.com' });
+    assert.ok(cfg, name);
+    assert.equal(crypto.createPrivateKey(cfg.key).asymmetricKeyType, 'rsa', name);
+    assert.equal(cfg.email, 'sa@p.iam.gserviceaccount.com', name);
+  }
+  assert.throws(() => mail.config({ GOOGLE_SA_EMAIL: 'x', GOOGLE_SA_KEY: 'not a key at all', LEARN_MAIL_FROM: 'a@b.c' }), (err) => /not a readable private key \(16 characters, no BEGIN line\)/.test(err.message) && !err.message.includes('not a key at all'));
+  assert.equal(mail.configured({ GOOGLE_SA_EMAIL: 'x', GOOGLE_SA_KEY: 'nope', LEARN_MAIL_FROM: 'a@b.c' }), false);
+});
