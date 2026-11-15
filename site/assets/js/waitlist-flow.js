@@ -75,7 +75,7 @@
     msg.textContent = '';
     root.classList.toggle('is-started', name !== 'contact');
     var card = root.closest('.wl-card');
-    if (card) card.classList.toggle('is-started', name !== 'contact');
+    if (card) { card.classList.toggle('is-started', name !== 'contact'); card.classList.toggle('is-done', name === 'done'); }
     var list = stepList();
     var i = list.indexOf(name);
     if (progress) {
