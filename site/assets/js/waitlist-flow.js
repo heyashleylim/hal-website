@@ -111,7 +111,7 @@
     var hello = steps.q1.querySelector('.wlf__hello');
     var notYou = root.querySelector('.wlf__notyou');
     if (name) {
-      hello.textContent = name + '님, 반가워요. 3가지만 여쭤볼게요 🙂';
+      hello.textContent = name + '님, 반가워요. 3가지 질문으로 지금의 마음을 살짝 들려주세요 🙂';
       hello.hidden = false;
       if (notYou) { notYou.hidden = !state.viaLink; notYou.querySelector('button').textContent = name + '님이 아니신가요?'; }
     } else {
@@ -129,7 +129,7 @@
       text.textContent = '방금 보내드린 확인 이메일에서 ‘구독 확인’을 눌러야 대기 리스트 등록이 완료돼요. 메일이 보이지 않으면 스팸함도 확인해 주세요 💌';
     } else {
       title.textContent = (state.name ? state.name + '님, ' : '') + '고마워요 💌';
-      text.textContent = '답변 잘 받았어요. 다음 기수 오픈 소식과 대기자 우선 안내를 가장 먼저 보내드릴게요.';
+      text.textContent = '답변도 잘 받았어요. 다음 기수 오픈 소식과 대기자 우선 안내를 가장 먼저 보내드릴게요.';
     }
     store(null);
     show('done');

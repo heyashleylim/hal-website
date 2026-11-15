@@ -30,7 +30,7 @@ const TAGS = {
 
 // Q3's choices, in the order of the AC dropdown's options. The label is the fallback when AC lists no options.
 const Q3 = {
-  a: '네, 이번 12기에 시작하고 싶어요',
+  a: '네, 다음 기수 때 시작하고 싶어요',
   b: '시작하고 싶지만 시기나 비용을 고민 중이에요',
   c: '아직은 소식만 받아보고 싶어요',
 };

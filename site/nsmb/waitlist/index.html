@@ -39,6 +39,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 .wl-card h1{font-size:28px;line-height:1.4;margin-bottom:12px;word-break:keep-all}
 .wl-card h1 .accent{color:var(--accent)}
 .wl-card__intro{color:var(--ink-2);line-height:1.6;margin-bottom:28px}
+.wl-card__intro p+p{margin-top:10px}
 .wl-card__more{margin-top:24px;text-align:center;font-size:15px}
 .wl-card__more a{color:var(--ink-2)}
 .wl-card.is-started .wl-card__intro{display:none}
@@ -63,8 +64,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <main class="wl-page" id="main">
   <div class="wl-card">
     <p class="wl-card__k">내성만방 대기 리스트</p>
-    <h1>지금은 내성만방 <span class="accent">다음 기수</span>를 준비하고 있어요.</h1>
-    <p class="wl-card__intro">대기 리스트에 등록하시면, 다음 기수 오픈 소식과 대기자 우선 안내를 가장 먼저 받아보실 수 있어요 💌</p>
+    <h1><span class="accent">다음 기수</span> 문이 열리기 전, 가장 먼저 안내받으세요.</h1>
+    <div class="wl-card__intro">
+      <p>내성만방 다음 기수는 2027년 2월경 시작될 예정이에요.</p>
+      <p>대기 리스트에 등록하시면, 오픈 소식과 대기자 우선 안내를 가장 먼저 받아보실 수 있어요 💌</p>
+    </div>
       <!-- Waitlist v2 (css/waitlist-flow.css + js/waitlist-flow.js): name/email first, then Q1–Q3 one at a time.
            Posts to /api/waitlist (api/waitlist.js) → ActiveCampaign: contact, link code, tags, double opt-in (form 4), answers. -->
       <div class="wlf" data-waitlist-flow data-endpoint="/api/waitlist" data-source="waitlist-page">
@@ -84,31 +88,32 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           </div>
           <label class="consent"><input type="checkbox" name="consent" id="wl-consent" required aria-describedby="wl-consent-err"><span>[필수] 신청하신 서비스 제공과 소식·혜택 이메일 수신에 동의합니다. 언제든지 수신거부 가능하며, 자세한 내용은 <a href="/privacy-policy">개인정보처리방침</a>을 확인해 주세요.</span></label>
           <p class="err" id="wl-consent-err" aria-live="polite"></p>
-          <button class="btn btn--block" type="submit">다음 →</button>
+          <button class="btn btn--block" type="submit">대기 리스트 등록하기 →</button>
           <p class="wlf__lead">다음 단계에서 3가지만 여쭤볼게요 · 1분이면 충분해요</p>
         </form>
 
         <form class="wlf__step" data-step="q1" hidden novalidate>
           <p class="wlf__hello" hidden></p>
           <label class="wlf__q" for="wl-q1"><span class="wlf__n">Q1</span>지금 삶에서 가장 바꾸고 싶은 한 가지는 무엇인가요? 그 상태가 얼마나 오래 이어져 왔나요?</label>
-          <textarea id="wl-q1" name="q1" rows="5" maxlength="3000" placeholder="예: 4년째 이직을 고민만 하고 있어요." aria-describedby="wl-q1-err"></textarea>
+          <textarea id="wl-q1" name="q1" rows="5" maxlength="3000" placeholder="예: 4년째 이직을 고민만 하고 있어요. / 관계에서 같은 패턴이 반복돼요." aria-describedby="wl-q1-err"></textarea>
           <p class="err" id="wl-q1-err" aria-live="polite"></p>
           <div class="wlf__nav"><button class="wlf__back" type="button">← 이전</button><button class="btn" type="submit">다음 →</button></div>
           <p class="wlf__notyou" hidden><button class="wlf__link" type="button">다른 분이신가요?</button></p>
         </form>
 
         <form class="wlf__step" data-step="q2" hidden novalidate>
-          <label class="wlf__q" for="wl-q2"><span class="wlf__n">Q2</span>그걸 바꾸기 위해 지금까지 해 본 것은 무엇이고, 왜 충분하지 않았다고 느끼나요?</label>
-          <textarea id="wl-q2" name="q2" rows="5" maxlength="3000" placeholder="예: 책, 상담, 명상… 해봤지만 그때뿐이었어요." aria-describedby="wl-q2-err"></textarea>
+          <label class="wlf__q" for="wl-q2"><span class="wlf__n">Q2</span>그걸 바꾸기 위해 지금까지 해본 것은 무엇인가요? 그리고 아직 무엇이 충분히 해결되지 않았다고 느끼나요?</label>
+          <textarea id="wl-q2" name="q2" rows="5" maxlength="3000" placeholder="예: 책, 운동, 상담 등을 해봤지만 그때뿐이었어요… 결국 같은 생각과 패턴으로 돌아오더라고요." aria-describedby="wl-q2-err"></textarea>
           <p class="err" id="wl-q2-err" aria-live="polite"></p>
           <div class="wlf__nav"><button class="wlf__back" type="button">← 이전</button><button class="btn" type="submit">다음 →</button></div>
         </form>
 
         <form class="wlf__step" data-step="q3" hidden novalidate>
           <fieldset>
-            <legend class="wlf__q"><span class="wlf__n">Q3</span>2027년 2월 말 시작하는 12주 동안, 매주 1시간 이상의 과제와 라이브 코칭에 함께할 준비가 되어 있나요?</legend>
+            <legend class="wlf__q"><span class="wlf__n">Q3</span>내성만방 12주 동안, 매주 1시간 이상 수업과 과제에 집중할 준비가 되어 있나요?</legend>
+            <p class="wlf__hint wlf__pick">하나를 선택해주세요.</p>
             <div class="wlf__opts">
-              <label class="wlf__opt"><input type="radio" name="q3" value="a" aria-describedby="wl-q3-err"><span class="dot" aria-hidden="true"></span><span>네, 이번 12기에 시작하고 싶어요</span></label>
+              <label class="wlf__opt"><input type="radio" name="q3" value="a" aria-describedby="wl-q3-err"><span class="dot" aria-hidden="true"></span><span>네, 다음 기수 때 시작하고 싶어요</span></label>
               <label class="wlf__opt"><input type="radio" name="q3" value="b"><span class="dot" aria-hidden="true"></span><span>시작하고 싶지만 시기나 비용을 고민 중이에요</span></label>
               <label class="wlf__opt"><input type="radio" name="q3" value="c"><span class="dot" aria-hidden="true"></span><span>아직은 소식만 받아보고 싶어요</span></label>
             </div>
@@ -124,7 +129,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         <p class="form-msg wlf__msg" role="status" aria-live="polite"></p>
       </div>
-    <p class="wl-card__more"><a href="/nsmb">내성만방이 어떤 프로그램인지 먼저 볼래요 →</a></p>
+    <p class="wl-card__more"><a href="/nsmb">내성만방이 어떤 프로그램인지 먼저 둘러볼래요 →</a></p>
   </div>
 </main>
 

@@ -139,7 +139,8 @@
 .waitlist__k{font-size:14px;font-weight:700;color:var(--rose);margin-bottom:16px}
 .waitlist__intro h3{font-size:28px;line-height:1.4;margin-bottom:16px}
 .waitlist__intro .accent{color:var(--accent)}
-.waitlist__intro p:last-child{color:var(--ink-2);line-height:1.6}
+.waitlist__intro p:not(.waitlist__k){color:var(--ink-2);line-height:1.6}
+.waitlist__intro p:not(.waitlist__k)+p{margin-top:10px}
 .waitlist-form{padding:0}
 /* Fields, consent, messages and the question steps: css/waitlist-flow.css (shared with /nsmb/waitlist). */
 

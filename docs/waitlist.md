@@ -96,7 +96,7 @@ keep the page open). New sign-ups get their code automatically. Clicking it agai
 In the AC email to the existing waitlist, link the button to:
 `https://www.ashleylim.com/nsmb/waitlist?c=%WL_LINK_CODE%&src=reconfirm`
 
-She lands on Q1 with "지은님, 반가워요. 3가지만 여쭤볼게요 🙂", without typing her name or email again.
+She lands on Q1 with "지은님, 반가워요. 3가지 질문으로 지금의 마음을 살짝 들려주세요 🙂", without typing her name or email again.
 A "지은님이 아니신가요?" link lets someone else start from step 1.
 
 Why a code and not `?email=…&name=…`: the page removes the code from the address bar before Google Tag Manager
@@ -133,7 +133,7 @@ the AC contact, starts the double opt-in and saves the answers, exactly like the
 5. **Q2:** same, saved to `wl_q2`.
 6. **Q3:** a message with three **quick replies**. On each reply, add the action *Set User Field* `wl_q3` to
    `a`, `b` or `c`:
-   - ⓐ 네, 이번 12기에 시작하고 싶어요 → `a`
+   - ⓐ 네, 다음 기수 때 시작하고 싶어요 → `a`
    - ⓑ 시작하고 싶지만 시기나 비용을 고민 중이에요 → `b`
    - ⓒ 아직은 소식만 받아보고 싶어요 → `c`
 7. **Email:** *User Input* → reply type **Email**, save to the system field **Email**.

@@ -37,6 +37,7 @@
 .wlf__n{display:block;font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--accent);margin-bottom:6px}
 .wlf textarea{min-height:132px;line-height:1.6;resize:vertical}
 .wlf__hint{font-size:13.5px;color:var(--muted);margin-top:8px}
+.wlf__pick{margin:-6px 0 14px}
 
 .wlf fieldset{border:0;margin:0;padding:0;min-width:0}
 .wlf__opts{display:grid;gap:10px}
