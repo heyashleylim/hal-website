@@ -54,11 +54,16 @@
       <label>Extra tags <span class="hint">optional, separated by commas</span><input name="extra_tags" autocapitalize="none" spellcheck="false"></label>
       <label>WooCommerce product ids <span class="hint">so old payment links find this product, e.g. 2882, 4536</span><input name="legacy_ids" inputmode="numeric"></label>
 
-      <p class="admin-h3">Add-ons <span class="hint">offered under the payment method, like Marie Forleo’s “Popular add-ons”</span></p>
-      <fieldset class="admin-form__wide addon-pick">
-        <legend>Offer these add-ons on this product’s checkout <span class="hint">up to 6, shown in this order. Only add-ons that are Open and have a price in the checkout’s currency appear</span></legend>
-        <div id="addon-list"><p class="muted small">Save other products first: any product can be offered as an add-on.</p></div>
+      <p class="admin-h3" data-offer>Add-ons offered on this checkout <span class="hint">shown under the payment method, like Marie Forleo’s “Popular add-ons”</span></p>
+      <p class="admin-form__wide muted small" data-offer>An add-on is a product of its own, with its own name, prices and purchase tag. Create it with “New add-on”, then tick it here. Up to 6, shown in this order; only add-ons that are Open and have a price in the buyer’s currency appear.</p>
+      <fieldset class="admin-form__wide addon-pick" data-offer>
+        <legend class="sr-only">Offer these add-ons on this product’s checkout</legend>
+        <div id="addon-list"></div>
+        <div><button data-tip="Create a new product to offer as an add-on (its name, prices and tag). This form comes back afterwards with it ticked" class="btn-ghost" type="button" id="new-addon">New add-on</button></div>
       </fieldset>
+
+      <p class="admin-h3">When this product is itself an add-on <span class="hint">only used when another product offers it</span></p>
+      <p class="admin-form__wide muted small">The add-on card shows this product’s <b>Name</b> and <b>Prices</b> (at the top of this form) and its <b>Summary</b> (below), plus the fields here.</p>
       <label class="check-ac admin-form__wide"><input type="checkbox" name="addon_only"><span>Sold only as an add-on</span><span class="hint">no checkout page of its own; it must still be Open to be offered</span></label>
       <label>Regular KRW price (₩) <span class="hint">optional, shown crossed out next to the add-on price</span><input name="compare_krw" inputmode="numeric" placeholder="99000"></label>
       <label>Regular USD price ($) <span class="hint">optional, crossed out</span><input name="compare_usd" inputmode="decimal" placeholder="99"></label>
@@ -145,7 +150,30 @@
   function dollars(cents) { return cents == null ? '' : (cents % 100 ? (cents / 100).toFixed(2) : String(cents / 100)); }
   function local(iso) { if (!iso) return ''; var k = Admin.kstParts(iso); return k.date + 'T' + k.time; }
 
-  function open(p) {
+  // "New add-on": the product being edited comes back after the add-on is saved, with it ticked.
+  var dirty = false, returnTo = null;
+  form.addEventListener('input', function () { dirty = true; });
+  form.addEventListener('change', function () { dirty = true; });
+
+  function offerFields() {
+    var only = form.elements.addon_only.checked;
+    form.querySelectorAll('[data-offer]').forEach(function (el) { el.hidden = only; });
+  }
+  form.elements.addon_only.addEventListener('change', offerFields);
+
+  document.getElementById('new-addon').addEventListener('click', function () {
+    var id = form.elements.id.value;
+    if (dirty && !confirm(id ? 'Leave this product without saving your changes? It comes back after the add-on is saved.' : 'Leave this new product without saving it?')) return;
+    open(null);
+    returnTo = id ? Number(id) : null;
+    form.elements.addon_only.checked = true;
+    offerFields();
+    document.getElementById('editor-title').textContent = 'New add-on' + (returnTo && find(returnTo) ? ' for ' + find(returnTo).name : '');
+    Admin.say(out, 'Give it a name, prices and a purchase tag, set it to Open when it’s ready, then Save.');
+  });
+
+  function open(p, tick) {
+    returnTo = null;
     form.reset();
     Admin.say(out, '');
     var c = (p && p.content) || {};
@@ -162,7 +190,8 @@
     } : { id: '', status: 'draft', usd_vat: 'taxable' };
     Object.keys(values).forEach(function (k) { form.elements[k].value = values[k]; });
     form.elements.addon_only.checked = Boolean(p && p.addon_only);
-    addonList(p);
+    offerFields();
+    addonList(p, tick);
     optionBox.innerHTML = '';
     ((p && p.price_options) || []).forEach(addOption);
     priceFields();
@@ -175,14 +204,15 @@
     editor.hidden = false;
     editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
     form.elements.name.focus({ preventScroll: true });
+    dirty = false;
   }
 
   // Every other product, as a tick box; the ones already offered first, in their order.
-  function addonList(p) {
+  function addonList(p, tick) {
     var box = document.getElementById('addon-list');
-    var chosen = (p && p.addon_ids) || [];
+    var chosen = ((p && p.addon_ids) || []).concat(tick && (!p || (p.addon_ids || []).indexOf(tick) < 0) ? [tick] : []);
     var others = products.filter(function (x) { return !p || x.id !== p.id; });
-    if (!others.length) { box.innerHTML = '<p class="muted small">Save other products first: any product can be offered as an add-on.</p>'; return; }
+    if (!others.length) { box.innerHTML = '<p class="muted small">No add-on yet: create one with “New add-on”.</p>'; return; }
     others.sort(function (a, b) {
       var ia = chosen.indexOf(a.id), ib = chosen.indexOf(b.id);
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || (b.addon_only - a.addon_only) || a.name.localeCompare(b.name);
@@ -291,6 +321,16 @@
       }),
       content: { summary: f.summary.value, included_title: f.included_title.value, included: rows(includedBox, function (row) { return { title: val(row, 'title'), text: val(row, 'text') }; }), image: f.image.value, thanks: f.thanks.value, page: f.page.value, guarantee: f.guarantee.value, testimonials: f.testimonials.value, addon_details: f.addon_details.value, addon_note: f.addon_note.value },
     }).then(function (r) {
+      var back = returnTo && find(returnTo);
+      if (back) {
+        // Back to the product the add-on was made for, with it ticked (saved only when that product is saved).
+        return load().then(function () {
+          open(find(back.id), r.product.id);
+          dirty = true;
+          document.getElementById('addon-list').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          Admin.say(out, '“' + r.product.name + '” is saved and ticked under “Add-ons offered on this checkout”. Save this product to offer it' + (r.product.status === 'open' ? '.' : ' (it is offered only once it is Open).'));
+        });
+      }
       editor.hidden = true;
       return load().then(function () { showQuote(find(r.product.id)); });
     }).catch(function (err) { Admin.say(out, err.message, true); })
