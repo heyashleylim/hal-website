@@ -13,6 +13,7 @@
  * every call is recorded in webhook_log and visible on the Automation page.
  */
 const db = require('./_lib/db.js');
+const contactsSync = require('./_lib/contacts/ac-sync.js');
 const auth = require('./_lib/auth.js');
 const ac = require('./_lib/ac.js');
 const automation = require('./_lib/automation.js');
@@ -147,6 +148,8 @@ module.exports = async function handler(req, res) {
   // The account-level webhook (Settings → Developer → Webhooks, "Contact Tag Added") fires for every tag in the
   // account and names the added tag in "tag". Anything that isn't a cohort's purchase tag is ignored quietly.
   const addedTag = action === 'enroll' ? addedTagFrom(body) : null;
+  // Contacts section: this contact's tags changed, so its copy is refreshed at the next contacts sync.
+  if (addedTag && contact.id) await contactsSync.flag(contact.id).catch((err) => console.error('podcast-ac: contacts flag', err.message));
   if (addedTag) {
     const known = await db.one(`SELECT 1 AS ok FROM cohorts WHERE ac_tag <> '' AND lower(ac_tag) = lower($1)`, [addedTag]);
     if (!known) return send(res, 200, { ok: true, result: `ignored: "${addedTag}" is not a cohort tag` });

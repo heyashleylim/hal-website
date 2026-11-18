@@ -15,12 +15,19 @@
     },
     "api/learn.js": {
       "includeFiles": "site/{index.html,nsmb/index.html}"
+    },
+    "api/admin.js": {
+      "maxDuration": 300
     }
   },
   "crons": [
     {
       "path": "/api/admin?action=cron",
       "schedule": "10 0 * * *"
+    },
+    {
+      "path": "/api/admin?action=cron-contacts",
+      "schedule": "40 0 * * *"
     }
   ],
   "headers": [

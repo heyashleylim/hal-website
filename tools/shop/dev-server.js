@@ -15,6 +15,7 @@
  * whatever keys are in .env.local; ActiveCampaign and Slack are switched off. It listens on localhost only.
  * The Emails section's "Sync now" reads made-up campaigns (tools/emails/fake-ac.js), never the real ActiveCampaign,
  * and its translations are a stand-in (each line prefixed with [EN]): no translation service is called.
+ * The Contacts section's sync reads made-up contacts (tools/contacts/fake-ac.js) the same way.
  *
  * The student area (/learn) runs too. Sign-in emails are never sent: the code is printed in this server's output
  * and listed at /__fake/learn-mail. Purchasers (ActiveCampaign tags starting with "purchased") are faked: any address
@@ -97,6 +98,8 @@ async function start({ port = Number(process.env.PORT || 8793), quiet = false } 
     await new Promise((r) => setTimeout(r, 30));
     return { subject: subject && `[EN] ${subject}`, body: body.split('\n').map((line) => (line.trim() ? `[EN] ${line}` : line)).join('\n') };
   });
+  // The Contacts section copies made-up contacts (tools/contacts/fake-ac.js), never the real ActiveCampaign.
+  require(path.join(root, 'api', '_lib', 'contacts', 'ac-sync.js')).setClient(require(path.join(root, 'tools', 'contacts', 'fake-ac.js')).create({ now: new Date(), count: 40 }).request, { noPause: true });
   require(path.join(root, 'api', '_lib', 'emails', 'ac-sync.js')).setClient(require(path.join(root, 'tools', 'emails', 'fake-ac.js')).create({ now: new Date() }).request);
 
   // Student area: sign-in emails stay on this computer.
