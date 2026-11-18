@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Students · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="students">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <h1>Students</h1>
+
+  <section class="admin-card" aria-labelledby="numbers-title">
+    <h2 id="numbers-title">내성만방 (NSMB)</h2>
+    <dl class="stats" id="numbers" aria-live="polite"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
+    <p class="muted" id="note" style="margin-top:16px"></p>
+  </section>
+
+  <section class="admin-card" aria-labelledby="decide-title">
+    <div class="admin-head" style="margin-bottom:12px">
+      <h2 id="decide-title" style="margin:0">Waiting for your decision</h2>
+      <a class="btn-ghost" href="/admin/students/list?decide=1">See them in the list</a>
+    </div>
+    <p class="muted" style="margin-bottom:12px">Students for whom the two analyses disagree (persona, or testimonial rating) and you haven’t decided yet. Open one to compare both analyses next to her words in English.</p>
+    <div id="decide" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="personas-title">
+    <h2 id="personas-title">Personas</h2>
+    <p class="muted" style="margin-bottom:12px">How many students each analysis put in each persona, and your decisions so far. Full descriptions: <a href="/admin/students/reference">Personas &amp; method</a>.</p>
+    <div id="personas" class="admin-scroll"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card explain" aria-labelledby="how-title">
+    <h2 id="how-title">How this section works</h2>
+    <ul>
+      <li><strong>Students’ words are never changed.</strong> Each text (sales call, onboarding questionnaire, written and video testimonial) is kept exactly as it was written, with an English translation next to it. The database refuses any edit.</li>
+      <li><strong>Snippets are always word for word.</strong> A snippet is a passage of a student’s text: the database checks every character. Quotes from the old analysis that were not word for word are kept in that analysis, marked “not word for word”, and are not snippets.</li>
+      <li><strong>Two analyses, your decision.</strong> The spreadsheet’s analysis (July 2026) and an independent second read (November 2026) sit side by side. Where they agree, that is used; where they disagree, you choose.</li>
+      <li><strong>Sensitive and private.</strong> Snippets about health, suicide, abuse or children are marked sensitive and left out of the snippet library by default. Mark on each student whether her words may be used publicly.</li>
+    </ul>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script src="/assets/js/admin/student-records.js"></script>
+<script>
+(function () {
+  var S = StudentRecords, esc = Admin.esc;
+  function stat(label, value) { return '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>'; }
+  Promise.all([Admin.get('program-students-overview'), Admin.get('program-students')]).then(function (res) {
+    var o = res[0], list = res[1].students, labels = o.labels;
+    document.getElementById('numbers').innerHTML =
+      stat('Students', o.total) + stat('With a testimonial', o.testimonials) + stat('To decide', o.decide) +
+      stat('Snippets', o.snippets.n) + stat('Starred snippets', o.snippets.starred) +
+      (o.untranslated || o.snippets.untranslated ? stat('Waiting for English', o.untranslated + o.snippets.untranslated) : '');
+    document.getElementById('note').innerHTML = !o.total ? 'No student imported yet.' :
+      (o.untranslated || o.snippets.untranslated ? 'Some texts have no English yet: ask Claude to “translate the new student texts”.' : 'Every text and snippet has its English translation.');
+
+    var todo = list.filter(function (s) { return s.decide.persona || s.decide.rating; });
+    document.getElementById('decide').innerHTML = !todo.length ? '<p class="admin-empty">Nothing to decide.</p>' :
+      '<table class="admin-table"><thead><tr><th>Student</th><th>Cohort</th><th>Persona</th><th>Rating</th></tr></thead><tbody>' +
+      todo.map(function (s) {
+        var cell = function (key, fmt) {
+          return '<div class="st-rounds">' + s.rounds.map(function (r) { return '<span>' + S.roundShort(r.round) + ': ' + fmt(r[key]) + '</span>'; }).join('') + '</div>';
+        };
+        return '<tr><td><a href="/admin/students/student?id=' + s.id + '">' + S.name(s) + '</a></td><td class="num">' + s.cohort + '</td>' +
+          '<td>' + (s.decide.persona ? cell('persona', function (p) { return S.persona(p, labels); }) : S.persona(s.persona, labels)) + '</td>' +
+          '<td>' + (s.decide.rating ? cell('rating', S.stars) : S.stars(s.rating)) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+
+    var rounds = {}, ids = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+    list.forEach(function (s) { s.rounds.forEach(function (r) { rounds[r.round] = rounds[r.round] || {}; rounds[r.round][r.persona] = (rounds[r.round][r.persona] || 0) + 1; }); });
+    var names = Object.keys(rounds).sort();
+    document.getElementById('personas').innerHTML = '<table class="admin-table"><thead><tr><th>Persona</th>' +
+      names.map(function (r) { return '<th class="num">' + esc(S.round(r)) + '</th>'; }).join('') + '<th class="num">Your decision</th></tr></thead><tbody>' +
+      ids.map(function (p) {
+        return '<tr><td>' + S.persona(p, labels, true) + '</td>' + names.map(function (r) { return '<td class="num">' + (rounds[r][p] || 0) + '</td>'; }).join('') +
+          '<td class="num"><a href="/admin/students/list?persona=' + p + '">' + (o.personas[p] || 0) + '</a></td></tr>';
+      }).join('') +
+      '<tr><td class="muted">Not decided yet</td>' + names.map(function () { return '<td></td>'; }).join('') + '<td class="num">' + (o.personas.undecided || 0) + '</td></tr>' +
+      '</tbody></table>';
+  }).catch(function (err) {
+    document.getElementById('numbers').innerHTML = '';
+    ['decide', 'personas'].forEach(function (id) { document.getElementById(id).innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+  });
+})();
+</script>
+</body>
+</html>

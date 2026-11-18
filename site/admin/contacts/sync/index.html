@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>ActiveCampaign sync · Contacts · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="contacts">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main">
+  <h1>ActiveCampaign sync</h1>
+
+  <section class="admin-card" aria-labelledby="ac-title">
+    <h2 id="ac-title">Copy contacts from ActiveCampaign</h2>
+    <p class="muted" style="margin-bottom:16px">Reads contacts, their tags, lists and fields from ActiveCampaign and copies them here. <strong>Nothing is ever changed or deleted in ActiveCampaign.</strong> It runs by itself every day at 09:40 Seoul time. The first copy of every contact takes several runs (ActiveCampaign allows about 5 requests a second): “Keep syncing” repeats the sync until everything is copied, as long as this page stays open.</p>
+    <ul class="checklist" id="status" aria-live="polite"><li class="muted">Checking…</li></ul>
+    <p class="admin-actions" style="margin-top:20px">
+      <button data-tip="Copy new and changed contacts now (about 40 seconds)" class="btn-sm" type="button" id="sync-now">Sync now</button>
+      <button data-tip="Repeat the sync until every contact and its tags are copied; you can stop at any time" class="btn-ghost" type="button" id="keep">Keep syncing</button>
+      <button data-tip="Stop after the sync that is running now" class="btn-ghost" type="button" id="stop" hidden>Stop</button>
+      <span class="muted" id="out" role="status"></span>
+    </p>
+    <h3 class="admin-h3">Last syncs</h3>
+    <div id="runs" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var esc = Admin.esc, n = function (x) { return Number(x || 0).toLocaleString('en-US'); };
+  var keep = false, running = false;
+  function li(ok, html, info) { return '<li><span class="status ' + (info ? 'status--info">Info' : ok ? 'status--ok">OK' : 'status--bad">To do') + '</span><span>' + html + '</span></li>'; }
+  function describe(s) {
+    if (!s || s.ok === false) return '';
+    var parts = [];
+    if (s.recent && s.recent.seen) parts.push(n(s.recent.seen) + ' changed contact(s) read');
+    if (s.sweep && s.sweep.seen) parts.push(n(s.sweep.seen) + ' read in the full pass' + (s.sweep.done ? ' (pass finished' + (s.sweep.gone ? ', ' + n(s.sweep.gone) + ' no longer in AC' : '') + ')' : ''));
+    if (s.details && s.details.done) parts.push('tags of ' + n(s.details.done) + ' contact(s) read');
+    if (s.details && s.details.left) parts.push(n(s.details.left) + ' left for the next run');
+    return parts.join(', ') || 'nothing new';
+  }
+  function status() {
+    return Admin.get('contacts-sync').then(function (r) {
+      var last = r.runs[0], sw = r.sweep;
+      document.getElementById('status').innerHTML =
+        li(r.connected, r.connected ? 'ActiveCampaign is connected (read only)' : 'ActiveCampaign is not connected here: <code>AC_API_URL</code> and <code>AC_API_KEY</code> are missing in Vercel for this environment') +
+        (last ? li(last.ok !== false, last.ok === false ? 'The last sync failed: ' + esc(last.error || 'unknown error') : last.finished_at ? 'Last sync: ' + Admin.kst(last.finished_at) + ' (' + esc(describe(last.summary)) + ')' : 'A sync is running…') : li(false, 'Never synced yet: click “Keep syncing”')) +
+        (sw.running ? li(true, 'Full pass through every contact under way: ' + n(sw.offset) + (sw.total ? ' of ' + n(sw.total) : '') + ' read', true) :
+          sw.finished_at ? li(true, 'Last full pass through every contact finished ' + Admin.kst(sw.finished_at) + '. The next one starts a week later.', true) : '');
+      ['sync-now', 'keep'].forEach(function (id) { document.getElementById(id).disabled = !r.connected || running; });
+      document.getElementById('runs').innerHTML = r.runs.length ? '<table class="admin-table"><thead><tr><th>Started</th><th>By</th><th>Result</th></tr></thead><tbody>' + r.runs.map(function (x) {
+        return '<tr><td class="num">' + Admin.kst(x.started_at) + '</td><td>' + (x.trigger === 'cron' ? 'Daily job' : 'Admin') + '</td><td>' +
+          (x.ok === false ? '<span class="is-error">' + esc(x.error || 'failed') + '</span>' : x.finished_at ? esc(describe(x.summary)) + (x.summary.note ? ' <span class="muted">· ' + esc(x.summary.note) + '</span>' : '') : 'running…') + '</td></tr>';
+      }).join('') + '</tbody></table>' : '<p class="admin-empty">No sync yet.</p>';
+    });
+  }
+  function run() {
+    var out = document.getElementById('out');
+    running = true;
+    document.getElementById('stop').hidden = !keep;
+    Admin.say(out, 'Syncing… (up to 40 seconds)');
+    return status().then(function () { return Admin.post('contacts-sync-run'); }).then(function (r) {
+      var res = r.result;
+      if (!res.ok) throw new Error(res.error);
+      Admin.say(out, 'Done: ' + describe(res) + '.');
+      running = false;
+      return status().then(function () { if (keep && res.more) return run(); keep = false; if (!res.more) Admin.say(out, 'Everything is copied.'); });
+    }).catch(function (err) { running = false; keep = false; Admin.say(out, err.message, true); return status(); })
+      .then(function () { document.getElementById('stop').hidden = true; });
+  }
+  document.getElementById('sync-now').addEventListener('click', function () { keep = false; run(); });
+  document.getElementById('keep').addEventListener('click', function () { keep = true; run(); });
+  document.getElementById('stop').addEventListener('click', function () { keep = false; Admin.say(document.getElementById('out'), 'Stopping after this sync…'); });
+  status().catch(function (err) { document.getElementById('status').innerHTML = li(false, esc(err.message)); });
+})();
+</script>
+</body>
+</html>

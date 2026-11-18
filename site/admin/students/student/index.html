@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Student · Students · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="students">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <p><a href="/admin/students/list">← All students</a></p>
+  <div id="page" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  <div class="st-pick" id="pick" hidden>
+    <span>Selected <strong id="pick-len"></strong> characters of the Korean text.</span>
+    <label class="sr-only" for="pick-use">What it is good for</label>
+    <input id="pick-use" maxlength="300" placeholder="Good for… (optional)" style="min-height:36px;padding:4px 8px;border-radius:var(--r-sm);border:0;min-width:200px">
+    <button data-tip="Save the selected Korean passage, exactly as written, as a snippet of this student" class="btn-sm" type="button" id="pick-save">Save as snippet</button>
+    <button data-tip="Forget the selection" class="btn-ghost" type="button" id="pick-cancel">Cancel</button>
+    <span id="pick-out" role="status"></span>
+  </div>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script src="/assets/js/admin/student-records.js"></script>
+<script>
+(function () {
+  var S = StudentRecords, esc = Admin.esc;
+  var id = new URLSearchParams(location.search).get('id');
+  var page = document.getElementById('page'), data = null, picked = null;
+  var SCORE_NAMES = { specificity: 'Specificity', outcome: 'Outcome', quotability: 'Quotability', persona_fit: 'Persona fit', completeness: 'Completeness', depth: 'Depth', advocacy: 'Advocacy', return_signal: 'Came back / wants more' };
+
+  function options(list, current, empty) {
+    return (empty ? '<option value="">' + empty + '</option>' : '') + list.map(function (v) {
+      var value = Array.isArray(v) ? v[0] : v, label = Array.isArray(v) ? v[1] : v;
+      return '<option value="' + esc(value) + '"' + (String(current == null ? '' : current) === String(value) ? ' selected' : '') + '>' + esc(label) + '</option>';
+    }).join('');
+  }
+  function personaOptions(current, empty) {
+    return options(['P1', 'P2', 'P3', 'P4', 'P5', 'P6'].map(function (p) { return [p, p + (data.labels[p] ? ' · ' + data.labels[p].en : '')]; }), current, empty);
+  }
+
+  function roundCard(a, other) {
+    var differs = function (key) { return other && a[key] !== other[key] ? ' class="st-differs"' : ''; };
+    var scores = Object.keys(a.scores || {}).map(function (k) {
+      var v = a.scores[k];
+      return (SCORE_NAMES[k] || k) + ': ' + (v === true ? 'yes' : v === false ? 'no' : v);
+    }).join(' · ');
+    var top = a.top_line ? '<div lang="ko">' + esc(a.top_line) + '</div>' + (a.extra && a.extra.top_line_en ? '<div>“' + esc(a.extra.top_line_en) + '”</div>' : '') +
+      (a.top_line_exact === false ? '<span class="badge badge--warn">Not word for word in her texts: not a snippet</span>' : a.top_line_exact ? '<span class="badge badge--ok">Word for word</span>' : '') : '';
+    var flags = (a.flags || []).length ? '<ul>' + a.flags.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>' : '';
+    return '<article class="st-round"><h3>' + esc(S.round(a.round)) + '</h3><dl>' +
+      '<dt>Persona</dt><dd><span' + differs('persona') + '>' + S.persona(a.persona, data.labels, true) + '</span>' +
+        (a.persona_alt ? '<br><span class="muted">Alternate: ' + esc(a.persona_alt) + '</span>' : '') + (a.confidence ? '<br><span class="muted">Confidence: ' + esc(S.CONFIDENCE[a.confidence] || a.confidence) + '</span>' : '') + '</dd>' +
+      (a.why ? '<dt>Why</dt><dd>' + esc(a.why) + '</dd>' : '') +
+      (a.trigger_text ? '<dt>Why she bought now</dt><dd>' + esc(a.trigger_text) + '</dd>' : '') +
+      ((a.outcomes || []).length ? '<dt>Results she names</dt><dd>' + a.outcomes.map(esc).join('<br>') + '</dd>' : '') +
+      (a.generational != null ? '<dt>For her child / family line</dt><dd>' + (a.generational ? 'Yes' : 'No') + '</dd>' : '') +
+      '<dt>Testimonial rating</dt><dd><span' + differs('rating') + '>' + S.stars(a.rating) + '</span>' + (scores ? '<br><span class="muted small">' + esc(scores) + '</span>' : '') + '</dd>' +
+      (a.rating_why ? '<dt>Rating reason</dt><dd>' + esc(a.rating_why) + '</dd>' : '') +
+      (top ? '<dt>Top line</dt><dd>' + top + '</dd>' : '') +
+      (a.suggested_use ? '<dt>Suggested use</dt><dd>' + esc(a.suggested_use) + '</dd>' : '') +
+      (flags ? '<dt>Sensitive</dt><dd>' + flags + '</dd>' : '') +
+      (a.notes ? '<dt>Notes</dt><dd>' + esc(a.notes) + '</dd>' : '') +
+      '</dl></article>';
+  }
+
+  function snippetCard(sn) {
+    return '<article class="snip' + (sn.starred ? ' is-starred' : '') + (sn.sensitive ? ' is-sensitive' : '') + (sn.hidden ? ' is-hidden' : '') + '" data-snip="' + sn.id + '">' +
+      (sn.quote_en ? '<p class="snip__en">“' + esc(sn.quote_en) + '”</p>' : '<p class="muted small">English not saved yet</p>') +
+      '<p class="snip__ko" lang="ko">' + esc(sn.quote) + '</p>' +
+      '<p class="snip__meta"><span>' + esc(S.KINDS[sn.kind]) + '</span><span>· picked by ' + esc(sn.origin === 'admin' ? 'you' : S.round(sn.origin)) + '</span>' +
+        (sn.use_for ? '<span>· ' + esc(sn.use_for) + '</span>' : '') + (sn.sensitive ? '<span class="badge badge--warn">Sensitive: not for marketing</span>' : '') + '</p>' +
+      '<div class="snip__tools">' +
+        '<button data-tip="Star this snippet: starred ones come first in the library" class="btn-ghost" type="button" data-act="starred">' + (sn.starred ? '★ Starred' : '☆ Star') + '</button>' +
+        '<button data-tip="Mark or unmark as sensitive (never used for marketing; hidden from the library by default)" class="btn-ghost" type="button" data-act="sensitive">' + (sn.sensitive ? 'Not sensitive' : 'Sensitive') + '</button>' +
+        '<button data-tip="Hide or show this snippet in the library (its words stay saved)" class="btn-ghost" type="button" data-act="hidden">' + (sn.hidden ? 'Show' : 'Hide') + '</button>' +
+        '<button data-tip="Copy the Korean words exactly as she wrote them" class="btn-ghost" type="button" data-copy="' + sn.id + '">Copy Korean</button>' +
+      '</div></article>';
+  }
+
+  function contactBlock() {
+    var c = data.contact;
+    if (c) {
+      return '<p><strong>' + esc((c.first_name + ' ' + c.last_name).trim() || c.email) + '</strong> · ' + esc(c.email) +
+        (c.gone_from_ac_at ? ' <span class="badge badge--warn">No longer in ActiveCampaign</span>' : '') + '</p>' +
+        '<p class="admin-actions"><a class="btn-ghost" href="/admin/contacts/browse?open=' + c.id + '">Open the contact</a>' +
+        '<button data-tip="Remove the link between this student and the contact (nothing changes in ActiveCampaign)" class="btn-ghost" type="button" id="unlink">Unlink</button></p>';
+    }
+    return '<p class="muted">Not linked to an ActiveCampaign contact yet. The spreadsheet has no email, so the link is made here.</p>' +
+      (data.suggestions.length ? '<p style="margin:12px 0 6px"><strong>Contacts with the same name</strong></p><ul class="plain">' + data.suggestions.map(function (c) {
+        var nsmb = (c.tags || []).filter(function (t) { return /nsmb|내성/i.test(t); });
+        return '<li style="margin-bottom:8px">' + esc((c.first_name + ' ' + c.last_name).trim()) + ' · ' + esc(c.email) +
+          (nsmb.length ? ' · <span class="muted small">' + nsmb.map(esc).join(', ') + '</span>' : '') +
+          ' <button data-tip="Link this student to this contact" class="btn-ghost" type="button" data-link="' + c.id + '">Link</button></li>';
+      }).join('') + '</ul>' : '<p class="muted small">No contact with exactly this name (contacts appear here once the ActiveCampaign sync has copied them).</p>') +
+      '<form class="filters" id="find-contact" style="margin-top:12px"><label>Find a contact <input type="search" name="q" placeholder="Email or name" maxlength="100"></label>' +
+      '<button data-tip="Search the contacts copied from ActiveCampaign" class="btn-sm" type="submit">Search</button></form><div id="found"></div>';
+  }
+
+  function draw() {
+    var s = data.student, rounds = data.analyses;
+    document.title = (s.name_en || s.name) + ' · Students · Admin';
+    var textNav = data.texts.map(function (t) { return '<a href="#text-' + t.id + '">' + esc(S.KINDS[t.kind]) + '</a>'; }).join(' · ');
+    page.innerHTML =
+      '<h1>' + esc(s.name_en || s.name) + (s.name_en ? ' <span class="muted" lang="ko" style="font-size:.6em">' + esc(s.name) + '</span>' : '') + '</h1>' +
+      '<dl class="facts">' +
+        '<div><dt>Program</dt><dd>' + esc(s.program.toUpperCase()) + ' · cohort ' + s.cohort + ' · row ' + s.sheet_row + '</dd></div>' +
+        '<div><dt>Occupation</dt><dd>' + esc(s.occupation_en || s.occupation || '–') + (s.occupation_en && s.occupation ? ' <span class="muted" lang="ko">' + esc(s.occupation) + '</span>' : '') + '</dd></div>' +
+        '<div><dt>Age</dt><dd>' + esc(s.age || '–') + '</dd></div>' +
+        '<div><dt>Texts</dt><dd>' + (textNav || '–') + '</dd></div>' +
+        (data.others.length ? '<div><dt>Same person, other enrolment</dt><dd>' + data.others.map(function (o) { return '<a href="/admin/students/student?id=' + o.id + '">Cohort ' + o.cohort + ' (row ' + o.sheet_row + ')</a>'; }).join(', ') + '</dd></div>' : '') +
+      '</dl>' +
+
+      '<section class="admin-card" aria-labelledby="decision-title"><h2 id="decision-title">Your decision</h2>' +
+        ((s.decide.persona || s.decide.rating) ? '<p class="is-error" style="margin-bottom:12px">The analyses disagree on ' + [s.decide.persona && 'the persona', s.decide.rating && 'the rating'].filter(Boolean).join(' and ') + ': compare them below and choose.</p>' : '') +
+        '<form class="admin-form" id="decision"><div class="row-edit__grid">' +
+          '<label>Persona <select name="persona">' + personaOptions(s.persona, 'Not decided') + '</select></label>' +
+          '<label>Alternate persona <select name="persona_alt">' + personaOptions(s.persona_alt, 'None') + '</select></label>' +
+          '<label>Testimonial rating <select name="rating">' + options([[5, '5 · hero'], [4, '4 · strong'], [3, '3 · adequate'], [2, '2 · single lines only'], [1, '1 · unusable']], s.rating, 'No rating') + '</select></label>' +
+          '<label>May her words be used publicly? <select name="permission">' + options(Object.keys(S.PERMISSION).map(function (k) { return [k, S.PERMISSION[k]]; }), s.permission) + '</select></label>' +
+          '<label class="row-edit__wide">Why this decision <input name="decided_note" maxlength="2000" value="' + esc(s.decided_note || '') + '"></label>' +
+          '<label class="row-edit__wide">Note <textarea name="note" rows="2" maxlength="5000">' + esc(s.note || '') + '</textarea></label>' +
+        '</div><p class="admin-actions" style="margin-top:12px"><button data-tip="Save the persona, rating, permission and notes of this student" class="btn-sm" type="submit">Save</button><span class="muted" id="decision-out" role="status"></span></p></form>' +
+      '</section>' +
+
+      '<section class="st-section" aria-labelledby="analyses-title"><h2 id="analyses-title">The analyses <span class="muted small">' + (rounds.length > 1 ? 'side by side; outlined where they differ' : '') + '</span></h2>' +
+        (rounds.length ? '<div class="st-compare">' + rounds.map(function (a, i) { return roundCard(a, rounds[i ? 0 : 1]); }).join('') + '</div>' : '<p class="muted">No analysis yet.</p>') +
+      '</section>' +
+
+      '<section class="st-section" aria-labelledby="snippets-title"><h2 id="snippets-title">Snippets <span class="muted small">' + data.snippets.length + ' · always word for word. To add one, select a passage in a Korean text below.</span></h2>' +
+        (data.snippets.length ? '<div class="snip-grid" id="snips">' + data.snippets.map(snippetCard).join('') + '</div>' : '<p class="muted">No snippet yet.</p>') +
+      '</section>' +
+
+      data.texts.map(function (t) {
+        return '<section class="st-section" id="text-' + t.id + '" aria-labelledby="h-text-' + t.id + '"><h2 id="h-text-' + t.id + '">' + esc(S.KINDS[t.kind]) +
+          ' <span class="muted small">' + t.text_ko.length.toLocaleString('en-US') + ' characters' + (t.translated ? '' : ' · English not saved yet') + '</span></h2>' +
+          S.bilingual(t.translated ? t.text_en : '', t.text_ko, { textId: t.id }) + '</section>';
+      }).join('') +
+
+      '<section class="admin-card st-section" aria-labelledby="contact-title"><h2 id="contact-title">ActiveCampaign contact</h2><div id="contact">' + contactBlock() + '</div></section>';
+  }
+
+  function load() {
+    return Admin.get('program-student', { id: id }).then(function (r) { data = r; draw(); })
+      .catch(function (err) { page.innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+  }
+  if (!id) { page.innerHTML = '<p class="is-error">No student chosen. <a href="/admin/students/list">See all students</a>.</p>'; return; }
+  load();
+
+  page.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var f = ev.target;
+    if (f.id === 'decision') {
+      var out = document.getElementById('decision-out');
+      Admin.say(out, 'Saving…');
+      Admin.post('program-student-save', { id: id, persona: f.persona.value, persona_alt: f.persona_alt.value, rating: f.rating.value, permission: f.permission.value, decided_note: f.decided_note.value, note: f.note.value })
+        .then(function () { return load(); }).then(function () { Admin.say(document.getElementById('decision-out'), 'Saved.'); })
+        .catch(function (err) { Admin.say(out, err.message, true); });
+    } else if (f.id === 'find-contact') {
+      var box = document.getElementById('found');
+      box.innerHTML = '<p class="muted">Searching…</p>';
+      Admin.get('contacts-list', { q: f.q.value }).then(function (r) {
+        box.innerHTML = r.contacts.length ? '<ul class="plain">' + r.contacts.slice(0, 15).map(function (c) {
+          return '<li style="margin-bottom:8px">' + esc((c.first_name + ' ' + c.last_name).trim()) + ' · ' + esc(c.email) +
+            ' <button data-tip="Link this student to this contact" class="btn-ghost" type="button" data-link="' + c.id + '">Link</button></li>';
+        }).join('') + '</ul>' : '<p class="muted">No contact found.</p>';
+      }).catch(function (err) { box.innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+    }
+  });
+
+  page.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button');
+    if (!b) return;
+    if (b.dataset.link || b.id === 'unlink') {
+      Admin.post('program-student-save', { id: id, contact_id: b.dataset.link || null }).then(load).catch(function (err) { alert(err.message); });
+    } else if (b.dataset.act) {
+      var card = b.closest('[data-snip]'), sn = data.snippets.find(function (x) { return String(x.id) === card.dataset.snip; }), change = { id: sn.id };
+      change[b.dataset.act] = !sn[b.dataset.act];
+      Admin.post('program-snippet-save', change).then(function (r) {
+        Object.assign(sn, r.snippet);
+        card.outerHTML = snippetCard(sn);
+      }).catch(function (err) { alert(err.message); });
+    } else if (b.dataset.copy) {
+      var q = data.snippets.find(function (x) { return String(x.id) === b.dataset.copy; });
+      navigator.clipboard.writeText(q.quote).then(function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy Korean'; }, 1500); });
+    }
+  });
+
+  // Selecting a passage of a Korean text offers to save it as a snippet. The server finds the same characters
+  // in the text again (the nth time they appear), so a snippet is always the student's exact words.
+  var pick = document.getElementById('pick');
+  document.addEventListener('selectionchange', function () {
+    var sel = window.getSelection();
+    if (!sel.rangeCount || sel.isCollapsed) { if (!pick.contains(document.activeElement)) { pick.hidden = true; } return; }
+    var range = sel.getRangeAt(0), box = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentNode;
+    box = box.closest ? box.closest('.st-ko[data-text-id]') : null;
+    if (!box) return;
+    var quote = sel.toString();
+    if (!quote.trim()) return;
+    var before = document.createRange();
+    before.setStart(box, 0);
+    before.setEnd(range.startContainer, range.startOffset);
+    var prefix = before.toString(), nth = 1, at = prefix.indexOf(quote);
+    while (at >= 0 && at < prefix.length) { nth++; at = prefix.indexOf(quote, at + 1); }
+    picked = { text_id: box.dataset.textId, quote: quote, nth: nth };
+    document.getElementById('pick-len').textContent = Array.from(quote).length;
+    document.getElementById('pick-out').textContent = '';
+    pick.hidden = false;
+  });
+  document.getElementById('pick-cancel').addEventListener('click', function () { pick.hidden = true; picked = null; window.getSelection().removeAllRanges(); });
+  document.getElementById('pick-save').addEventListener('click', function () {
+    if (!picked) return;
+    var out = document.getElementById('pick-out');
+    Admin.say(out, 'Saving…');
+    Admin.post('program-snippet-add', Object.assign({ use_for: document.getElementById('pick-use').value }, picked)).then(function () {
+      pick.hidden = true; picked = null; document.getElementById('pick-use').value = '';
+      window.getSelection().removeAllRanges();
+      return load();
+    }).catch(function (err) { Admin.say(out, err.message, true); });
+  });
+})();
+</script>
+</body>
+</html>

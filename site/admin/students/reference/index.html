@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Personas &amp; method · Students · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="students">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <h1>Personas &amp; method</h1>
+  <div class="admin-card is-warn" style="margin-bottom:20px">
+    <p><strong>Read with care.</strong> These sheets are the July 2026 analysis, kept as it was written. The November 2026 second read found that some of its quotes are not word for word, that its ratings are generous (13 testimonials at 5 stars against 8 on the second read) and that P5 is bigger than it says. Check a student’s own page before quoting anything from here.</p>
+  </div>
+  <p class="admin-actions" style="margin-bottom:16px">
+    <span id="tabs" class="admin-actions"></span>
+    <label><input type="checkbox" id="show-ko"> Show the Korean original under each translated cell</label>
+  </p>
+  <div id="sheet" class="admin-card ref-hide-ko" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var esc = Admin.esc, sheets = [], current = 0;
+  var box = document.getElementById('sheet');
+  function cell(c) {
+    if (!c || !c.ko) return '<td></td>';
+    return '<td>' + (c.en ? esc(c.en) + '<span class="ko" lang="ko">' + esc(c.ko) + '</span>' : esc(c.ko)) + '</td>';
+  }
+  function draw() {
+    var s = sheets[current];
+    document.getElementById('tabs').innerHTML = sheets.map(function (x, i) {
+      return '<button data-tip="Show the sheet “' + esc(x.title) + '”" class="' + (i === current ? 'btn-sm' : 'btn-ghost') + '" type="button" data-i="' + i + '">' + esc(x.title) + '</button>';
+    }).join('');
+    if (!s) { box.innerHTML = '<p class="admin-empty">No sheet imported yet.</p>'; return; }
+    var rows = s.rows.filter(function (r) { return r.some(function (c) { return c.ko; }); });
+    box.innerHTML = '<h2>' + esc(s.title) + '</h2><p class="muted small" style="margin-bottom:12px">From ' + esc(s.source) + '</p>' +
+      '<div class="admin-scroll"><table class="admin-table ref-table"><tbody>' + rows.map(function (r) { return '<tr>' + r.map(cell).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+    history.replaceState(null, '', location.pathname + '?sheet=' + encodeURIComponent(s.key));
+  }
+  document.getElementById('tabs').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-i]');
+    if (b) { current = Number(b.dataset.i); draw(); }
+  });
+  document.getElementById('show-ko').addEventListener('change', function (ev) { box.classList.toggle('ref-hide-ko', !ev.target.checked); });
+  Admin.get('program-reference').then(function (r) {
+    sheets = r.sheets;
+    var want = new URLSearchParams(location.search).get('sheet');
+    current = Math.max(0, sheets.findIndex(function (s) { return s.key === want; }));
+    draw();
+  }).catch(function (err) { box.innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+})();
+</script>
+</body>
+</html>

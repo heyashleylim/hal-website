@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Snippets · Students · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="students">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <h1>Snippets</h1>
+  <p class="muted" style="margin-bottom:20px;max-width:760px">Students’ words for content: each one is a passage of her text, word for word (the Korean is exactly what she wrote; the English is a translation). Starred ones come first. Sensitive snippets (health, suicide, abuse, children…) and students marked “Do not use” are left out unless you ask for them.</p>
+
+  <form class="filters" id="filters" role="search">
+    <label>Search <input type="search" name="q" placeholder="Words (English or Korean), name, use" maxlength="100"></label>
+    <label>Persona <select name="persona"><option value="">All</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option></select></label>
+    <label>Testimonial rating <select name="min_rating"><option value="">Any</option><option value="5">5 only</option><option value="4">4 or more</option><option value="3">3 or more</option></select></label>
+    <label>From <select name="kind"><option value="">Everything she wrote</option><option value="testimonials">Testimonials only</option><option value="intake">Before the program (call, questionnaire)</option></select></label>
+    <label>Permission <select name="permission"><option value="usable">Not marked “Do not use”</option><option value="yes">“May be used” only</option><option value="">Everyone</option></select></label>
+    <label>Show <select name="starred"><option value="">All</option><option value="1">Starred only</option></select></label>
+    <label><span><input type="checkbox" name="include_sensitive" value="1"> Include sensitive</span></label>
+    <label><span><input type="checkbox" name="include_hidden" value="1"> Include hidden</span></label>
+    <button data-tip="Show the snippets that match" class="btn-sm" type="submit">Search</button>
+    <button data-tip="Clear the search and every filter" class="btn-ghost" type="button" id="clear-filters">Reset</button>
+  </form>
+
+  <p class="muted" id="count" role="status" style="margin-bottom:12px"></p>
+  <div id="list" class="snip-grid" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script src="/assets/js/admin/student-records.js"></script>
+<script>
+(function () {
+  var S = StudentRecords, esc = Admin.esc;
+  var form = document.getElementById('filters'), list = document.getElementById('list'), snippets = [], labels = {};
+  var FIELDS = ['q', 'persona', 'min_rating', 'kind', 'permission', 'starred'];
+  var params = new URLSearchParams(location.search);
+
+  function values() {
+    var v = {};
+    FIELDS.forEach(function (f) { if (form[f].value) v[f] = form[f].value; });
+    ['include_sensitive', 'include_hidden'].forEach(function (f) { if (form[f].checked) v[f] = '1'; });
+    return v;
+  }
+  function card(sn) {
+    return '<article class="snip' + (sn.starred ? ' is-starred' : '') + (sn.sensitive ? ' is-sensitive' : '') + (sn.hidden ? ' is-hidden' : '') + '" data-snip="' + sn.id + '">' +
+      (sn.quote_en ? '<p class="snip__en">“' + esc(sn.quote_en) + '”</p>' : '<p class="muted small">English not saved yet</p>') +
+      '<p class="snip__ko" lang="ko">' + esc(sn.quote) + '</p>' +
+      '<p class="snip__meta"><a href="/admin/students/student?id=' + sn.student_id + '">' + esc(sn.name_en || sn.name) + '</a><span>· cohort ' + sn.cohort + '</span>' +
+        (sn.persona ? '<span>' + S.persona(sn.persona, labels) + '</span>' : '') + (sn.rating ? '<span>' + S.stars(sn.rating) + '</span>' : '') +
+        '<span>· ' + esc(S.KINDS[sn.kind]) + '</span>' + S.permission(sn.permission) +
+        (sn.sensitive ? '<span class="badge badge--warn">Sensitive: not for marketing</span>' : '') + '</p>' +
+      (sn.use_for ? '<p class="snip__meta">Good for: ' + esc(sn.use_for) + '</p>' : '') +
+      '<div class="snip__tools">' +
+        '<button data-tip="Star this snippet: starred ones come first" class="btn-ghost" type="button" data-act="starred">' + (sn.starred ? '★ Starred' : '☆ Star') + '</button>' +
+        '<button data-tip="Copy the Korean words exactly as she wrote them" class="btn-ghost" type="button" data-copy="ko">Copy Korean</button>' +
+        '<button data-tip="Copy the English translation" class="btn-ghost" type="button" data-copy="en"' + (sn.quote_en ? '' : ' disabled') + '>Copy English</button>' +
+        '<button data-tip="Hide or show this snippet (its words stay saved)" class="btn-ghost" type="button" data-act="hidden">' + (sn.hidden ? 'Show' : 'Hide') + '</button>' +
+      '</div></article>';
+  }
+  function load() {
+    list.innerHTML = '<p class="admin-empty">Loading…</p>';
+    var v = values();
+    history.replaceState(null, '', location.pathname + (Object.keys(v).length ? '?' + new URLSearchParams(v) : ''));
+    Admin.get('program-snippets', v).then(function (r) {
+      snippets = r.snippets; labels = r.labels;
+      document.getElementById('count').textContent = snippets.length + (snippets.length === 1 ? ' snippet' : ' snippets') + (snippets.length === 1000 ? ' (the first 1,000)' : '');
+      list.innerHTML = snippets.length ? snippets.map(card).join('') : '<p class="admin-empty">No snippet matches. Try fewer filters.</p>';
+    }).catch(function (err) { list.innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+  }
+  list.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'), c = b && b.closest('[data-snip]');
+    if (!c) return;
+    var sn = snippets.find(function (x) { return String(x.id) === c.dataset.snip; });
+    if (b.dataset.copy) {
+      navigator.clipboard.writeText(b.dataset.copy === 'ko' ? sn.quote : sn.quote_en).then(function () { var t = b.textContent; b.textContent = 'Copied'; setTimeout(function () { b.textContent = t; }, 1500); });
+    } else if (b.dataset.act) {
+      var change = { id: sn.id };
+      change[b.dataset.act] = !sn[b.dataset.act];
+      Admin.post('program-snippet-save', change).then(function (r) { Object.assign(sn, r.snippet); c.outerHTML = card(sn); }).catch(function (err) { alert(err.message); });
+    }
+  });
+  FIELDS.forEach(function (f) { if (params.has(f)) form[f].value = params.get(f); });
+  ['include_sensitive', 'include_hidden'].forEach(function (f) { form[f].checked = params.get(f) === '1'; });
+  form.addEventListener('submit', function (ev) { ev.preventDefault(); load(); });
+  form.addEventListener('change', function (ev) { if (ev.target.name !== 'q') load(); });
+  document.getElementById('clear-filters').addEventListener('click', function () { form.reset(); load(); });
+  load();
+})();
+</script>
+</body>
+</html>

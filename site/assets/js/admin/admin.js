@@ -13,6 +13,8 @@ window.Admin = (function () {
     activity: '<path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     shop: '<path d="M5 8h14l-1 12H6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8V7a3 3 0 0 1 6 0v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     emails: '<rect x="3.5" y="5.5" width="17" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 7.5l8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+    contacts: '<circle cx="9" cy="8.5" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M15.5 5.6a3 3 0 0 1 0 5.8M17.5 14.3c1.6.6 2.6 2.2 3 4.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    students: '<path d="M2.5 9L12 4.5 21.5 9 12 13.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6.5 11v4.5c1.5 1.4 3.4 2 5.5 2s4-.6 5.5-2V11M21.5 9v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     logout: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   };
   var SECTIONS = [
@@ -38,6 +40,19 @@ window.Admin = (function () {
       { items: [['/admin/emails', 'Overview']] },
       { title: 'Review', items: [['/admin/emails/browse', 'All emails']] },
       { title: 'Setup', items: [['/admin/emails/sync', 'Import & sync']] },
+    ] },
+    { key: 'contacts', label: 'Contacts', icon: 'contacts', home: '/admin/contacts', groups: [
+      { items: [['/admin/contacts', 'Overview']] },
+      { title: 'Review', items: [['/admin/contacts/browse', 'All contacts']] },
+      { title: 'Setup', items: [['/admin/contacts/sync', 'ActiveCampaign sync']] },
+    ] },
+    { key: 'students', label: 'Students', icon: 'students', home: '/admin/students', groups: [
+      { items: [['/admin/students', 'Overview']] },
+      { title: 'Review', items: [
+        ['/admin/students/list', 'All students'],
+        ['/admin/students/snippets', 'Snippets'],
+      ] },
+      { title: 'Research', items: [['/admin/students/reference', 'Personas & method']] },
     ] },
   ];
   var COLLAPSE_KEY = 'admin-menu-collapsed';

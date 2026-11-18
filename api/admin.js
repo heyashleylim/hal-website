@@ -3,7 +3,9 @@
  *
  * Sections register their actions here (MODULES). Today: system (status, activity log), podcast
  * (_lib/admin/podcast-*.js), waitlist (_lib/admin/waitlist.js: personal link codes), shop (_lib/admin/shop-*.js: products,
- * orders, settings; docs/commerce-plan.md) and emails (_lib/admin/emails.js: the archive of sent emails and their performance). A new section adds its module to MODULES; action names must be
+ * orders, settings; docs/commerce-plan.md), emails (_lib/admin/emails.js: the archive of sent emails and their performance),
+ * contacts (_lib/admin/contacts.js: ActiveCampaign's contacts, copied read-only) and students (_lib/admin/program-students.js:
+ * what each program student said, analyses, snippets). A new section adds its module to MODULES; action names must be
  * unique across sections (prefix them, e.g. "shop-orders").
  *
  * Every request needs the admin cookie (set by the /admin login in middleware.js, checked again here).
@@ -18,6 +20,7 @@ const shopOrders = require('./_lib/shop/orders.js');
 const shopSync = require('./_lib/shop/sync.js');
 const emailsSync = require('./_lib/emails/ac-sync.js');
 const emailsTranslate = require('./_lib/emails/translate.js');
+const contactsSync = require('./_lib/contacts/ac-sync.js');
 
 // Shop daily job: unpaid orders older than a day expire; paid orders missing their ActiveCampaign updates get them;
 // updates still waiting are sent.
@@ -38,6 +41,8 @@ const MODULES = [
   require('./_lib/admin/shop-products.js'),
   require('./_lib/admin/shop-orders.js'),
   require('./_lib/admin/emails.js'),
+  require('./_lib/admin/contacts.js'),
+  require('./_lib/admin/program-students.js'),
 ];
 
 const actions = {};      // name → handler
@@ -76,6 +81,16 @@ async function log(admin, section, action, target, details) {
 module.exports = async function handler(req, res) {
   const url = new URL(req.url, 'http://local');
   const name = url.searchParams.get('action') || '';
+
+  // Contacts: the ActiveCampaign contacts sync has its own daily job (vercel.json "crons", 09:40 KST), so a long
+  // first sync never delays the podcast, shop and emails jobs. Read-only on the AC side.
+  if (name === 'cron-contacts') {
+    const secret = (process.env.CRON_SECRET || '').trim();
+    if (!secret || !auth.safeEqual(req.headers.authorization || '', `Bearer ${secret}`)) return send(res, 401, { error: 'cron only' });
+    const result = await contactsSync.sync({ trigger: 'cron', budgetMs: 240 * 1000 });
+    if (!result.skipped) await log('cron', 'contacts', 'daily-sync', 'ActiveCampaign contacts', result).catch(() => {});
+    return send(res, result.ok || result.skipped ? 200 : 500, result);
+  }
 
   // The podcast daily job (vercel.json "crons", production only): Vercel sends Authorization: Bearer <CRON_SECRET>.
   if (name === 'cron') {

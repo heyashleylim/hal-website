@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Contacts · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="contacts">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <h1>Contacts</h1>
+
+  <section class="admin-card" aria-labelledby="numbers-title">
+    <h2 id="numbers-title">ActiveCampaign contacts</h2>
+    <dl class="stats" id="numbers" aria-live="polite"><div><dt>Loading…</dt><dd>&nbsp;</dd></div></dl>
+    <p class="muted" id="freshness" style="margin-top:16px"></p>
+    <p style="margin-top:16px"><a class="btn-ghost" href="/admin/contacts/browse">See all contacts</a></p>
+  </section>
+
+  <section class="admin-card explain" aria-labelledby="how-title">
+    <h2 id="how-title">How this works</h2>
+    <ul>
+      <li><strong>Read-only on ActiveCampaign.</strong> The admin copies contacts from ActiveCampaign; it never creates, changes or deletes anything there.</li>
+      <li><strong>Every day at 09:40 Seoul time</strong> it copies the contacts that are new or changed, and reads their tags, lists and fields. Once a week it goes through every contact.</li>
+      <li><strong>Nothing is lost here.</strong> If someone deletes a contact inside ActiveCampaign, the admin keeps its copy and shows “no longer in ActiveCampaign” with the date.</li>
+      <li><strong>Everything about a person in one place.</strong> Open a contact to see their tags and fields, their shop orders, their courses (Learning) and their student record (Students), matched by email or by the link made on the student’s page.</li>
+    </ul>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  function stat(label, value) { return '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>'; }
+  var n = function (x) { return Number(x || 0).toLocaleString('en-US'); };
+  Admin.get('contacts-overview').then(function (r) {
+    var c = r.counts;
+    document.getElementById('numbers').innerHTML =
+      stat('In ActiveCampaign', n(c.in_ac)) + stat('New in 30 days', n(c.new_30d)) + stat('No longer in AC', n(c.gone)) +
+      stat('Linked to a student', n(c.students_linked)) + (c.details_pending ? stat('Tags not read yet', n(c.details_pending)) : '');
+    var f = document.getElementById('freshness');
+    f.innerHTML = !r.connected ? 'ActiveCampaign is not connected here, so contacts are not copied.' :
+      r.last_run && r.last_run.ok === false ? '<span class="is-error">The last sync failed: ' + Admin.esc(r.last_run.error || '') + '</span> (<a href="/admin/contacts/sync">details</a>)' :
+      !c.total ? 'Nothing copied yet: <a href="/admin/contacts/sync">start the first sync</a>.' :
+      'Last copied ' + Admin.kst(r.last_ok_at) + '.' + (r.sweep.running ? ' A full pass through every contact is under way (' + n(r.sweep.offset) + (r.sweep.total ? ' of ' + n(r.sweep.total) : '') + '): <a href="/admin/contacts/sync">continue it</a>.' : '');
+  }).catch(function (err) {
+    document.getElementById('numbers').innerHTML = '';
+    document.getElementById('freshness').innerHTML = '<span class="is-error">' + Admin.esc(err.message) + '</span>';
+  });
+})();
+</script>
+</body>
+</html>
