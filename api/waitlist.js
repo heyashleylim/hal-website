@@ -1,86 +1,103 @@
 /*
- * POST /api/waitlist — NSMB waitlist sign-up → ActiveCampaign.
+ * /api/waitlist — NSMB waitlist v2 → ActiveCampaign (logic in api/_lib/waitlist.js).
  *
- * Every valid sign-up is:
- *   1. created/updated as a contact (email + first name),
- *   2. tagged AC_TAG (default "signup_waitlist_nsmb"),
- *   3. added to AC_LIST_NAME (default "Master Contact List").
+ *   POST /api/waitlist                  step 1 of the form: { name, email, consent, source, website, t }
+ *                                       → contact + link code + tags signup_waitlist_nsmb, nsmb_wl_incomplete + double opt-in
+ *                                       ← { ok, confirm, code }   (the browser keeps `code` for the questions)
+ *   POST /api/waitlist?action=lookup    { c } ← { ok, firstName }   (personal link: greet her, skip name/email)
+ *   POST /api/waitlist?action=answers   { c, q1?, q2?, q3?, source? } — sent after each question; Q3 completes it
+ *                                       (%WL_COMPLETED%, tag nsmb_wl_12, removes nsmb_wl_incomplete)
+ *   POST /api/waitlist?action=manychat  header X-Waitlist-Key: WAITLIST_MANYCHAT_KEY
+ *                                       { name, email, consent, q1, q2, q3, instagram? } — sign-up and answers at once
+ *                                       ← { ok, confirm, code }
  *
- * Double opt-in: ActiveCampaign only sends its confirmation email when the
- * subscription goes through one of its own forms. When AC_FORM_ACTION and
- * AC_FORM_ID are set, step 3 is done by submitting that form (configure the
- * form in ActiveCampaign to subscribe to Master Contact List with opt-in
- * confirmation ON). Without them, the contact is subscribed directly via the
- * API and no confirmation email is sent.
+ * Environment variables (Vercel → Project → Settings → Environment Variables), see .env.example:
+ *   AC_API_URL, AC_API_KEY, AC_TAG, AC_LIST_NAME, AC_FORM_ACTION, AC_FORM_ID, AC_FORM_U, AC_FORM_OR (as before)
+ *   WAITLIST_SECRET          random, 32+ characters: signs the personal link codes. Changing it breaks every link sent.
+ *   WAITLIST_MANYCHAT_KEY    random, 24+ characters: ManyChat sends it in the X-Waitlist-Key header.
  *
- * Environment variables (Vercel → Project → Settings → Environment Variables):
- *   AC_API_URL      e.g. https://youraccount.api-us1.com   (Settings → Developer)
- *   AC_API_KEY      API key from the same page — never commit it
- *   AC_TAG          optional, default "signup_waitlist_nsmb"
- *   AC_LIST_NAME    optional, default "Master Contact List"
- *   AC_FORM_ACTION  optional, e.g. https://youraccount.activehosted.com/proc.php
- *   AC_FORM_ID      optional, the form's numeric id, the embed's `f` value (enables double opt-in)
- *   AC_FORM_U       the embed's hidden `u` value (a hash, not secret)
- *   AC_FORM_OR      the embed's hidden `or` value (a hash, not secret)
+ * Location: ActiveCampaign geolocates a contact from the IP that submits the form, which is this function
+ * (pinned to Seoul, icn1), so contacts show Seoul.
  *
- * Location: ActiveCampaign geolocates a contact from the IP that submits the
- * form, which is this function. vercel.json pins functions to Seoul (icn1),
- * so contacts show Seoul rather than the visitor's own city.
- *
- * Spam protection: server-side validation, a hidden honeypot field ("website"),
- * a minimum fill time, and a per-IP rate limit (best effort, per instance).
+ * Spam protection on the website routes: validation, a hidden honeypot field ("website"), a minimum fill time,
+ * and a per-IP rate limit (best effort, per instance). Personal codes are signed, so they can't be guessed.
  */
 
-const TAG = process.env.AC_TAG || 'signup_waitlist_nsmb';
-const LIST_NAME = process.env.AC_LIST_NAME || 'Master Contact List';
+const crypto = require('node:crypto');
+const wl = require('./_lib/waitlist.js');
+const ac = require('./_lib/ac.js');
+
 const MIN_FILL_MS = 3000;
-const RATE_LIMIT = { windowMs: 10 * 60 * 1000, max: 5 };
+const LIMITS = { signup: 5, lookup: 30, answers: 40 }; // per IP per 10 minutes
+const WINDOW_MS = 10 * 60 * 1000;
+const hits = new Map(); // `${action}:${ip}` -> [timestamps]
 
-const hits = new Map(); // ip -> [timestamps]
-let tagIdCache = null;
-let listIdCache = null;
-
-function rateLimited(ip) {
+function rateLimited(action, ip) {
+  const key = action + ':' + ip;
   const now = Date.now();
-  const recent = (hits.get(ip) || []).filter((t) => now - t < RATE_LIMIT.windowMs);
+  const recent = (hits.get(key) || []).filter((t) => now - t < WINDOW_MS);
   recent.push(now);
-  hits.set(ip, recent);
-  return recent.length > RATE_LIMIT.max;
+  hits.set(key, recent);
+  return recent.length > (LIMITS[action] || 10);
 }
 
-async function ac(path, options = {}) {
-  const res = await fetch(process.env.AC_API_URL.replace(/\/$/, '') + '/api/3' + path, {
-    ...options,
-    headers: { 'Api-Token': process.env.AC_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
-  });
-  const body = await res.json().catch(() => ({}));
-  return { status: res.status, ok: res.ok, body };
+function sameSecret(given, expected) {
+  const a = Buffer.from(String(given || ''));
+  const b = Buffer.from(String(expected || ''));
+  return b.length >= 24 && a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-async function getTagId() {
-  if (tagIdCache) return tagIdCache;
-  const found = await ac('/tags?search=' + encodeURIComponent(TAG));
-  const match = (found.body.tags || []).find((t) => t.tag === TAG);
-  if (match) return (tagIdCache = match.id);
-  const created = await ac('/tags', { method: 'POST', body: JSON.stringify({ tag: { tag: TAG, tagType: 'contact', description: 'NSMB waitlist sign-up (hal-website /nsmb)' } }) });
-  if (!created.ok) throw new Error('tag create failed: ' + created.status);
-  return (tagIdCache = created.body.tag.id);
+function body(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string') {
+    try { return JSON.parse(req.body); } catch { return {}; }
+  }
+  return {};
 }
 
-async function getListId() {
-  if (listIdCache) return listIdCache;
-  const found = await ac('/lists?limit=100&filters[name]=' + encodeURIComponent(LIST_NAME));
-  const match = (found.body.lists || []).find((l) => l.name === LIST_NAME);
-  if (!match) throw new Error('list not found: ' + LIST_NAME);
-  return (listIdCache = match.id);
+async function handleSignup(req, res, b, ip) {
+  // Bots: pretend success so they don't retry, but store nothing.
+  if (b.website) return res.status(200).json({ ok: true, confirm: false });
+  const startedAt = Number(b.t) || 0;
+  if (startedAt && Date.now() - startedAt < MIN_FILL_MS) return res.status(200).json({ ok: true, confirm: false });
+  if (rateLimited('signup', ip)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+
+  const s = wl.cleanSignup(b);
+  if (!wl.signupValid(s)) return res.status(400).json({ ok: false, error: 'invalid' });
+  const { code, confirm } = await wl.signup({ ...s, source: wl.cleanSource(b.source) });
+  return res.status(200).json({ ok: true, confirm, code });
 }
 
-async function subscribeViaForm(email, name) {
-  // Same hidden fields the ActiveCampaign embed sends (u and or are form hashes from the embed code).
-  // The name goes in both firstname and fullname, so it works whichever name field the form uses.
-  const form = new URLSearchParams({ u: process.env.AC_FORM_U || process.env.AC_FORM_ID, f: process.env.AC_FORM_ID, s: '', c: '0', m: '0', act: 'sub', v: '2', or: process.env.AC_FORM_OR || '', firstname: name, fullname: name, email });
-  const res = await fetch(process.env.AC_FORM_ACTION, { method: 'POST', body: form, redirect: 'manual' });
-  if (res.status >= 400) throw new Error('form submit failed: ' + res.status);
+async function handleLookup(req, res, b, ip) {
+  if (rateLimited('lookup', ip)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const id = wl.contactIdFromCode(b.c);
+  const contact = id && (await ac.getContact(id));
+  if (!contact) return res.status(404).json({ ok: false, error: 'unknown_code' });
+  return res.status(200).json({ ok: true, firstName: contact.firstName }); // never the email
+}
+
+async function handleAnswers(req, res, b, ip) {
+  if (rateLimited('answers', ip)) return res.status(429).json({ ok: false, error: 'rate_limited' });
+  const id = wl.contactIdFromCode(b.c);
+  if (!id) return res.status(404).json({ ok: false, error: 'unknown_code' });
+  const answers = wl.cleanAnswers(b);
+  if (!Object.keys(answers).length) return res.status(400).json({ ok: false, error: 'invalid' });
+  const source = b.source ? wl.cleanSource(b.source) : undefined;
+  const { complete } = await wl.saveAnswers(id, answers, { source });
+  return res.status(200).json({ ok: true, complete });
+}
+
+async function handleManyChat(req, res, b) {
+  if (!sameSecret(req.headers['x-waitlist-key'], process.env.WAITLIST_MANYCHAT_KEY)) {
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+  const s = wl.cleanSignup(b);
+  if (!s.name) s.name = String(b.first_name || b.instagram || '').trim().slice(0, 100);
+  if (!wl.signupValid(s)) return res.status(400).json({ ok: false, error: 'invalid' });
+  const { contactId, code, confirm } = await wl.signup({ ...s, source: 'manychat' });
+  const answers = wl.cleanAnswers(b);
+  if (Object.keys(answers).length) await wl.saveAnswers(contactId, answers, { complete: Boolean(answers.q1 && answers.q2 && answers.q3) });
+  return res.status(200).json({ ok: true, confirm, code });
 }
 
 module.exports = async function handler(req, res) {
@@ -88,48 +105,24 @@ module.exports = async function handler(req, res) {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ ok: false, error: 'method_not_allowed' });
   }
-  if (!process.env.AC_API_URL || !process.env.AC_API_KEY) {
-    console.error('waitlist: AC_API_URL / AC_API_KEY not set');
+  if (!process.env.AC_API_URL || !process.env.AC_API_KEY || !process.env.WAITLIST_SECRET) {
+    console.error('waitlist: AC_API_URL / AC_API_KEY / WAITLIST_SECRET not set');
     return res.status(500).json({ ok: false, error: 'not_configured' });
   }
 
-  const b = req.body || {};
-  const name = String(b.name || '').trim().slice(0, 100);
-  const email = String(b.email || '').trim().toLowerCase().slice(0, 254);
-  const consent = b.consent === true || b.consent === 'on' || b.consent === 'true';
-  const startedAt = Number(b.t) || 0;
+  const action = String((req.query && req.query.action) || '');
+  const b = body(req);
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
-
-  // Bots: pretend success so they don't retry, but store nothing.
-  if (b.website) return res.status(200).json({ ok: true, confirm: false });
-  if (startedAt && Date.now() - startedAt < MIN_FILL_MS) return res.status(200).json({ ok: true, confirm: false });
-  if (rateLimited(ip)) return res.status(429).json({ ok: false, error: 'rate_limited' });
-
-  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !consent) {
-    return res.status(400).json({ ok: false, error: 'invalid' });
-  }
+  res.setHeader('Cache-Control', 'no-store');
 
   try {
-    const synced = await ac('/contact/sync', { method: 'POST', body: JSON.stringify({ contact: { email, firstName: name } }) });
-    if (!synced.ok) throw new Error('contact sync failed: ' + synced.status);
-    const contactId = synced.body.contact.id;
-
-    const tagId = await getTagId();
-    const tagged = await ac('/contactTags', { method: 'POST', body: JSON.stringify({ contactTag: { contact: contactId, tag: tagId } }) });
-    if (!tagged.ok && tagged.status !== 422) throw new Error('tagging failed: ' + tagged.status);
-
-    const doubleOptIn = Boolean(process.env.AC_FORM_ACTION && process.env.AC_FORM_ID);
-    if (doubleOptIn) {
-      await subscribeViaForm(email, name);
-    } else {
-      const listId = await getListId();
-      const listed = await ac('/contactLists', { method: 'POST', body: JSON.stringify({ contactList: { list: listId, contact: contactId, status: 1 } }) });
-      if (!listed.ok && listed.status !== 422) throw new Error('list subscribe failed: ' + listed.status);
-    }
-
-    return res.status(200).json({ ok: true, confirm: doubleOptIn });
+    if (action === '') return await handleSignup(req, res, b, ip);
+    if (action === 'lookup') return await handleLookup(req, res, b, ip);
+    if (action === 'answers') return await handleAnswers(req, res, b, ip);
+    if (action === 'manychat') return await handleManyChat(req, res, b);
+    return res.status(404).json({ ok: false, error: 'unknown_action' });
   } catch (err) {
-    console.error('waitlist:', err.message);
+    console.error('waitlist:', action || 'signup', err.message);
     return res.status(502).json({ ok: false, error: 'upstream' });
   }
 };
