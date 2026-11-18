@@ -23,11 +23,14 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011, 013), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011, 013), contacts + students (014), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
+├── api/_lib/contacts/     ← ac-sync.js: copies ActiveCampaign contacts (read-only on AC); admin actions in api/_lib/admin/contacts.js
+├── tools/students/        ← import.js (student spreadsheet → database), translations.js (English written in a Claude session)
+├── tools/contacts/        ← fake-ac.js: made-up AC contacts for the local server and the tests
 ├── tools/podcast/         ← podcast database migration script (npm run db:migrate)
 ├── tools/shop/            ← dev-server.js: the site with its API and FAKE payment providers on this computer, inside a rolled-back transaction ("shop-admin" preview); e2e.js: `npm run test:shop`
 ├── tools/emails/          ← fake-ac.js: made-up ActiveCampaign campaigns for the local server and the tests; translations.js: export the emails to translate / save translations written in a Claude session
@@ -308,6 +311,44 @@ Every email Ashley has sent, in the admin: find one, read it again, and spot the
   says how many are waiting. `translate.js` stays for the day a card is added (then it runs by itself).
 - Local testing: the `shop-admin` preview serves the section too, with made-up AC campaigns (`tools/emails/fake-ac.js`)
   and a stand-in translator (each line prefixed `[EN]`).
+
+## Contacts (ActiveCampaign contacts, read-only)
+
+Every ActiveCampaign contact, copied into `contacts`, with everything the site knows about each person.
+- Admin section `/admin/contacts/` (Overview, `browse/` = All contacts with the contact page, `sync/`); API module
+  `api/_lib/admin/contacts.js`, actions prefixed `contacts-`. Migration 014.
+- **Read-only on AC: nothing here creates, changes or deletes anything in ActiveCampaign.** A contact deleted inside AC
+  stays here, with `gone_from_ac_at` (only after a GET of that contact answers 404).
+- `api/_lib/contacts/ac-sync.js`, within a time budget: recent changes (`filters[updated_after]`), a resumable full pass
+  over every contact (weekly; state in `contact_sync_state`), then tags/lists/fields per contact (`GET /contacts/<id>`,
+  ~4/s) for new or changed contacts, contacts flagged by the "tag added" webhook (`api/podcast-ac.js` calls `flag`), and
+  every 30 days. Own daily job: `/api/admin?action=cron-contacts` at 09:40 KST (`vercel.json`), 240 s; "Sync now" /
+  "Keep syncing" on the sync page. Times compared with the database clock (`clock_timestamp()`), never the server's.
+- The contact page joins by email or AC id: shop orders, Learning (`students`), and Students records (`program_students.contact_id`).
+
+## Students (what program students said: texts, analyses, snippets)
+
+Not the Learning section's students (`/admin/podcast/students`): this is research material from sales calls,
+onboarding questionnaires and testimonials, starting with NSMB. Admin section `/admin/students/` (Overview, `list/`,
+`student?id=`, `snippets/`, `reference/`); API module `api/_lib/admin/program-students.js`, actions prefixed `program-`.
+- **Students' words are never altered.** `student_texts.text_ko` can't be changed or deleted (trigger); a correction is a
+  new version (`superseded_by`). A snippet (`student_snippets`) must be an exact passage of its text: a trigger checks
+  `substr(text_ko, start, length) = quote` and refuses any change to its words. Snippets added in the admin are found
+  again in the text on the server. Keep testimonials verbatim everywhere else too (content rules above).
+- Analyses (`student_analyses`) are kept per round side by side: `v2-2026-07` (the spreadsheet's) and `reread-2026-11`
+  (independent second read, Nov 2026). Where every round agrees, the import sets the decision; otherwise the admin
+  decides (`program_students.persona` / `rating`), and never gets overwritten by a re-import. Persona names come from the
+  persona sheet in `student_reference`, not from the public site files.
+- **None of it is in the repo** (it is public). Source files live outside it or in the git-ignored `_originals/`
+  (`_originals/students-reanalysis-2026-11-18/` = the second read; `_originals/students-translations/` = translated batches).
+  Import: `node --env-file-if-exists=.env.local tools/students/import.js <file.xlsx> --second-read <json> --same 49:21 [--preview]`
+  (safe to run again).
+- **English translations are written by Claude in a session** (like the Emails): `tools/students/translations.js export
+  <folder> [--preview]`, translate each `batch-NN.json` into `batch-NN.out.txt`, then `… import <folder>` (production) and
+  again with `--preview`. Items are keyed by the md5 of their Korean, so one folder serves both databases. Texts,
+  snippets, names, occupations, analysis top lines and Korean cells of the reference sheets all get English.
+- Sensitive snippets (health, suicide, abuse, children) are flagged and left out of the snippet library by default;
+  `permission` per student says whether her words may be used publicly. Never use those details in marketing.
 
 ## Page configuration
 
