@@ -11,7 +11,7 @@
  *   program-student-save        decision (persona, rating), permission, note, contact link, same person as
  *   program-snippets            the content library (snippets of every student, filterable)
  *   program-snippet-add         a new snippet: a passage selected in a Korean text (found again on the server)
- *   program-snippet-save        star / hide / sensitive / use / note of a snippet (never its words)
+ *   program-snippet-save        star / hide / sensitive / use / "good for" categories / note of a snippet (never its words)
  *   program-reference           the analysis sheets (personas, methodology…), Korean cells with their English
  */
 const db = require('../db.js');
@@ -20,6 +20,24 @@ const { userError, text, int } = require('./util.js');
 const PERSONAS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
 const KINDS = ['sales_call_form', 'sales_call', 'onboarding', 'testimonial', 'video_testimonial'];
 const PERMISSIONS = ['unknown', 'ask', 'yes', 'no'];
+// "Good for" categories of a snippet (migration 015), in the order the admin lists them.
+const USE_CATS = {
+  before: 'Before: pain & struggles',
+  why: 'Why she joined',
+  objection: 'Objections & price',
+  outcome: 'Results',
+  transformation: 'Before → after',
+  hook: 'Headlines & hooks',
+  recommend: 'Recommendations',
+  method: 'The method & Ashley',
+  context: 'Context only (not to quote)',
+};
+function useCats(v) {
+  const list = Array.isArray(v) ? v : v == null || v === '' ? [] : String(v).split(',');
+  const out = [...new Set(list.map((c) => String(c).trim()).filter(Boolean))];
+  for (const c of out) if (!(c in USE_CATS)) throw userError(`unknown “good for” category: ${c}`);
+  return out;
+}
 const id = (v, label = 'id') => int(v, { min: 1, max: 2147483647, label });
 const program = (v) => text(v || 'nsmb', { max: 40, label: 'program' }).toLowerCase();
 
@@ -99,7 +117,7 @@ const actions = {
       db.query(`SELECT id, kind, text_ko, text_en, source, (translated_of IS NOT DISTINCT FROM md5(text_ko)) AS translated, created_at
                   FROM student_texts WHERE student_id = $1 AND superseded_by IS NULL ORDER BY array_position($2::text[], kind)`, [sid, KINDS]),
       db.query(`SELECT * FROM student_analyses WHERE student_id = $1 ORDER BY created_at, id`, [sid]),
-      db.query(`SELECT sn.id, sn.text_id, sn.start, sn.quote, sn.quote_en, sn.use_for, sn.origin, sn.starred, sn.sensitive, sn.hidden, sn.note, t.kind
+      db.query(`SELECT sn.id, sn.text_id, sn.start, sn.quote, sn.quote_en, sn.use_for, sn.use_cats, sn.origin, sn.starred, sn.sensitive, sn.hidden, sn.note, t.kind
                   FROM student_snippets sn JOIN student_texts t ON t.id = sn.text_id WHERE t.student_id = $1 ORDER BY sn.starred DESC, t.kind, sn.start`, [sid]),
       s.contact_id ? db.one(`SELECT id, ac_id, email, first_name, last_name, phone, tags, gone_from_ac_at FROM contacts WHERE id = $1`, [s.contact_id]) : null,
       db.query(`SELECT id, program, cohort, sheet_row, name FROM program_students
@@ -112,7 +130,7 @@ const actions = {
         WHERE replace(first_name, ' ', '') = replace($1, ' ', '') OR replace(last_name || first_name, ' ', '') = replace($1, ' ', '')
         ORDER BY EXISTS (SELECT 1 FROM unnest(tags) t WHERE t ILIKE '%' || $2 || '%') DESC, ac_created_at LIMIT 10`,
       [s.name.replace(/\(.*\)/, '').trim(), s.program]);
-    return { student: s, texts, analyses, snippets, contact, others, suggestions, labels: await personaLabels(s.program) };
+    return { student: s, texts, analyses, snippets, contact, others, suggestions, labels: await personaLabels(s.program), use_cats: USE_CATS };
   },
 
   async 'program-student-save'(input) {
@@ -164,6 +182,8 @@ const actions = {
       if (input.kind === 'testimonials') where.push(`t.kind IN ('testimonial', 'video_testimonial')`);
       else if (input.kind === 'intake') where.push(`t.kind IN ('sales_call_form', 'sales_call', 'onboarding')`);
     }
+    if (input.use_cat === 'none') where.push(`sn.use_cats = '{}'`);
+    else if (input.use_cat) add('? = ANY(sn.use_cats)', useCats(input.use_cat)[0]);
     if (input.starred === '1') where.push('sn.starred');
     if (input.include_sensitive !== '1') where.push('NOT sn.sensitive');
     if (input.include_hidden !== '1') where.push('NOT sn.hidden');
@@ -172,12 +192,12 @@ const actions = {
     const q = text(input.q, { max: 100, label: 'search' }).toLowerCase();
     if (q) add(`position(? in lower(sn.quote || ' ' || sn.quote_en || ' ' || sn.use_for || ' ' || sn.note || ' ' || p.name || ' ' || p.name_en)) > 0`, q);
     const rows = await db.query(
-      `SELECT sn.id, sn.quote, sn.quote_en, sn.use_for, sn.origin, sn.starred, sn.sensitive, sn.hidden, sn.note, t.kind,
+      `SELECT sn.id, sn.quote, sn.quote_en, sn.use_for, sn.use_cats, sn.origin, sn.starred, sn.sensitive, sn.hidden, sn.note, t.kind,
               p.id AS student_id, p.name, p.name_en, p.cohort, p.persona, p.rating, p.permission
          FROM student_snippets sn JOIN student_texts t ON t.id = sn.text_id JOIN program_students p ON p.id = t.student_id
         WHERE ${where.join(' AND ')}
         ORDER BY sn.starred DESC, p.rating DESC NULLS LAST, t.kind = 'testimonial' DESC, p.cohort, sn.id LIMIT 1000`, params);
-    return { snippets: rows, labels: await personaLabels(prog) };
+    return { snippets: rows, labels: await personaLabels(prog), use_cats: USE_CATS };
   },
 
   // The browser sends the selected Korean passage; it is looked up in the text (the nth occurrence when it
@@ -198,9 +218,9 @@ const actions = {
     }
     if (!start) throw userError('this passage is not in the text exactly as selected');
     const row = await db.one(
-      `INSERT INTO student_snippets (text_id, start, quote, use_for, origin, note) VALUES ($1, $2, $3, $4, 'admin', $5)
+      `INSERT INTO student_snippets (text_id, start, quote, use_for, use_cats, origin, note) VALUES ($1, $2, $3, $4, $5, 'admin', $6)
        ON CONFLICT (text_id, start, quote) DO UPDATE SET hidden = false, updated_at = now() RETURNING *`,
-      [tid, start, quote, text(input.use_for, { max: 300, label: 'use' }), text(input.note, { max: 2000, label: 'note' })]);
+      [tid, start, quote, text(input.use_for, { max: 300, label: 'use' }), useCats(input.use_cats), text(input.note, { max: 2000, label: 'note' })]);
     return { snippet: row, target: `${t.name} (cohort ${t.cohort})`, log: { snippet: row.id, characters: want.length } };
   },
 
@@ -210,6 +230,7 @@ const actions = {
     const set = (col, value) => { params.push(value); sets.push(`${col} = $${params.length}`); };
     for (const flag of ['starred', 'sensitive', 'hidden']) if (flag in input) set(flag, Boolean(input[flag]));
     if ('use_for' in input) set('use_for', text(input.use_for, { max: 300, label: 'use' }));
+    if ('use_cats' in input) set('use_cats', useCats(input.use_cats));
     if ('note' in input) set('note', text(input.note, { max: 2000, label: 'note' }));
     if (!sets.length) throw userError('nothing to change');
     const row = await db.one(`UPDATE student_snippets SET ${sets.join(', ')}, updated_at = now() WHERE id = $1 RETURNING *`, params);
@@ -230,4 +251,6 @@ module.exports = {
   actions,
   writes: ['program-student-save', 'program-snippet-add', 'program-snippet-save'],
   needsDecision,
+  USE_CATS,
+  useCats,
 };

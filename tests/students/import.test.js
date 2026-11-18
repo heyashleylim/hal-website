@@ -47,3 +47,13 @@ test('a student waits for a decision only when the rounds disagree and nothing i
   assert.deepEqual(needsDecision({ ...base, persona: 'P5', rating: 4, rounds: [{ persona: 'P1', rating: 5 }, { persona: 'P5', rating: 4 }] }), { persona: false, rating: false });
   assert.deepEqual(needsDecision({ ...base, kinds: ['onboarding'], rounds: [{ persona: 'P1', rating: null }, { persona: 'P1', rating: 3 }] }), { persona: false, rating: false });
 });
+
+test('"good for" categories: only known keys, no duplicates; empty means none', () => {
+  const { useCats, USE_CATS } = require('../../api/_lib/admin/program-students.js');
+  assert.deepEqual(useCats(['hook', 'before', 'hook']), ['hook', 'before']);
+  assert.deepEqual(useCats('outcome,why'), ['outcome', 'why']);
+  assert.deepEqual(useCats(''), []);
+  assert.deepEqual(useCats(undefined), []);
+  assert.throws(() => useCats(['headline']), /unknown/);
+  assert.ok(Object.keys(USE_CATS).length >= 5);
+});

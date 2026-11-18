@@ -43,6 +43,21 @@ window.StudentRecords = (function () {
         '<div class="reader__text st-ko" lang="ko"' + (opts.textId ? ' data-text-id="' + opts.textId + '"' : '') + '>' + esc(ko) + '</div></section>' +
       '</div>' + (hasEn ? '' : '<p class="muted small" style="margin-top:8px">No English translation saved yet for this text.</p>');
   }
-  return { KINDS: KINDS, SHORT: SHORT, ROUNDS: ROUNDS, PERMISSION: PERMISSION, CONFIDENCE: CONFIDENCE, round: round, roundShort: roundShort,
+  // "Good for" categories of a snippet: chips, the free-text note, and a small editor (ticking saves at once;
+  // the page listens for change events on input[data-cat]). cats = { key: label } from the API.
+  function goodFor(sn, cats) {
+    var chips = (sn.use_cats || []).map(function (c) { return '<span class="cat-chip">' + esc(cats[c] || c) + '</span>'; }).join('');
+    return '<div class="snip__good"><span class="snip__good-label">Good for</span>' + (chips || '<span class="muted">no category yet</span>') +
+      (sn.use_for ? '<span class="snip__good-note">' + esc(sn.use_for) + '</span>' : '') +
+      '<details class="snip__cats"><summary data-tip="Choose what this snippet is good for (used by the “Good for” filter)">Edit</summary><fieldset><legend class="sr-only">Good for</legend>' +
+      Object.keys(cats).map(function (c) {
+        return '<label><input type="checkbox" data-cat="' + esc(c) + '"' + ((sn.use_cats || []).indexOf(c) >= 0 ? ' checked' : '') + '> ' + esc(cats[c]) + '</label>';
+      }).join('') + '</fieldset></details></div>';
+  }
+  // The categories ticked in a snippet card's editor.
+  function catsIn(card) {
+    return Array.prototype.map.call(card.querySelectorAll('input[data-cat]:checked'), function (i) { return i.dataset.cat; });
+  }
+  return { goodFor: goodFor, catsIn: catsIn, KINDS: KINDS, SHORT: SHORT, ROUNDS: ROUNDS, PERMISSION: PERMISSION, CONFIDENCE: CONFIDENCE, round: round, roundShort: roundShort,
     persona: persona, stars: stars, permission: permission, name: name, bilingual: bilingual };
 })();

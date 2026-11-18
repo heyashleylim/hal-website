@@ -19,8 +19,10 @@
   <div id="page" aria-live="polite"><p class="admin-empty">Loading…</p></div>
   <div class="st-pick" id="pick" hidden>
     <span>Selected <strong id="pick-len"></strong> characters of the Korean text.</span>
-    <label class="sr-only" for="pick-use">What it is good for</label>
-    <input id="pick-use" maxlength="300" placeholder="Good for… (optional)" style="min-height:36px;padding:4px 8px;border-radius:var(--r-sm);border:0;min-width:200px">
+    <label class="sr-only" for="pick-cat">Good for (category)</label>
+    <select id="pick-cat" style="min-height:36px;border-radius:var(--r-sm);border:0;padding:4px 8px"><option value="">Good for… (category)</option></select>
+    <label class="sr-only" for="pick-use">Note on what it is good for</label>
+    <input id="pick-use" maxlength="300" placeholder="Note (optional)" style="min-height:36px;padding:4px 8px;border-radius:var(--r-sm);border:0;min-width:200px">
     <button data-tip="Save the selected Korean passage, exactly as written, as a snippet of this student" class="btn-sm" type="button" id="pick-save">Save as snippet</button>
     <button data-tip="Forget the selection" class="btn-ghost" type="button" id="pick-cancel">Cancel</button>
     <span id="pick-out" role="status"></span>
@@ -75,7 +77,8 @@
       (sn.quote_en ? '<p class="snip__en">“' + esc(sn.quote_en) + '”</p>' : '<p class="muted small">English not saved yet</p>') +
       '<p class="snip__ko" lang="ko">' + esc(sn.quote) + '</p>' +
       '<p class="snip__meta"><span>' + esc(S.KINDS[sn.kind]) + '</span><span>· picked by ' + esc(sn.origin === 'admin' ? 'you' : S.round(sn.origin)) + '</span>' +
-        (sn.use_for ? '<span>· ' + esc(sn.use_for) + '</span>' : '') + (sn.sensitive ? '<span class="badge badge--warn">Sensitive: not for marketing</span>' : '') + '</p>' +
+        (sn.sensitive ? '<span class="badge badge--warn">Sensitive: not for marketing</span>' : '') + '</p>' +
+      S.goodFor(sn, data.use_cats) +
       '<div class="snip__tools">' +
         '<button data-tip="Star this snippet: starred ones come first in the library" class="btn-ghost" type="button" data-act="starred">' + (sn.starred ? '★ Starred' : '☆ Star') + '</button>' +
         '<button data-tip="Mark or unmark as sensitive (never used for marketing; hidden from the library by default)" class="btn-ghost" type="button" data-act="sensitive">' + (sn.sensitive ? 'Not sensitive' : 'Sensitive') + '</button>' +
@@ -147,7 +150,12 @@
   }
 
   function load() {
-    return Admin.get('program-student', { id: id }).then(function (r) { data = r; draw(); })
+    return Admin.get('program-student', { id: id }).then(function (r) {
+      data = r;
+      var sel = document.getElementById('pick-cat');
+      if (sel.options.length === 1) sel.insertAdjacentHTML('beforeend', Object.keys(r.use_cats).map(function (c) { return '<option value="' + esc(c) + '">' + esc(r.use_cats[c]) + '</option>'; }).join(''));
+      draw();
+    })
       .catch(function (err) { page.innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
   }
   if (!id) { page.innerHTML = '<p class="is-error">No student chosen. <a href="/admin/students/list">See all students</a>.</p>'; return; }
@@ -172,6 +180,17 @@
         }).join('') + '</ul>' : '<p class="muted">No contact found.</p>';
       }).catch(function (err) { box.innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
     }
+  });
+
+  page.addEventListener('change', function (ev) {
+    if (!ev.target.dataset.cat) return;
+    var card = ev.target.closest('[data-snip]'), sn = data.snippets.find(function (x) { return String(x.id) === card.dataset.snip; });
+    Admin.post('program-snippet-save', { id: sn.id, use_cats: S.catsIn(card) }).then(function (r) {
+      Object.assign(sn, r.snippet);
+      card.outerHTML = snippetCard(sn);
+      var again = page.querySelector('[data-snip="' + sn.id + '"] .snip__cats');
+      if (again) again.open = true;
+    }).catch(function (err) { alert(err.message); });
   });
 
   page.addEventListener('click', function (ev) {
@@ -218,8 +237,9 @@
     if (!picked) return;
     var out = document.getElementById('pick-out');
     Admin.say(out, 'Saving…');
-    Admin.post('program-snippet-add', Object.assign({ use_for: document.getElementById('pick-use').value }, picked)).then(function () {
-      pick.hidden = true; picked = null; document.getElementById('pick-use').value = '';
+    var cat = document.getElementById('pick-cat').value;
+    Admin.post('program-snippet-add', Object.assign({ use_for: document.getElementById('pick-use').value, use_cats: cat ? [cat] : [] }, picked)).then(function () {
+      pick.hidden = true; picked = null; document.getElementById('pick-use').value = ''; document.getElementById('pick-cat').value = '';
       window.getSelection().removeAllRanges();
       return load();
     }).catch(function (err) { Admin.say(out, err.message, true); });

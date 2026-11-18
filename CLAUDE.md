@@ -23,7 +23,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011, 013), contacts + students (014), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -347,6 +347,12 @@ onboarding questionnaires and testimonials, starting with NSMB. Admin section `/
   <folder> [--preview]`, translate each `batch-NN.json` into `batch-NN.out.txt`, then `… import <folder>` (production) and
   again with `--preview`. Items are keyed by the md5 of their Korean, so one folder serves both databases. Texts,
   snippets, names, occupations, analysis top lines and Korean cells of the reference sheets all get English.
+- **"Good for" categories** (Alex, 2026-11-18): each snippet has `use_cats` (migration 015), a fixed list in `USE_CATS`
+  (`api/_lib/admin/program-students.js`: before, why, objection, outcome, transformation, hook, recommend, method,
+  context), next to its free-text note `use_for`. The Snippets page filters on it; it is ticked on each snippet card and
+  picked when saving a new snippet. Filled once from the notes by `tools/students/categories.js <mapping.json> [--preview]`
+  (mapping written in a Claude session, kept in `_originals/students-reanalysis-2026-11-18/use-categories.json`; it only
+  fills snippets with no category, never overwriting the admin's choices).
 - Sensitive snippets (health, suicide, abuse, children) are flagged and left out of the snippet library by default;
   `permission` per student says whether her words may be used publicly. Never use those details in marketing.
 
