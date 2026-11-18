@@ -64,20 +64,31 @@
     return m ? m[1] : null;
   }
 
-  function read(buffer) {
+  // read(buffer) → the first sheet; read(buffer, 'Name') → the sheet called Name; sheets(buffer) → the sheets' names.
+  function sheetTags(xml) { return xml.match(/<sheet\b[^>]*>/g) || []; }
+  function sheets(buffer) {
+    var files;
+    try { files = unzip(buffer); } catch (err) { return Promise.reject(err); }
+    if (!files['xl/workbook.xml']) return Promise.reject(new Error('This is not an .xlsx file (save the sheet as Excel .xlsx).'));
+    return files['xl/workbook.xml']().then(function (xml) { return sheetTags(xml).map(function (t) { return decode(attr(t, 'name') || ''); }); });
+  }
+
+  function read(buffer, sheetName) {
     var files;
     try { files = unzip(buffer); } catch (err) { return Promise.reject(err); }
     if (!files['xl/workbook.xml']) return Promise.reject(new Error('This is not an .xlsx file (save the sheet as Excel .xlsx).'));
     var get = function (name) { return files[name] ? files[name]() : Promise.resolve(''); };
     return Promise.all([get('xl/workbook.xml'), get('xl/_rels/workbook.xml.rels'), get('xl/sharedStrings.xml')]).then(function (parts) {
-      // first sheet of the workbook → its file
-      var sheet = /<sheet\b[^>]*>/.exec(parts[0]);
-      var rid = sheet && attr(sheet[0], 'r:id'), target = 'worksheets/sheet1.xml';
+      // first sheet of the workbook (or the one named) → its file
+      var tags = sheetTags(parts[0]);
+      var sheet = sheetName == null ? tags[0] : tags.find(function (t) { return decode(attr(t, 'name') || '') === sheetName; });
+      if (sheetName != null && !sheet) throw new Error('This file has no sheet called “' + sheetName + '”.');
+      var rid = sheet && attr(sheet, 'r:id'), target = 'worksheets/sheet1.xml';
       (parts[1].match(/<Relationship\b[^>]*>/g) || []).forEach(function (rel) { if (attr(rel, 'Id') === rid) target = attr(rel, 'Target'); });
       var path = target.charAt(0) === '/' ? target.slice(1) : 'xl/' + target;
       var strings = (parts[2].match(/<si\b[^>]*>[\s\S]*?<\/si>|<si\/>/g) || []).map(runs);
       return get(path).then(function (xml) {
-        if (!xml) throw new Error('The first sheet of this file could not be read.');
+        if (!xml) throw new Error('The ' + (sheetName == null ? 'first sheet' : 'sheet “' + sheetName + '”') + ' of this file could not be read.');
         var rows = [];
         xml.replace(/<row\b([^>]*)>([\s\S]*?)<\/row>/g, function (m, head, inner) {
           var cells = {}, any = false;
@@ -145,7 +156,7 @@
     return { emails: out, problems: problems };
   }
 
-  var api = { read: read, emails: emails, wallTime: wallTime };
+  var api = { read: read, sheets: sheets, emails: emails, wallTime: wallTime };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AdminXlsx = api;
 })(typeof window !== 'undefined' ? window : globalThis);
