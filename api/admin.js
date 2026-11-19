@@ -27,8 +27,9 @@ const contactsSync = require('./_lib/contacts/ac-sync.js');
 async function shopJob() {
   const expired = await shopOrders.expireStale();
   const requeued = await require('./_lib/shop/flow.js').repairSync();
+  const refundsToCheck = await require('./_lib/shop/refunds.js').sweep();
   const sent = await shopSync.process({ budgetMs: 60 * 1000 });
-  return { expired, requeued, sent };
+  return { expired, requeued, refundsToCheck, sent };
 }
 
 const MODULES = [

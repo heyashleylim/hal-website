@@ -147,4 +147,62 @@ function noticeProblem(notice, order, env = process.env) {
   return null;
 }
 
-module.exports = { PayError, paymentRequest, requestPayment, parseBody, readNotice, noticeProblem, signature, goodName, won };
+/*
+ * Refunds. CiderPay has two calls, with the same fields (memberID, orderNo, token = the payment's feedbackToken,
+ * rangeType ALL | PART, cancelPrice for PART, cancelMessage):
+ *   POST /oapi/payment/cancel          before CiderPay has settled the payment: immediate
+ *   POST /oapi/payment/cancelRequest   after settlement: a request, confirmed later by a CANCEL notice
+ * /cancel answers { success: true } when done, or { success: false, var1: 'CANCEL_REQ' } when the payment is settled
+ * and a cancel request is needed instead. Errors: { errCode, message } (2001 ERROR_CANCEL_STATE, 2002 ERROR_CANCEL_TOKEN).
+ */
+function cancelBody({ orderNo, refundToken, amount, full, reason }, env = process.env) {
+  const { memberId } = credentials(env);
+  if (!orderNo || !refundToken) throw new PayError('unavailable', 'this payment has no CiderPay order number or cancel token');
+  if (!Number.isInteger(amount) || amount <= 0) throw new PayError('unavailable', `not a refund amount: ${amount}`);
+  const body = { memberID: memberId, orderNo: String(orderNo), token: String(refundToken), rangeType: full ? 'ALL' : 'PART', cancelMessage: String(reason || '').slice(0, 100) };
+  if (!full) body.cancelPrice = amount;
+  return body;
+}
+
+async function post(path, body, { fetchImpl = fetch, env = process.env } = {}) {
+  const { token } = credentials(env);
+  let res, text;
+  try {
+    res = await fetchImpl(`${config.ciderpayBase(env)}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', approvalToken: token },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20000),
+    });
+    text = await res.text();
+  } catch (err) {
+    // We can't know whether CiderPay received it: the caller treats this as "check by hand".
+    throw new PayError('unknown', `CiderPay could not be reached or did not answer: ${err.message}`);
+  }
+  let data = null;
+  try { data = JSON.parse(text); } catch (_) { /* not JSON */ }
+  if (res.status >= 500) throw new PayError('unknown', `CiderPay answered HTTP ${res.status}: ${String(text).slice(0, 300)}`);
+  return { status: res.status, data: data || {}, text: String(text || '').slice(0, 500) };
+}
+
+const why = (data, text) => [data.errCode, data.message || data.errorMessage].filter(Boolean).join(' ') || text || 'no reason given';
+
+/*
+ * Gives back all or part of a payment. →
+ *   { outcome: 'done' }                      refunded now
+ *   { outcome: 'requested' }                 settled payment: CiderPay accepted a cancel request (its CANCEL notice confirms)
+ *   { outcome: 'refused', detail }           nothing was refunded
+ * Throws PayError('unknown') when the answer never came (the refund may or may not have happened).
+ */
+async function cancelPayment(args, opts = {}) {
+  const env = opts.env || process.env;
+  const body = cancelBody(args, env);
+  const first = await post('/oapi/payment/cancel', body, opts);
+  if (first.data.success === true) return { outcome: 'done', raw: first.data };
+  if (String(first.data.var1 || '').toUpperCase() !== 'CANCEL_REQ') return { outcome: 'refused', detail: why(first.data, first.text), raw: first.data };
+  const second = await post('/oapi/payment/cancelRequest', body, opts);
+  if (second.data.success === true) return { outcome: 'requested', raw: second.data };
+  return { outcome: 'refused', detail: `cancel request: ${why(second.data, second.text)}`, raw: second.data };
+}
+
+module.exports = { PayError, paymentRequest, requestPayment, parseBody, readNotice, noticeProblem, signature, goodName, won, cancelBody, cancelPayment };

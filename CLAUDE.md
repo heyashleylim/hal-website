@@ -23,7 +23,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options, 016 refunds), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -225,7 +225,8 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch. 
 
 Plan, decisions and phases: `docs/commerce-plan.md` (phase table at the top; section 10 = the checkout as built and
 Alex's real-payment tests). Built on the `shop` branch. Phase 1 (products, orders, tax ledger) and phase 2 (checkout,
-pay in full) are built. The site's payment links still go to WordPress until go-live (phase 5).
+pay in full) are built; phase 3 has refunds so far (instalments, coupons and manual orders to come). The site's payment
+links still go to WordPress until go-live (phase 5).
 **This code takes real money: every change needs `npm test` and `npm run test:shop` to pass, and a browser check.**
 - Pages: `/checkout/<product>` and `/checkout/complete` (rewrites in `vercel.json` → `api/shop-page.js`), rendered on the
   server by `api/_lib/shop/page.js`, in Korean (`copy.ko.js` holds every customer-facing string), `noindex`, with GTM.
@@ -273,7 +274,17 @@ pay in full) are built. The site's payment links still go to WordPress until go-
   is named "product · option", and the option's tag is added in AC with the product's. Not with instalment plans yet:
   they join the same picker in phase 3.
 - Instalment plans are stored on products but not sold yet (`orders.INSTALMENTS_ENABLED`, phase 3). The refund window is
-  14 days; refunds are handled by hand until phase 3.
+  14 days.
+- **Refunds** (phase 3, `api/_lib/shop/refunds.js`, table `shop_refunds`, migration 016): on the admin order page, all or
+  part of a payment, with a reason. CiderPay: `/oapi/payment/cancel`, or `/cancelRequest` once settled (`requested`
+  until CiderPay's CANCEL notice). PayPal: `/v2/payments/captures/{id}/refund` (`custom_id` = `r<refund id>`; its
+  `PAYMENT.CAPTURE.REFUNDED` webhook confirms, or records a refund made inside PayPal). No answer from the provider →
+  `check`: a person says "It went through" / "It didn't". A cancel made in CiderPay's dashboard is flagged, then
+  recorded by hand ("Record a refund made at …"): its notice doesn't say how much. The amount is reserved on the order
+  first (`refund_pending`, one guarded UPDATE) and the database refuses refunds above what was paid. Once done, one
+  statement writes the refund payment (`refund_of`), its negative tax lines and the order's totals/status; then AC
+  (`refund_<product>` or `refund_partial_<product>`, `REFUND_AMOUNT`, `REFUND_DATE`; a full refund removes the purchase
+  tags), podcast access revoked on a full refund (`api/_lib/enrolments.js`, shared with the AC revoke webhook), Slack.
 - Env vars: `SHOP_SECRET` (never change once live), `CIDERPAY_*`, `PAYPAL_*`, `SLACK_WEBHOOK_*` (`.env.example`).
   Previews use the PayPal sandbox and need Vercel's "Protection Bypass for Automation" so providers can reach them.
 - The Kakao address search loads from `t1.kakaocdn.net` with no parameters (the script refuses any, with an alert).

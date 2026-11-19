@@ -22,7 +22,7 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 | **0. Inventory** | WordPress exports, the list of what tags AC today, PayPal app + sandbox, accountant's answers. | The open points of section 8 that block a phase are cleared. |
 | **1. Foundations** ✅ 2026-11-10 | Migration `005`, pricing + ledger modules with tests, Shop admin: Products, Orders (read), Settings. | A product can be created in the admin and quoted by the API. |
 | **2. Checkout, pay in full** (built 2026-11-11, section 10) | Checkout page, Kakao search, CiderPay pay-in-full, PayPal, notices, thank-you page, Slack, AC sync for purchases, dataLayer. | A real ₩1,000 payment and a sandbox $ payment go through on a preview, end to end. **Still to do: Alex's tests in section 10.** |
-| **3. Instalments, refunds, coupons** | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
+| **3. Instalments, refunds, coupons** (refunds built 2026-11-19, section 11) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
 | **4. Tax & reports + import** | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
 | **5. Go live** | Section 6, steps 3–6. Vercel Pro. | No payment link points to WordPress. |
 | **6. Referrals + `/my`** | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
@@ -690,3 +690,55 @@ the daily schedule check).
    a USD price, open `/checkout/test?currency=usd`, pay with a sandbox buyer account.
 9. Tell Claude what happened at each step, especially anything unexpected on CiderPay's page (step 6 is the first
    time the new request format meets the real CiderPay).
+
+---
+
+## 11. Phase 3 as built: refunds (2026-11-19)
+
+| Piece | Where |
+|---|---|
+| Rules, provider calls, recording, what follows | `api/_lib/shop/refunds.js`; `pay/ciderpay.js` (`cancelPayment`), `pay/paypal.js` (`refundCapture`, `readRefund`) |
+| Database | `db/migrations/016_shop_refunds.sql`: `shop_refunds`, `shop_orders.refund_pending`, `shop_payments.refund_of` |
+| Admin | Order page → Refunds: amount + reason, "Refund through CiderPay / PayPal", "Record a refund made at …", and "It went through" / "It didn't" for a refund to check |
+| Notices | `api/shop-callback.js`: CiderPay `paymentState=CANCEL`, PayPal `PAYMENT.CAPTURE.REFUNDED` |
+| Podcast | `api/_lib/enrolments.js` (`revokeByTags`), shared with the AC revoke webhook |
+
+**How a refund goes**
+
+1. The admin types an amount (all or part of what's left) and a reason, and confirms.
+2. The amount is reserved on the order by one guarded UPDATE (paid − refunded − reserved must cover it), so two clicks
+   or two people can never send more back than was paid. The database also refuses it (`shop_orders_refund_fits`).
+3. The provider is called:
+   - CiderPay `/oapi/payment/cancel` (ALL for a whole untouched payment, PART with `cancelPrice` otherwise). If CiderPay
+     answers `CANCEL_REQ` (already settled), `/oapi/payment/cancelRequest` with the same fields: the refund waits
+     (`requested`, order "Refund requested") until CiderPay's CANCEL notice.
+   - PayPal `/v2/payments/captures/{capture}/refund` with `custom_id` = `r<refund id>` and the same as idempotency key.
+     PENDING waits for the `PAYMENT.CAPTURE.REFUNDED` webhook.
+   - Refused: nothing changes, the reservation is released, the admin sees CiderPay's or PayPal's reason.
+   - No answer (timeout, 5xx): `check`. The amount stays reserved, Slack says so, and a person checks the provider's
+     dashboard and presses "It went through" or "It didn't". A refund left "sending" by a stopped function becomes
+     `check` in the daily job.
+4. Done: one statement writes the refund payment, its negative tax lines (split by VAT rule like the sale; PayPal's
+   fee given back on the line) and the order's totals and status (`partially_refunded`, `refunded`), once.
+5. Then: ActiveCampaign (`refund_partial_<product>`, or on a full refund `refund_<product>` and every purchase tag of the
+   order removed: product, extra tags, add-ons, pricing option; fields `REFUND_AMOUNT`, `REFUND_DATE`), podcast access
+   revoked on a full refund (cohorts whose AC tag is one of those purchase tags), Slack, the activity log.
+
+**Refunds made at the provider**
+
+- **Inside PayPal**: its verified webhook is recorded as is (origin "made in PayPal"). One larger than what's left is
+  flagged, not recorded.
+- **In CiderPay's dashboard**: its CANCEL notice is flagged (Slack + the order's notices). It doesn't say how much
+  went back (the `price` it carries may be the original payment's), so a person uses "Record a refund made at
+  CiderPay" with the amount. A CANCEL notice whose `var1`/`var2` don't match the order is refused, as before.
+
+**Not testable without Alex**: CiderPay's real cancel answers (no test mode). Check during the ₩1,000 test (section 10,
+step 7, now done from the admin): refund it with "Refund through CiderPay", then check the order (Refunded, one
+refund payment, tax line −₩1,000), Slack, ActiveCampaign (`refund_…` tag added, `test_shop_purchase` removed),
+and that CiderPay's own CANCEL notice arrives as "duplicate" on the order. If CiderPay answers something
+unexpected, the refund ends as "failed" (nothing changed) or "check" (say what CiderPay's dashboard shows).
+
+**Open questions for CiderPay**: does `/oapi/payment/cancel` also send the CANCEL notice to our feedback address? What
+does a partial cancel's notice carry in `price` (the amount cancelled or the original)? If it is the amount cancelled,
+dashboard cancels could be recorded automatically.
+

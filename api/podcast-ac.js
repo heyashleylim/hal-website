@@ -17,6 +17,7 @@ const contactsSync = require('./_lib/contacts/ac-sync.js');
 const auth = require('./_lib/auth.js');
 const ac = require('./_lib/ac.js');
 const automation = require('./_lib/automation.js');
+const enrolments = require('./_lib/enrolments.js');
 
 function send(res, status, body) {
   res.statusCode = status;
@@ -108,20 +109,9 @@ async function enroll(contact, addedTag = null) {
   return { result: added.length ? `enrolled: ${added.join(', ')}` : `already enrolled (${has.map((c) => c.name).join(', ')})`, studentId: student.id };
 }
 
+// Refund: ends their enrolment in those cohorts (shared with the shop's refunds).
 async function revoke(contact, tagList) {
-  const student = await db.one('SELECT id FROM students WHERE lower(email) = $1', [contact.email]);
-  if (!student) return { result: 'not a student', studentId: null };
-  const wanted = tagList.map((t) => t.toLowerCase());
-  const rows = await db.query(
-    `UPDATE enrollments en SET status = 'revoked', revoked_at = now(), updated_at = now()
-       FROM cohorts c WHERE c.id = en.cohort_id AND en.student_id = $1 AND lower(c.ac_tag) = ANY($2::text[]) AND en.status <> 'revoked'
-     RETURNING c.name, c.show_id`, [student.id, wanted]);
-  for (const showId of new Set(rows.map((r) => r.show_id))) {
-    const show = await db.one('SELECT * FROM shows WHERE id = $1', [showId]);
-    await automation.onRevokedByWebhook(student.id, show);
-  }
-  if (rows.length) await automation.processOutbox({ budgetMs: 4000 });
-  return { result: rows.length ? `revoked: ${rows.map((r) => r.name).join(', ')}` : 'nothing to revoke', studentId: student.id };
+  return enrolments.revokeByTags(contact.email, tagList);
 }
 
 module.exports = async function handler(req, res) {

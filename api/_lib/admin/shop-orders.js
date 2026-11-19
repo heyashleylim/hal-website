@@ -5,12 +5,13 @@
 const db = require('../db.js');
 const ledger = require('../shop/ledger.js');
 const sync = require('../shop/sync.js');
+const refunds = require('../shop/refunds.js');
 const { userError, text, int } = require('./util.js');
 
 const STATUSES = ['created', 'awaiting_payment', 'paid', 'refund_requested', 'partially_refunded', 'refunded', 'expired', 'cancelled'];
 
 const ORDER_COLUMNS = `o.id, o.number, o.product_id, o.product_name, o.price_option, o.currency, o.plan, o.subtotal, o.discount, o.total,
-  o.paid_total, o.refunded_total, (SELECT count(*)::int FROM shop_order_items i WHERE i.order_id = o.id AND i.kind = 'addon') AS addon_count, o.status, o.plan_status, o.origin, o.legacy_id, o.created_at, o.paid_at, o.provider, o.due_today,
+  o.paid_total, o.refunded_total, o.refund_pending, (SELECT count(*)::int FROM shop_order_items i WHERE i.order_id = o.id AND i.kind = 'addon') AS addon_count, o.status, o.plan_status, o.origin, o.legacy_id, o.created_at, o.paid_at, o.provider, o.due_today,
   c.email, c.name AS customer_name`;
 
 const actions = {
@@ -58,7 +59,7 @@ const actions = {
       `SELECT ${ORDER_COLUMNS}, o.billing, o.source, o.note, c.phone, c.country, c.postcode, c.address1, c.address2
          FROM shop_orders o JOIN shop_customers c ON c.id = o.customer_id WHERE o.id = $1`, [id]);
     if (!order) throw userError('order not found', 404);
-    const [items, payments, instalments, lines, outbox, notices] = await Promise.all([
+    const [items, payments, instalments, lines, outbox, notices, refundRows] = await Promise.all([
       db.query(`SELECT position, kind, product_id, name, amount, vat_rule FROM shop_order_items WHERE order_id = $1 ORDER BY position`, [id]),
       db.query(`SELECT id, provider, kind, currency, amount, fee, instalment_no, provider_ref, approval_no, method, receipt_url, at
                   FROM shop_payments WHERE order_id = $1 ORDER BY at, id`, [id]),
@@ -66,8 +67,14 @@ const actions = {
       db.query(`SELECT at, kind, method, currency, amount, supply, vat, vat_rule, fee, fx_rate, amount_krw, note FROM shop_ledger WHERE order_id = $1 ORDER BY at, id`, [id]),
       db.query(`SELECT op, payload, status, attempts, last_error, created_at, done_at FROM shop_outbox WHERE order_id = $1 ORDER BY id`, [id]),
       db.query(`SELECT at, provider, outcome, reason FROM shop_callbacks WHERE order_id = $1 ORDER BY at, id`, [id]),
+      db.query(`SELECT id, payment_id, provider, currency, amount, reason, by, origin, status, provider_ref, error, created_at, done_at, notice_at FROM shop_refunds WHERE order_id = $1 ORDER BY id`, [id]),
     ]);
-    return { order, items, payments, instalments, ledger: lines, outbox, notices };
+    // What can still be refunded: per payment, and in all (what's left, minus refunds still on their way).
+    const left = refunds.remaining(payments, refundRows);
+    const refundable = refunds.REFUNDABLE.includes(order.status)
+      ? payments.filter((p) => p.kind === 'payment').map((p) => ({ payment_id: p.id, provider: p.provider, amount: p.amount, left: Math.max(0, left.get(p.id) || 0) })).filter((p) => p.left > 0)
+      : [];
+    return { order, items, payments, instalments, ledger: lines, outbox, notices, refunds: refundRows, refundable };
   },
 
   // Provider notices that were refused, failed, or brought a second payment: the ones a person should look at.
@@ -77,6 +84,33 @@ const actions = {
       `SELECT n.at, n.provider, n.outcome, n.reason, n.order_id, o.number FROM shop_callbacks n LEFT JOIN shop_orders o ON o.id = n.order_id
         WHERE n.outcome IN ('rejected', 'error', 'extra') ORDER BY n.at DESC LIMIT $1`, [limit]);
     return { notices: rows };
+  },
+
+  // Refund all or part of a paid order through its provider (CiderPay cancel / cancel request, PayPal refund).
+  // The amount is in the order's smallest unit (won, cents). → { status: 'done' | 'requested' | 'check' | 'failed', message }
+  async 'shop-refund'(input, { admin }) {
+    const orderId = int(input.order, { min: 1, max: 2147483647, label: 'order' });
+    const amount = int(input.amount, { min: 1, max: 2000000000, label: 'amount' });
+    const reason = text(input.reason, { max: 300, required: true, label: 'reason' });
+    const r = await refunds.request({ orderId, amount, reason, by: admin });
+    return { status: r.status, message: r.message, target: `order ${orderId}`, log: { order: orderId, amount, reason, refund: r.refund.id, status: r.status } };
+  },
+
+  // A refund already made at the provider (CiderPay's dashboard, a bank transfer…): recorded, no provider is called.
+  async 'shop-refund-record'(input, { admin }) {
+    const orderId = int(input.order, { min: 1, max: 2147483647, label: 'order' });
+    const amount = int(input.amount, { min: 1, max: 2000000000, label: 'amount' });
+    const reason = text(input.reason, { max: 300, required: true, label: 'reason' });
+    const r = await refunds.record({ orderId, amount, reason, by: admin });
+    return { status: r.status, message: r.message, target: `order ${orderId}`, log: { order: orderId, amount, reason, refund: r.refund.id, recorded: true } };
+  },
+
+  // A refund whose provider never answered, or a cancel request still waiting: did the money go back?
+  async 'shop-refund-resolve'(input, { admin }) {
+    const refundId = int(input.refund, { min: 1, max: 2147483647, label: 'refund' });
+    const happened = input.happened === true || input.happened === 'true';
+    const r = await refunds.resolve({ refundId, happened, by: admin });
+    return { status: r.status, target: `order ${r.refund.order_id}`, log: { refund: refundId, happened } };
   },
 
   // Sends the ActiveCampaign updates still waiting (all of them, or one order's), and retries the failed ones.
@@ -94,4 +128,4 @@ const actions = {
   },
 };
 
-module.exports = { section: 'shop', actions, writes: ['shop-sync-run'], STATUSES };
+module.exports = { section: 'shop', actions, writes: ['shop-sync-run', 'shop-refund', 'shop-refund-record', 'shop-refund-resolve'], STATUSES };

@@ -90,6 +90,86 @@
     }).catch(function (err) { out.textContent = err.message; b.disabled = false; });
   });
 
+  // ---------- Refunds ----------
+  var REFUND = { sending: ['Sending', 'badge--info'], requested: ['Waiting for the provider', 'badge--warn'], check: ['Check the provider', 'badge--warn'], done: ['Refunded', 'badge--ok'], failed: ['Failed', ''] };
+  var ORIGIN_R = { admin: 'from the admin', provider: 'made in PayPal', recorded: 'recorded by hand' };
+  var PROVIDER = { ciderpay: 'CiderPay', paypal: 'PayPal', manual: 'by hand' };
+  var current = null; // the order shown, for the refund form
+
+  // Amount typed in the form → smallest unit (won, cents); null when it isn't a valid amount.
+  function toUnits(value, cur) {
+    var t = String(value || '').replace(/[,\s₩$]/g, '');
+    if (cur === 'USD') { var m = /^(\d{1,7})(?:\.(\d{1,2}))?$/.exec(t); return m ? Number(m[1]) * 100 + Number((m[2] || '').padEnd(2, '0')) : null; }
+    return /^\d{1,10}$/.test(t) ? Number(t) : null;
+  }
+  function fromUnits(n, cur) { return cur === 'USD' ? (n % 100 ? (n / 100).toFixed(2) : String(n / 100)) : String(n); }
+
+  function refundBlock(o, r) {
+    var cur = o.currency;
+    var rows = (r.refunds || []).map(function (x) {
+      var st = REFUND[x.status] || [x.status, ''];
+      var act = x.status === 'check' || x.status === 'requested'
+        ? '<div class="admin-actions" style="margin-top:6px"><button data-tip="The money did go back to the buyer (you checked the provider’s dashboard): record the refund, its tax lines and the ActiveCampaign updates" class="btn-ghost" type="button" data-resolve="' + x.id + '" data-happened="true">It went through</button>' +
+          '<button data-tip="The provider did not refund it: release the amount so it can be refunded again" class="btn-ghost" type="button" data-resolve="' + x.id + '" data-happened="false">It didn’t</button></div>' : '';
+      return '<tr><td class="num">' + Admin.kst(x.done_at || x.created_at) + '</td><td class="num">' + Admin.money(-x.amount, x.currency) + '</td><td>' + badge(st[0], st[1]) + act + '</td>' +
+        '<td>' + Admin.esc(PROVIDER[x.provider] || x.provider) + ' <span class="small muted">' + Admin.esc(ORIGIN_R[x.origin] || '') + (x.by ? ' · ' + Admin.esc(x.by) : '') + '</span></td>' +
+        '<td class="small">' + Admin.esc(x.reason) + (x.error ? '<br><span class="is-error">' + Admin.esc(x.error) + '</span>' : '') + (x.provider_ref ? '<br><span class="muted">' + Admin.esc(x.provider_ref) + '</span>' : '') + '</td></tr>';
+    });
+    // What's left per payment already subtracts every refund that isn't failed (done or still on its way).
+    var left = (r.refundable || []).reduce(function (s, p) { return s + p.left; }, 0);
+    var via = o.provider === 'paypal' ? 'PayPal' : 'CiderPay';
+    var form = left > 0
+      ? '<form class="admin-form refund-form" id="refund-form" novalidate>' +
+          '<p class="admin-form__wide muted small">Left to refund: <strong>' + Admin.money(left, cur) + '</strong>. A full refund removes the purchase tags in ActiveCampaign, adds <code>refund_…</code> and ends podcast access; a partial one adds <code>refund_partial_…</code> and keeps them.</p>' +
+          '<label>Amount (' + (cur === 'USD' ? '$' : '₩') + ') <span class="hint">all of it, or part</span><input name="amount" inputmode="decimal" required value="' + fromUnits(left, cur) + '"></label>' +
+          '<label class="admin-form__wide">Reason <span class="hint">kept with the refund and in the tax records</span><input name="reason" maxlength="300" required placeholder="e.g. 환불 요청 (14일 이내)"></label>' +
+          '<div class="admin-form__actions">' +
+            '<button data-tip="Send this amount back to the buyer through ' + via + ' now. Then the order, the tax lines, ActiveCampaign and podcast access follow" class="btn-danger" type="submit" name="how" value="provider">Refund through ' + via + '</button>' +
+            '<button data-tip="The money was already given back at ' + via + ' (its dashboard) or by bank transfer: record it here without calling ' + via + '" class="btn-ghost" type="submit" name="how" value="record">Record a refund made at ' + via + '</button>' +
+          '</div><p class="admin-form__result" role="status" aria-live="polite" id="refund-out"></p></form>'
+      : '';
+    if (!rows.length && !form) return '';
+    return '<h3 class="admin-h3">Refunds</h3>' + (rows.length ? table(['Date', 'Amount', 'Status', 'How', 'Reason'], rows, '') : '') + form;
+  }
+
+  document.getElementById('detail-body').addEventListener('submit', function (ev) {
+    if (ev.target.id !== 'refund-form') return;
+    ev.preventDefault();
+    var f = ev.target, o = current, out = document.getElementById('refund-out');
+    var how = ev.submitter && ev.submitter.value === 'record' ? 'record' : 'provider';
+    var amount = toUnits(f.amount.value, o.currency), reason = f.reason.value.trim();
+    if (!amount) { Admin.say(out, 'Type an amount, e.g. ' + (o.currency === 'USD' ? '49.50' : '100000') + '.', true); f.amount.focus(); return; }
+    if (!reason) { Admin.say(out, 'Give a reason.', true); f.reason.focus(); return; }
+    var via = o.provider === 'paypal' ? 'PayPal' : 'CiderPay';
+    var question = how === 'record'
+      ? 'Record a refund of ' + Admin.money(amount, o.currency) + ' already made at ' + via + '? Nothing is sent to ' + via + '. The tax records, ActiveCampaign and podcast access follow.'
+      : 'Send ' + Admin.money(amount, o.currency) + ' back to ' + (o.customer_name || 'the buyer') + ' through ' + via + ' now? This can’t be undone.';
+    if (!confirm(question)) return;
+    Array.prototype.forEach.call(f.querySelectorAll('button'), function (b) { b.disabled = true; });
+    Admin.say(out, how === 'record' ? 'Recording…' : 'Sending to ' + via + '…');
+    Admin.post(how === 'record' ? 'shop-refund-record' : 'shop-refund', { order: o.id, amount: amount, reason: reason }).then(function (res) {
+      return show(o.id).then(function () {
+        var again = document.getElementById('refund-out') || document.getElementById('refund-note');
+        if (again) Admin.say(again, res.message, res.status === 'failed');
+        else { var p = document.createElement('p'); p.id = 'refund-note'; p.className = res.status === 'failed' ? 'is-error' : 'muted'; p.textContent = res.message; var h = Array.prototype.find.call(document.querySelectorAll('#detail-body h3'), function (x) { return x.textContent === 'Refunds'; }); if (h) h.after(p); }
+        load();
+      });
+    }).catch(function (err) {
+      Admin.say(out, err.message, true);
+      Array.prototype.forEach.call(f.querySelectorAll('button'), function (b) { b.disabled = false; });
+    });
+  });
+
+  document.getElementById('detail-body').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-resolve]');
+    if (!b) return;
+    var yes = b.dataset.happened === 'true';
+    if (!confirm(yes ? 'You checked: the money went back to the buyer. Record the refund now?' : 'You checked: the provider did not refund it. Release the amount?')) return;
+    b.disabled = true;
+    Admin.post('shop-refund-resolve', { refund: b.dataset.resolve, happened: yes }).then(function () { return show(current.id).then(load); })
+      .catch(function (err) { alert(err.message); b.disabled = false; });
+  });
+
   var detail = document.getElementById('detail'), body = document.getElementById('detail-body');
   document.getElementById('close-detail').addEventListener('click', function () { detail.hidden = true; });
 
@@ -101,8 +181,9 @@
   function show(id) {
     detail.hidden = false;
     body.innerHTML = '<p class="admin-empty">Loading…</p>';
-    Admin.get('shop-order', { id: id }).then(function (r) {
+    return Admin.get('shop-order', { id: id }).then(function (r) {
       var o = r.order, cur = o.currency;
+      current = o;
       document.getElementById('detail-title').textContent = 'Order #' + o.number;
       var address = [o.postcode, o.address1, o.address2, o.country].filter(Boolean).join(' ');
       body.innerHTML =
@@ -122,6 +203,7 @@
         (r.instalments.length ? '<h3 class="admin-h3">Instalments</h3>' + table(['#', 'Due', 'Amount', 'Status'], r.instalments.map(function (i) {
           return '<tr><td class="num">' + i.number + '</td><td class="num">' + Admin.kst(i.due_date + 'T00:00:00+09:00', false) + '</td><td class="num">' + Admin.money(i.amount, cur) + '</td><td>' + badge(i.status, INST[i.status]) + (i.error ? ' <span class="small is-error">' + Admin.esc(i.error) + '</span>' : '') + '</td></tr>';
         }), '') : '') +
+        refundBlock(o, r) +
         '<h3 class="admin-h3">Payments</h3>' + table(['Date', 'Type', 'Amount', 'Method', 'Reference', 'Receipt'], r.payments.map(function (p) {
           return '<tr><td class="num">' + Admin.kst(p.at) + '</td><td>' + (p.kind === 'refund' ? badge('Refund', 'badge--warn') : 'Payment' + (p.instalment_no ? ' ' + p.instalment_no : '')) + '</td><td class="num">' + Admin.money(p.kind === 'refund' ? -p.amount : p.amount, p.currency) + '</td>' +
             '<td>' + Admin.esc(p.provider) + (p.method ? ' · ' + Admin.esc(p.method) : '') + '</td><td class="small">' + Admin.esc([p.provider_ref, p.approval_no].filter(Boolean).join(' / ')) + '</td>' +

@@ -11,6 +11,14 @@ function create({ base, memberId, apiToken }) {
   const cider = new Map();   // id → { body }
   const paypal = new Map();  // id → { body, status, declined }
   const sent = [];           // every notice the fakes sent: { provider, status, body }
+  // Refunds. `modes` sets how the next refund calls are answered (tests change it):
+  //   ciderpayCancel: 'ok' | 'settled' (cancel → CANCEL_REQ, then the cancel request is accepted) | 'refuse' | 'down' | 'hang'
+  //   paypalRefund:   'ok' | 'pending' | 'refuse' | 'down' | 'hang'
+  const modes = { ciderpayCancel: 'ok', paypalRefund: 'ok' };
+  const refundCalls = [];    // every refund call received: { provider, path, body }
+  const ciderRefunded = new Map(); // rid → won refunded
+  const paypalRefunds = new Map(); // PayPal-Request-Id → refund answer (idempotency)
+  const hang = (res) => { setTimeout(() => res.destroy(), 50); };
   const id = (prefix) => prefix + crypto.randomBytes(5).toString('hex').toUpperCase();
   const html = (res, body) => { res.statusCode = 200; res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Fake provider</title><body style="font:16px/1.6 system-ui;max-width:520px;margin:40px auto;padding:0 20px">${body}`); };
   const send = (res, status, data) => { res.statusCode = status; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(data)); };
@@ -52,6 +60,26 @@ function create({ base, memberId, apiToken }) {
       cider.set(rid, { body });
       return send(res, 200, { success: true, payUrl: `${base}/__fake/ciderpay/pay?id=${rid}`, payUniqueNo: rid });
     }
+    if (req.method === 'POST' && (path === '/oapi/payment/cancel' || path === '/oapi/payment/cancelRequest')) {
+      const body = await readJson(req);
+      refundCalls.push({ provider: 'ciderpay', path, body });
+      if (req.headers.approvaltoken !== apiToken) return send(res, 200, { success: false, errCode: '1002', message: 'approvalToken 오류' });
+      if (body.memberID !== memberId) return send(res, 200, { success: false, errCode: '1003', message: '회원 아이디 오류' });
+      const rid = String(body.orderNo || '').replace(/^CP/, '');
+      const r = cider.get(rid);
+      if (!r || body.token !== 'FT' + rid) return send(res, 200, { success: false, errCode: '2002', message: '결제 토큰 에러' });
+      const mode = modes.ciderpayCancel;
+      if (mode === 'down') { res.statusCode = 503; return res.end('down'); }
+      if (mode === 'hang') return hang(res);
+      if (mode === 'refuse') return send(res, 200, { success: false, errCode: '2001', message: '취소 가능 상태 에러' });
+      if (path === '/oapi/payment/cancel' && mode === 'settled') return send(res, 200, { success: false, var1: 'CANCEL_REQ', errorMessage: '정산 완료: 취소 요청이 필요합니다' });
+      const done = ciderRefunded.get(rid) || 0;
+      const amount = body.rangeType === 'ALL' ? Number(r.body.price) - done : Number(body.cancelPrice);
+      if (body.rangeType === 'ALL' && done > 0) return send(res, 200, { success: false, errCode: '2001', message: '부분 취소된 결제는 전체 취소할 수 없습니다' });
+      if (!(amount > 0) || done + amount > Number(r.body.price)) return send(res, 200, { success: false, errCode: '2001', message: '취소 금액 오류' });
+      ciderRefunded.set(rid, done + amount);
+      return send(res, 200, { success: true });
+    }
     const rid = url.searchParams.get('id');
     const r = cider.get(rid);
     if (!r) { res.statusCode = 404; return res.end('unknown request'); }
@@ -85,6 +113,12 @@ function create({ base, memberId, apiToken }) {
     }
     return out;
   }
+  // A refund as PayPal describes it (refund call answer, and the resource of PAYMENT.CAPTURE.REFUNDED).
+  function paypalRefund(captureId, { amount, custom_id = '', status = 'COMPLETED', id: rid = id('RF') }) {
+    const fee = (Math.round(Math.round(Number(amount.value) * 100) * 0.03) / 100).toFixed(2);
+    return { id: rid, status, amount, custom_id, seller_payable_breakdown: { paypal_fee: { currency_code: 'USD', value: fee } },
+      links: [{ rel: 'self', href: `${base}/__fake/paypal/v2/payments/refunds/${rid}` }, { rel: 'up', href: `${base}/__fake/paypal/v2/payments/captures/${captureId}` }] };
+  }
   // A webhook as PayPal sends it. `good` decides whether the fake "verify signature" call will accept it.
   async function notifyPaypal(eventType, resource, { good = true, url } = {}) {
     const res = await fetch(url || `${base}/api/shop-callback?p=paypal`, {
@@ -111,6 +145,27 @@ function create({ base, memberId, apiToken }) {
     if (req.method === 'POST' && path === '/v1/notifications/verify-webhook-signature') {
       const body = await readJson(req);
       return send(res, 200, { verification_status: body.transmission_sig === 'good' && body.webhook_id && body.webhook_event ? 'SUCCESS' : 'FAILURE' });
+    }
+    const rf = /^\/v2\/payments\/captures\/(CAP[A-Z0-9]+)\/refund$/.exec(path);
+    if (req.method === 'POST' && rf) {
+      const body = await readJson(req);
+      const key = req.headers['paypal-request-id'] || '';
+      refundCalls.push({ provider: 'paypal', path, body, key });
+      if (key && paypalRefunds.has(key)) return send(res, 201, paypalRefunds.get(key));
+      const o = paypal.get(rf[1].slice(3));
+      if (!o || o.status !== 'COMPLETED') return send(res, 404, { name: 'RESOURCE_NOT_FOUND', details: [{ issue: 'INVALID_RESOURCE_ID' }] });
+      const mode = modes.paypalRefund;
+      if (mode === 'down') return send(res, 503, { name: 'INTERNAL_SERVER_ERROR' });
+      if (mode === 'hang') return hang(res);
+      if (mode === 'refuse') return send(res, 422, { name: 'UNPROCESSABLE_ENTITY', details: [{ issue: 'REFUND_NOT_ALLOWED' }] });
+      const paid = Math.round(Number(o.body.purchase_units[0].amount.value) * 100);
+      const want = Math.round(Number(body.amount.value) * 100);
+      o.refunded = o.refunded || 0;
+      if (want + o.refunded > paid) return send(res, 422, { name: 'UNPROCESSABLE_ENTITY', details: [{ issue: 'REFUND_AMOUNT_EXCEEDED' }] });
+      o.refunded += want;
+      const answer = paypalRefund(rf[1], { amount: body.amount, custom_id: body.custom_id, status: mode === 'pending' ? 'PENDING' : 'COMPLETED' });
+      if (key) paypalRefunds.set(key, answer);
+      return send(res, 201, answer);
     }
     const m = /^\/v2\/checkout\/orders\/([A-Z0-9]+)(\/capture)?$/.exec(path);
     if (m) {
@@ -155,7 +210,7 @@ function create({ base, memberId, apiToken }) {
     res.statusCode = 404; res.end('not found');
   }
 
-  return { handle, cider, paypal, sent, ciderpayFeedback, notifyCiderpay, notifyPaypal, paypalOrder };
+  return { handle, cider, paypal, sent, ciderpayFeedback, notifyCiderpay, notifyPaypal, paypalOrder, paypalRefund, modes, refundCalls };
 }
 
 module.exports = { create };
