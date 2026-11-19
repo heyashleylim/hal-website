@@ -223,9 +223,16 @@ async function forOrder({ code, product, optionKey = null, currency, plan = 'ful
   const use = await usage(row, email);
   const why = problem(row, row.campaign, { productId: product.id, currency, email, now, used: use.used, usedByEmail: use.by_email });
   if (why) throw new CouponError(why);
-  if (plan !== 'full') throw new CouponError('coupon_product', 'coupons are for pay-in-full only');
-  const opt = pricing.optionOf(product, optionKey || null);
-  const discount = discountFor(row.campaign, pricing.priceIn(opt || product, currency), currency);
+  // Pay in full: the discount is on the product's (or option's) price. Instalments: on the plan's total, which
+  // pricing.quote then spreads over the payments in proportion (pricing.discountedPlan).
+  const opt = plan === 'instalment' ? null : pricing.optionOf(product, optionKey || null);
+  const plannable = plan === 'instalment' ? pricing.instalmentPlan(product) : null;
+  if (plan === 'instalment' && (!plannable || currency !== 'KRW')) throw new CouponError('coupon_product', 'this product has no instalment plan in this currency');
+  const price = plannable ? plannable.total : pricing.priceIn(opt || product, currency);
+  let discount = discountFor(row.campaign, price, currency);
+  if (discount != null && plannable) {
+    try { pricing.discountedPlan(plannable, discount); } catch (err) { discount = null; }
+  }
   if (discount == null) throw new CouponError('coupon_product', 'the discount would leave nothing to pay');
   return { coupon: row, campaign: row.campaign, discount };
 }
