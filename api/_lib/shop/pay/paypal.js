@@ -69,7 +69,7 @@ function cents(value) {
 }
 
 // The order we ask PayPal to create. Pure, so tests can check exactly what is sent.
-function orderRequest({ order, productName, slug }, env = process.env) {
+function orderRequest({ order, productName, slug, cancelUrl = null }, env = process.env) {
   if (order.currency !== 'USD') throw new PayError('unavailable', 'PayPal is used for USD only');
   if (!Number.isInteger(order.due_today) || order.due_today < 100) throw new PayError('unavailable', `amount too small for PayPal: ${order.due_today}`);
   return {
@@ -89,7 +89,7 @@ function orderRequest({ order, productName, slug }, env = process.env) {
           shipping_preference: 'NO_SHIPPING',
           user_action: 'PAY_NOW',
           return_url: config.completeUrl(order.token, env),
-          cancel_url: config.checkoutUrl(slug, { currency: 'usd', problem: 'cancelled' }, env),
+          cancel_url: cancelUrl || config.checkoutUrl(slug, { currency: 'usd', problem: 'cancelled' }, env),
         },
       },
     },

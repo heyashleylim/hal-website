@@ -64,13 +64,14 @@ const analytics = `<script>window.va = window.va || function () { (window.vaq = 
  * layout({ title, body, data, beforeTags, home })
  *   data        JSON for checkout.js (<script type="application/json" id="co-data">)
  *   beforeTags  inline script that must run before GTM (the thank-you page hides the order token from tags)
+ *   tags        false: no GTM and no analytics (a payment link: its address holds the order's token)
  */
-function layout({ title, body, data = null, beforeTags = '', refresh = null }) {
+function layout({ title, body, data = null, beforeTags = '', refresh = null, tags = true }) {
   return `<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-${beforeTags ? `<script>${beforeTags}</script>\n` : ''}${gtmHead}
+${beforeTags ? `<script>${beforeTags}</script>\n` : ''}${tags ? gtmHead : ''}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="same-origin">
@@ -83,10 +84,10 @@ ${refresh ? `<noscript><meta http-equiv="refresh" content="${esc(refresh)}"></no
 <link rel="stylesheet" href="/assets/css/header.css">
 <link rel="stylesheet" href="/assets/css/footer.css">
 <link rel="stylesheet" href="/assets/css/pages/checkout.css">
-${analytics}
+${tags ? analytics : ''}
 </head>
 <body class="co">
-${gtmBody}
+${tags ? gtmBody : ''}
 <a class="skip" href="#main">${esc(copy.skip)}</a>
 ${siteChrome().header}
 <main id="main" class="co-main">
@@ -539,7 +540,9 @@ function completePage({ order, product = null, items = [], receiptUrl = '', slow
 </section>`,
     });
   }
-  const retryUrl = product ? `/checkout/${product.slug}${order.currency === 'USD' ? '?currency=usd' : ''}` : '/';
+  // An order made in the admin is paid again from its payment link, not from the product's checkout.
+  const retryUrl = order.origin === 'manual' && order.provider ? `/checkout/pay/${encodeURIComponent(order.token)}`
+    : product ? `/checkout/${product.slug}${order.currency === 'USD' ? '?currency=usd' : ''}` : '/';
   const amount = pricing.formatMoney(order.due_today, order.currency);
 
   if (order.paid_at && !['refunded'].includes(order.status)) {
@@ -623,4 +626,58 @@ function completePage({ order, product = null, items = [], receiptUrl = '', slow
   });
 }
 
-module.exports = { checkoutPage, closedPage, notFoundPage, errorPage, completePage, consentHtml, esc, json, siteChrome, GTM_ID };
+/*
+ * The payment link of an order made in the admin (/checkout/pay/<token>): what the order holds, and one button
+ * to the payment page of its currency (card in won, PayPal in dollars). No tags: the address is the order's key.
+ *   state     null (can be paid) | 'ended'
+ *   lastDay   'YYYY-MM-DD', the last day the link works
+ *   problem   a copy.problems code from a failed attempt (?problem=…)
+ */
+function payPage({ order, items = [], state = null, lastDay = '', problem = '', settings = {} }) {
+  const c = copy.payLink;
+  if (state) {
+    return layout({
+      title: c.endedTitle, tags: false,
+      body: `<section class="co-card co-card--center">
+  <h1 class="co-title">${esc(c.endedTitle)}</h1>
+  <p>${esc(c.endedLead)}</p>
+  <p class="co-quiet">${esc(c.order)} ${esc(order.number)}</p>
+</section>`,
+    });
+  }
+  const money = (n) => pricing.formatMoney(n, order.currency);
+  const name = (order.billing || {}).name || '';
+  const sold = items.length ? items : [{ kind: 'main', name: orderName(order), amount: order.total }];
+  const main = sold.find((i) => i.kind === 'main') || sold[0];
+  const addons = sold.filter((i) => i.kind === 'addon');
+  const card = order.currency === 'KRW';
+  const until = lastDay ? kstDate(`${lastDay}T12:00:00+09:00`) : '';
+  return layout({
+    title: c.title, tags: false,
+    body: `<section class="co-card co-card--center co-paylink">
+  <h1 class="co-title">${esc(c.title)}</h1>
+  ${name ? `<p class="co-lead">${esc(c.lead(name))}</p>` : ''}
+  ${problem && copy.problems[problem] ? `<p class="co-problem" role="alert">${esc(copy.problems[problem])}</p>` : ''}
+  <dl class="co-facts">
+    <div><dt>${esc(c.order)}</dt><dd>${esc(order.number)}</dd></div>
+    <div><dt>${esc(c.product)}</dt><dd>${esc(main.name)}</dd></div>
+    ${addons.map((i) => `<div><dt>${esc(c.addon)}</dt><dd>${esc(i.name)} (${esc(money(i.amount))})</dd></div>`).join('')}
+    ${order.discount ? `<div><dt>${esc(c.discount)}</dt><dd>${esc(money(-order.discount))}</dd></div>` : ''}
+    <div><dt>${esc(c.amount)}</dt><dd><strong>${esc(money(order.due_today))}</strong></dd></div>
+    <div><dt>${esc(c.method)}</dt><dd>${esc(card ? copy.methods.card : copy.methods.paypal)}</dd></div>
+  </dl>
+  <p class="co-quiet">${esc(card ? copy.methods.cardNote : copy.methods.paypalNote)}</p>
+  <form method="post" action="/api/shop?action=pay" class="co-paylink__form">
+    <input type="hidden" name="o" value="${esc(order.token)}">
+    <button type="submit" class="btn co-pay">${esc(copy.pay(money(order.due_today)))}</button>
+  </form>
+  <p class="co-consent">${consentHtml(((settings && settings.checkout_texts) || {}).consent)}</p>
+  ${until ? `<p class="co-quiet">${esc(c.until(until))}</p>` : ''}
+  <p class="co-quiet">${esc(copy.closed.contact)}</p>
+</section>`,
+  });
+}
+
+const orderName = (order) => (order.price_option && order.price_option.label ? `${order.product_name} · ${order.price_option.label}` : order.product_name);
+
+module.exports = { payPage, checkoutPage, closedPage, notFoundPage, errorPage, completePage, consentHtml, esc, json, siteChrome, GTM_ID };

@@ -182,6 +182,21 @@ const copy = {
     missingLead: `결제를 마치셨다면 걱정하지 마세요. 결제 내역은 안전하게 기록되어 있어요. 확인이 필요하면 ${SUPPORT_EMAIL}으로 알려 주세요.`,
   },
 
+  // The payment link of an order made in the admin (/checkout/pay/<token>). New copy (2026-11-19), to review.
+  payLink: {
+    title: '결제 안내',
+    lead: (name) => `${name}님을 위해 준비한 주문이에요.`,
+    order: '주문 번호',
+    product: '프로그램',
+    addon: '추가 상품',
+    discount: '할인',
+    amount: '결제 금액',
+    method: '결제 방법',
+    until: (date) => `이 결제 링크는 ${date}까지 사용할 수 있어요.`,
+    endedTitle: '사용할 수 없는 결제 링크예요',
+    endedLead: `기간이 지났거나 취소된 주문이에요. ${SUPPORT_EMAIL}으로 알려 주시면 새 링크를 보내 드릴게요.`,
+  },
+
   error: {
     title: '잠시 후 다시 시도해 주세요',
     body: '일시적인 문제로 페이지를 불러오지 못했어요.',

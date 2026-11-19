@@ -97,6 +97,11 @@ function completeUrl(token, env = process.env) {
   return `${publicBase(env)}/checkout/complete?o=${encodeURIComponent(token)}`;
 }
 
+// The payment link of an order made in the admin (manual.js): the customer opens it and pays that order.
+function payLinkUrl(token, env = process.env) {
+  return `${publicBase(env)}/checkout/pay/${encodeURIComponent(token)}`;
+}
+
 function checkoutUrl(slug, params = {}, env = process.env) {
   const url = new URL(`${publicBase(env)}/checkout/${slug}`);
   for (const [k, v] of Object.entries(params)) if (v != null && v !== '') url.searchParams.set(k, v);
@@ -146,5 +151,5 @@ const paypalConfigured = (env = process.env) => present('PAYPAL_CLIENT_ID', env)
 module.exports = {
   acCouponKey, acCouponUrl,
   secret, configured, sign, verify, safeEqual, callbackKey, newToken, isToken, ipHash, isProduction, publicBase,
-  callbackUrl, completeUrl, checkoutUrl, ciderpayBase, paypalMode, paypalBase, trustedPayUrl, ciderpayConfigured, paypalConfigured,
+  callbackUrl, completeUrl, payLinkUrl, checkoutUrl, ciderpayBase, paypalMode, paypalBase, trustedPayUrl, ciderpayConfigured, paypalConfigured,
 };

@@ -12,8 +12,9 @@ const safe = (fn) => { try { return fn(); } catch (_) { return null; } };
 const { userError, text, int, friendlyUnique } = require('./util.js');
 
 const STATUSES = ['draft', 'open', 'closed'];
-// /checkout/complete is the thank-you page; the other two are WooCommerce addresses still redirected to WordPress.
-const RESERVED_SLUGS = ['complete', 'order-received', 'order-pay'];
+// /checkout/complete is the thank-you page, /checkout/pay/<token> a payment link (orders made in the admin); the
+// other two are WooCommerce addresses still redirected to WordPress.
+const RESERVED_SLUGS = ['complete', 'pay', 'order-received', 'order-pay'];
 const MAX_WON = 100000000;   // ₩100,000,000
 const MAX_CENTS = 10000000;  // $100,000
 

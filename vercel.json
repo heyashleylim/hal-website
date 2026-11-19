@@ -279,6 +279,10 @@
       "destination": "/api/shop-page?view=complete"
     },
     {
+      "source": "/checkout/pay/:token([A-Za-z0-9_-]+)",
+      "destination": "/api/shop-page?view=pay&o=:token"
+    },
+    {
       "source": "/checkout/:slug([a-z0-9-]+)",
       "destination": "/api/shop-page?view=checkout&slug=:slug"
     }

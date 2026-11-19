@@ -22,7 +22,7 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 | **0. Inventory** | WordPress exports, the list of what tags AC today, PayPal app + sandbox, accountant's answers. | The open points of section 8 that block a phase are cleared. |
 | **1. Foundations** ✅ 2026-11-10 | Migration `005`, pricing + ledger modules with tests, Shop admin: Products, Orders (read), Settings. | A product can be created in the admin and quoted by the API. |
 | **2. Checkout, pay in full** (built 2026-11-11, section 10) | Checkout page, Kakao search, CiderPay pay-in-full, PayPal, notices, thank-you page, Slack, AC sync for purchases, dataLayer. | A real ₩1,000 payment and a sandbox $ payment go through on a preview, end to end. **Still to do: Alex's tests in section 10.** |
-| **3. Instalments, refunds, coupons** (refunds and coupons built 2026-11-19, sections 11–12) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
+| **3. Instalments, refunds, coupons** (refunds, coupons and manual orders built 2026-11-19, sections 11–13) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
 | **4. Tax & reports + import** | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
 | **5. Go live** | Section 6, steps 3–6. Vercel Pro. | No payment link points to WordPress. |
 | **6. Referrals + `/my`** | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
@@ -754,8 +754,13 @@ dashboard cancels could be recorded automatically.
 
 **Decisions taken while building (change them if Ashley wants otherwise)**
 
-- A coupon discounts the **product's own price** (the pricing option picked), never the add-ons, and only in pay in
-  full (instalments come later in phase 3). Add-ons are already offers of their own.
+- A coupon discounts the **product's own price** (the pricing option picked), never the add-ons. Add-ons are already
+  offers of their own.
+- **With an instalment plan** (Alex, 2026-11-19; priced already, sold once instalments are built): the discount is
+  worked out on the plan's total, the total goes down by it, then the first payment and each monthly payment go
+  down in the same proportion (`pricing.discountedPlan`). The monthly amount stays the same every month (CiderPay
+  charges one fixed amount); the first payment takes the rounding, so the payments add up to the new total.
+  Example: NSMB ₩930,000 + 2 × ₩930,000, 10% off → ₩837,000 × 3.
 - A percentage is **rounded down** to the won / cent; a discount that would leave nothing to pay is refused (no free
   orders: CiderPay can't charge ₩0). 100% coupons don't exist.
 - A **use** is a paid order. An order still waiting for payment and under an hour old holds a limited code for
@@ -782,3 +787,49 @@ dashboard cancels could be recorded automatically.
 ₩100, that product only) with a shared code, open `/checkout/<test product>?coupon=<code>`, check the page shows
 ₩900, pay, then check the order (discount ₩100, coupon shown), its tax line (₩900), ActiveCampaign
 (`coupon_used_<key>`), and refund it from the admin (₩900 goes back).
+
+## 13. Phase 3 as built: orders made by hand (2026-11-19)
+
+Admin → Shop → Orders → **New order**. Code: `api/_lib/shop/manual.js` (rules), `api/_lib/admin/shop-manual.js`
+(actions `shop-manual-form`, `shop-manual-quote`, `shop-manual-create`, `shop-order-mark-paid`, `shop-order-cancel`),
+the payment link page `/checkout/pay/<token>` (`page.payPage`, `api/shop-page.js` view `pay`, button
+`POST /api/shop?action=pay`). No migration: `shop_orders.origin = 'manual'` and the `manual` payment provider were
+in the schema from phase 1. Tests: `tests/shop/manual.test.js`, e2e groups "Manual orders: …".
+
+**Three ways an order made by hand is paid**
+
+1. **Payment link.** The order is created unpaid and the admin copies its link (`/checkout/pay/<token>`) to send
+   (email, KakaoTalk…). The page shows the order (product, add-ons, discount, amount, method) and one button to the
+   card payment page (won, CiderPay) or PayPal (dollars). From there it is a normal payment: the provider's notice
+   records it, the thank-you page, AC tags, Slack. Pressing the button again (back from the payment page) asks for a
+   new payment page for the same order. The link works for **14 days** (`orders.LINK_DAYS`); then the daily job
+   expires the order (checkout orders still expire after a day). A paid link opens the thank-you page.
+2. **Already paid another way** (bank transfer, cash, card or PayPal outside the site, other): recorded at once as a
+   `manual` payment with the day it was received (noon Seoul time; never in the future) and an optional reference,
+   its tax ledger line(s) on that day, the AC tags and Slack. One payment by hand per order (`provider_ref
+   manual-<order id>`).
+3. **Free**: the order is paid at ₩0 / $0, with no payment and no tax line; the customer still gets the purchase tags
+   (access, onboarding emails). No Slack message. Not with add-ons.
+
+**Also on an unpaid order's page** (any order, from the checkout too): "Record as paid" (same as 2) and "Cancel order"
+(its link stops working; a payment that still arrives is recorded as usual).
+
+**Decisions taken while building (change them if Ashley wants otherwise)**
+
+- Amounts still come from `pricing.quote()`: the admin picks product, pricing option, add-ons and currency, and may
+  set a **special price for the product** (never above its price); add-ons keep their price. The difference is the
+  order's discount. No coupon on orders made by hand (the special price does that job).
+- A closed product can be sold by hand (a late joiner); a draft or an add-on-only product can't.
+- Pay in full only, like the checkout (instalments come with phase 3's instalment work).
+- A payment link in won needs the customer's mobile number (CiderPay's payment page uses it); in dollars it doesn't.
+- An existing customer keeps the details the admin leaves empty (the order copies them).
+- The link page has **no GTM and no analytics**: its address is the order's key (like the student pages). The
+  thank-you page after paying still has them, as for every purchase.
+- Refunds of a payment made by hand can only be **recorded** (give the money back yourself first).
+- New Korean strings in `copy.ko.js` (`payLink`): written in the checkout's 해요체; Ashley may want to reword them.
+
+**To test with Alex**: New order → the ₩1,000 test product, special price ₩900, "Send a payment link", Alex's email and
+mobile → copy the link, open it on a phone, pay ₩900 by card → the order is paid, with its tax line and AC tags. Then
+New order → same product, "Already paid another way" (bank transfer, today) → paid at once, tax line dated today.
+Refund both (the first through CiderPay, the second "Record a refund made by hand").
+

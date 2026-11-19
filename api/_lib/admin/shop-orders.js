@@ -1,6 +1,6 @@
 /*
- * Shop admin API: overview and orders (read-only in phase 1; actions are routed by api/admin.js).
- * Orders are created by the checkout (phase 2) and the WooCommerce import (phase 4). Plan: docs/commerce-plan.md.
+ * Shop admin API: overview and orders (actions are routed by api/admin.js). Orders are created by the checkout,
+ * by hand in the admin (shop-manual.js) and by the WooCommerce import (phase 4). Plan: docs/commerce-plan.md.
  */
 const db = require('../db.js');
 const ledger = require('../shop/ledger.js');
@@ -75,7 +75,11 @@ const actions = {
     const refundable = refunds.REFUNDABLE.includes(order.status)
       ? payments.filter((p) => p.kind === 'payment').map((p) => ({ payment_id: p.id, provider: p.provider, amount: p.amount, left: Math.max(0, left.get(p.id) || 0) })).filter((p) => p.left > 0)
       : [];
-    return { order, items, payments, instalments, ledger: lines, outbox, notices, refunds: refundRows, refundable };
+    // An order made in the admin: its payment link while it can be paid, and how long it works.
+    const full = await db.one('SELECT origin, provider, status, paid_at, created_at, token FROM shop_orders WHERE id = $1', [id]);
+    const manualLink = require('./shop-manual.js').linkOf(full);
+    const link = manualLink ? { url: manualLink, last_day: require('../shop/manual.js').linkLastDay(full) } : null;
+    return { order, items, payments, instalments, ledger: lines, outbox, notices, refunds: refundRows, refundable, link, unpaid: ['created', 'awaiting_payment', 'expired', 'cancelled'].includes(order.status) };
   },
 
   // Provider notices that were refused, failed, or brought a second payment: the ones a person should look at.

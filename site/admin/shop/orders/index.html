@@ -15,7 +15,49 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="admin-bar"></header>
 <main id="main" class="admin-main admin-main--wide">
-  <h1>Orders</h1>
+  <div class="admin-head">
+    <h1>Orders</h1>
+    <button data-tip="Make an order by hand: send the customer a payment link, record a payment made another way (bank transfer…), or give the program for free" class="btn-sm" type="button" id="new-open">New order</button>
+  </div>
+
+  <section class="admin-card" id="new" hidden aria-labelledby="new-title">
+    <div class="admin-head">
+      <h2 id="new-title">New order</h2>
+      <button data-tip="Close the new order form without saving" class="btn-ghost" type="button" id="new-close">Close</button>
+    </div>
+    <p class="muted small">The amounts come from the product, like at the checkout. A special price applies to the product (or option) only; add-ons keep their price. The product doesn’t need to be on sale.</p>
+    <form class="admin-form" id="new-form" novalidate>
+      <label>Product <select name="product" required></select></label>
+      <label id="new-option-wrap" hidden>Pricing option <select name="option"></select></label>
+      <label>Currency <select name="currency" required></select></label>
+      <label>Special price <span class="hint" id="new-price-hint">empty = the product’s price</span><input name="price" inputmode="decimal" autocomplete="off"></label>
+      <fieldset class="admin-form__wide" id="new-addons-wrap" hidden><legend class="small"><strong>Add-ons</strong></legend><div class="check-grid" id="new-addons"></div></fieldset>
+
+      <p class="admin-form__wide"><strong>Customer</strong> <span class="muted small">An existing customer keeps the details you leave empty.</span></p>
+      <label>Email <input name="email" type="email" required maxlength="254" autocomplete="off" spellcheck="false"></label>
+      <label>Name <input name="name" required maxlength="60" autocomplete="off"></label>
+      <label>Mobile number <span class="hint">needed for a payment link in won; 010-… or +1 415…</span><input name="phone" maxlength="30" autocomplete="off" inputmode="tel"></label>
+
+      <fieldset class="admin-form__wide"><legend class="small"><strong>How is it paid?</strong></legend>
+        <label class="check-ac"><input type="radio" name="how" value="link" checked> Send a payment link <span class="hint">The customer opens the link and pays by card (won) or PayPal (dollars). It works for <span id="new-days">14</span> days.</span></label>
+        <label class="check-ac"><input type="radio" name="how" value="paid"> Already paid another way <span class="hint">Bank transfer, cash…: recorded now, with its tax line and the customer’s ActiveCampaign tags.</span></label>
+        <label class="check-ac"><input type="radio" name="how" value="free"> Free <span class="hint">No payment and no tax line. The customer still gets the purchase tags (access, onboarding emails).</span></label>
+      </fieldset>
+      <div class="admin-form__wide admin-form" id="new-paid" hidden style="margin-top:0">
+        <label>Received by <select name="method"></select></label>
+        <label>Date received <input name="received" type="date"></label>
+        <label>Reference <span class="hint">optional: bank name, transfer note…</span><input name="reference" maxlength="200" autocomplete="off"></label>
+      </div>
+      <label class="admin-form__wide">Note <span class="hint">for the admin only</span><textarea name="note" maxlength="1000" rows="2" style="min-height:60px"></textarea></label>
+
+      <div class="admin-form__wide" id="new-quote" aria-live="polite"></div>
+      <div class="admin-form__actions">
+        <button data-tip="Create this order. A payment link is shown to copy and send; an order already paid or free is recorded now" class="btn" type="submit">Create order</button>
+      </div>
+      <p class="admin-form__result" role="status" aria-live="polite" id="new-out"></p>
+    </form>
+    <div id="new-done" hidden></div>
+  </section>
 
   <form class="filters" id="filters" role="search">
     <label>Search <input type="search" name="q" placeholder="Order number, email or name" maxlength="100"></label>
@@ -60,7 +102,7 @@
         form.status.innerHTML = '<option value="">All</option>' + r.statuses.map(function (s) { return '<option value="' + s + '">' + LABEL[s] + '</option>'; }).join('');
       }
       if (!r.orders.length) {
-        list.innerHTML = '<p class="admin-empty">' + (form.q.value || form.status.value || form.product.value ? 'No order matches.' : 'No order yet. Orders appear here once the checkout is live, and past WooCommerce orders once they are imported.') + '</p>';
+        list.innerHTML = '<p class="admin-empty">' + (form.q.value || form.status.value || form.product.value ? 'No order matches.' : 'No order yet. Orders appear here once the checkout is live, when you make one by hand (New order), and past WooCommerce orders once they are imported.') + '</p>';
         return;
       }
       list.innerHTML = '<table class="admin-table"><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Product</th><th>Total</th><th>Paid</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
@@ -95,6 +137,7 @@
   var ORIGIN_R = { admin: 'from the admin', provider: 'made in PayPal', recorded: 'recorded by hand' };
   var PROVIDER = { ciderpay: 'CiderPay', paypal: 'PayPal', manual: 'by hand' };
   var current = null; // the order shown, for the refund form
+  var currentByHand = false; // its payments were all recorded by hand: refunds can only be recorded
 
   // Amount typed in the form → smallest unit (won, cents); null when it isn't a valid amount.
   function toUnits(value, cur) {
@@ -117,15 +160,18 @@
     });
     // What's left per payment already subtracts every refund that isn't failed (done or still on its way).
     var left = (r.refundable || []).reduce(function (s, p) { return s + p.left; }, 0);
-    var via = o.provider === 'paypal' ? 'PayPal' : 'CiderPay';
+    var byHand = currentByHand = (r.refundable || []).length > 0 && r.refundable.every(function (p) { return p.provider === 'manual'; });
+    var via = byHand ? 'bank transfer' : o.provider === 'paypal' ? 'PayPal' : 'CiderPay';
     var form = left > 0
       ? '<form class="admin-form refund-form" id="refund-form" novalidate>' +
           '<p class="admin-form__wide muted small">Left to refund: <strong>' + Admin.money(left, cur) + '</strong>. A full refund removes the purchase tags in ActiveCampaign, adds <code>refund_…</code> and ends podcast access; a partial one adds <code>refund_partial_…</code> and keeps them.</p>' +
           '<label>Amount (' + (cur === 'USD' ? '$' : '₩') + ') <span class="hint">all of it, or part</span><input name="amount" inputmode="decimal" required value="' + fromUnits(left, cur) + '"></label>' +
           '<label class="admin-form__wide">Reason <span class="hint">kept with the refund and in the tax records</span><input name="reason" maxlength="300" required placeholder="e.g. 환불 요청 (14일 이내)"></label>' +
           '<div class="admin-form__actions">' +
-            '<button data-tip="Send this amount back to the buyer through ' + via + ' now. Then the order, the tax lines, ActiveCampaign and podcast access follow" class="btn-danger" type="submit" name="how" value="provider">Refund through ' + via + '</button>' +
-            '<button data-tip="The money was already given back at ' + via + ' (its dashboard) or by bank transfer: record it here without calling ' + via + '" class="btn-ghost" type="submit" name="how" value="record">Record a refund made at ' + via + '</button>' +
+            (byHand ? '' : '<button data-tip="Send this amount back to the buyer through ' + via + ' now. Then the order, the tax lines, ActiveCampaign and podcast access follow" class="btn-danger" type="submit" name="how" value="provider">Refund through ' + via + '</button>') +
+            (byHand
+              ? '<button data-tip="This order was paid outside the site: give the money back yourself (bank transfer…), then record the refund here" class="btn-ghost" type="submit" name="how" value="record">Record a refund made by hand</button>'
+              : '<button data-tip="The money was already given back at ' + via + ' (its dashboard) or by bank transfer: record it here without calling ' + via + '" class="btn-ghost" type="submit" name="how" value="record">Record a refund made at ' + via + '</button>') +
           '</div><p class="admin-form__result" role="status" aria-live="polite" id="refund-out"></p></form>'
       : '';
     if (!rows.length && !form) return '';
@@ -140,7 +186,7 @@
     var amount = toUnits(f.amount.value, o.currency), reason = f.reason.value.trim();
     if (!amount) { Admin.say(out, 'Type an amount, e.g. ' + (o.currency === 'USD' ? '49.50' : '100000') + '.', true); f.amount.focus(); return; }
     if (!reason) { Admin.say(out, 'Give a reason.', true); f.reason.focus(); return; }
-    var via = o.provider === 'paypal' ? 'PayPal' : 'CiderPay';
+    var via = currentByHand ? 'bank transfer' : o.provider === 'paypal' ? 'PayPal' : 'CiderPay';
     var question = how === 'record'
       ? 'Record a refund of ' + Admin.money(amount, o.currency) + ' already made at ' + via + '? Nothing is sent to ' + via + '. The tax records, ActiveCampaign and podcast access follow.'
       : 'Send ' + Admin.money(amount, o.currency) + ' back to ' + (o.customer_name || 'the buyer') + ' through ' + via + ' now? This can’t be undone.';
@@ -178,10 +224,203 @@
     return rows.length ? '<div class="admin-scroll"><table class="admin-table"><thead><tr>' + head.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>' : '<p class="admin-empty">' + empty + '</p>';
   }
 
+  function paidWith(o, r) {
+    var byHand = r.payments.filter(function (p) { return p.provider === 'manual' && p.kind === 'payment'; })[0];
+    if (byHand) return 'By hand · ' + Admin.esc(byHand.method);
+    if (o.paid_at && o.total === 0) return 'Free (given in the admin)';
+    return o.provider === 'paypal' ? 'PayPal' : o.provider === 'ciderpay' ? 'Card (CiderPay)' : '–';
+  }
+
+  // ---------- An unpaid order: its payment link, record it as paid by hand, cancel it ----------
+  var METHODS = {};
+  // What the New order form offers (products, payment providers, how money can be received); also used by the order detail.
+  var formReady = Admin.get('shop-manual-form').then(function (r) { METHODS = r.methods; return r; }).catch(function () { return null; });
+  function methodOptions() {
+    return Object.keys(METHODS).map(function (k) { return '<option value="' + k + '">' + Admin.esc(METHODS[k]) + '</option>'; }).join('');
+  }
+  function todaySeoul() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date()); }
+
+  function unpaidBlock(o, r) {
+    if (!r.unpaid) return '';
+    var link = r.link
+      ? '<p class="admin-form__wide">Payment link <span class="muted small">(works until ' + Admin.esc(r.link.last_day) + ')</span><br><code class="wrap" id="pay-link">' + Admin.esc(r.link.url) + '</code></p>' +
+        '<div class="admin-actions"><button data-tip="Copy the payment link to send to the customer (email, KakaoTalk…)" class="btn-ghost" type="button" data-copy-link="' + Admin.esc(r.link.url) + '">Copy link</button>' +
+        '<a class="btn-ghost" href="' + Admin.esc(r.link.url) + '" target="_blank" rel="noopener" data-tip="Open the page the customer sees (nothing is paid until they press the button)">Open the page</a></div>'
+      : '';
+    var canRecord = o.plan === 'full' && o.due_today > 0;
+    var canCancel = o.status !== 'cancelled';
+    return '<h3 class="admin-h3">Not paid yet</h3>' + link +
+      (canRecord ? '<form class="admin-form" id="markpaid-form" novalidate>' +
+        '<p class="admin-form__wide muted small">Paid another way (bank transfer, cash…)? Record ' + Admin.money(o.due_today, o.currency) + ' as received: the order is paid, with its tax line, and the customer gets their ActiveCampaign tags.</p>' +
+        '<label>Received by <select name="method">' + methodOptions() + '</select></label>' +
+        '<label>Date received <input name="received" type="date" value="' + todaySeoul() + '" max="' + todaySeoul() + '"></label>' +
+        '<label>Reference <span class="hint">optional</span><input name="reference" maxlength="200" autocomplete="off"></label>' +
+        '<div class="admin-form__actions"><button data-tip="Record the whole amount as received outside the site" class="btn" type="submit">Record as paid</button>' +
+        (canCancel ? '<button data-tip="This order won’t be paid: cancel it (its payment link stops working). A payment that still arrives is recorded" class="btn-ghost" type="button" data-cancel="' + o.id + '">Cancel order</button>' : '') +
+        '</div><p class="admin-form__result" role="status" aria-live="polite" id="markpaid-out"></p></form>'
+        : canCancel ? '<p><button data-tip="This order won’t be paid: cancel it. A payment that still arrives is recorded" class="btn-ghost" type="button" data-cancel="' + o.id + '">Cancel order</button></p>' : '');
+  }
+
+  document.getElementById('detail-body').addEventListener('submit', function (ev) {
+    if (ev.target.id !== 'markpaid-form') return;
+    ev.preventDefault();
+    var f = ev.target, o = current, out = document.getElementById('markpaid-out');
+    if (!confirm('Record ' + Admin.money(o.due_today, o.currency) + ' received by ' + f.method.options[f.method.selectedIndex].text + ' for order #' + o.number + '? The tax record and ActiveCampaign follow.')) return;
+    Array.prototype.forEach.call(f.querySelectorAll('button'), function (b) { b.disabled = true; });
+    Admin.say(out, 'Recording…');
+    Admin.post('shop-order-mark-paid', { order: o.id, method: f.method.value, received: f.received.value, reference: f.reference.value.trim() })
+      .then(function () { return show(o.id).then(load); })
+      .catch(function (err) { Admin.say(out, err.message, true); Array.prototype.forEach.call(f.querySelectorAll('button'), function (b) { b.disabled = false; }); });
+  });
+
+  document.getElementById('detail-body').addEventListener('click', function (ev) {
+    var c = ev.target.closest('[data-copy-link]');
+    if (c) {
+      var url = c.getAttribute('data-copy-link');
+      (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function () { c.textContent = 'Copied'; setTimeout(function () { c.textContent = 'Copy link'; }, 1500); })
+        .catch(function () { window.prompt('Copy the payment link:', url); });
+      return;
+    }
+    var b = ev.target.closest('[data-cancel]');
+    if (!b) return;
+    var reason = window.prompt('Cancel order #' + current.number + '? Its payment link stops working.\nReason (optional):', '');
+    if (reason === null) return;
+    b.disabled = true;
+    Admin.post('shop-order-cancel', { order: b.dataset.cancel, reason: reason }).then(function () { return show(current.id).then(load); })
+      .catch(function (err) { alert(err.message); b.disabled = false; });
+  });
+
+  // ---------- New order ----------
+  var newCard = document.getElementById('new'), nf = document.getElementById('new-form'), nOut = document.getElementById('new-out');
+  var nQuote = document.getElementById('new-quote'), nDone = document.getElementById('new-done');
+  var PRODUCTS = [], PROVIDERS = [];
+  var quoteTimer = null, quoteSeq = 0;
+
+  function productNow() { return PRODUCTS.filter(function (p) { return String(p.id) === nf.product.value; })[0] || null; }
+  function optionNow(p) { return p && p.options.length ? p.options.filter(function (o) { return o.key === nf.option.value; })[0] || p.options[0] : null; }
+  function priceOf(x, cur) { return x ? (cur === 'USD' ? x.price_usd : x.price_krw) : null; }
+
+  function fillProduct() {
+    var p = productNow();
+    var optWrap = document.getElementById('new-option-wrap');
+    optWrap.hidden = !(p && p.options.length);
+    nf.option.innerHTML = p && p.options.length ? p.options.map(function (o) { return '<option value="' + Admin.esc(o.key) + '">' + Admin.esc(o.label || o.key) + '</option>'; }).join('') : '';
+    fillCurrency();
+    var addWrap = document.getElementById('new-addons-wrap');
+    addWrap.hidden = !(p && p.addons.length);
+    document.getElementById('new-addons').innerHTML = p ? p.addons.map(function (a) {
+      return '<label class="check-ac"><input type="checkbox" name="addon" value="' + a.id + '"> ' + Admin.esc(a.name) + ' <span class="hint" data-addon-price="' + a.id + '"></span></label>';
+    }).join('') : '';
+    fillPrices();
+  }
+  function fillCurrency() {
+    var p = productNow(), src = optionNow(p) || p, keep = nf.currency.value;
+    var curs = ['KRW', 'USD'].filter(function (c) { return src && priceOf(src, c) != null; });
+    nf.currency.innerHTML = curs.map(function (c) { return '<option value="' + c + '">' + (c === 'KRW' ? 'KRW (won)' : 'USD (dollars)') + '</option>'; }).join('');
+    if (curs.indexOf(keep) >= 0) nf.currency.value = keep;
+  }
+  function fillPrices() {
+    var p = productNow(), cur = nf.currency.value, src = optionNow(p) || p, price = priceOf(src, cur);
+    document.getElementById('new-price-hint').textContent = price == null ? 'no price in this currency' : 'empty = ' + Admin.money(price, cur);
+    nf.price.placeholder = cur === 'USD' ? 'e.g. 1990.00' : 'e.g. 2000000';
+    (p ? p.addons : []).forEach(function (a) {
+      var el = document.querySelector('[data-addon-price="' + a.id + '"]'), ap = priceOf(a, cur);
+      if (el) el.textContent = ap == null ? '(no ' + cur + ' price)' : Admin.money(ap, cur);
+    });
+    queueQuote();
+  }
+  function howNow() { var r = nf.querySelector('input[name="how"]:checked'); return r ? r.value : 'link'; }
+  function formData() {
+    var cur = nf.currency.value;
+    return {
+      product: nf.product.value, option: nf.option.value, currency: cur, how: howNow(),
+      price: nf.price.value.trim(),
+      addons: Array.prototype.map.call(nf.querySelectorAll('input[name="addon"]:checked'), function (x) { return x.value; }),
+      customer: { email: nf.email.value.trim(), name: nf.name.value.trim(), phone: nf.phone.value.trim() },
+      method: nf.method.value, received: nf.received.value, reference: nf.reference.value.trim(), note: nf.note.value.trim(),
+    };
+  }
+  function queueQuote() { clearTimeout(quoteTimer); quoteTimer = setTimeout(quote, 250); }
+  function quote() {
+    if (!nf.product.value || !nf.currency.value) { nQuote.innerHTML = ''; return; }
+    var seq = ++quoteSeq, d = formData();
+    Admin.post('shop-manual-quote', d).then(function (r) {
+      if (seq !== quoteSeq) return;
+      var q = r.quote, cur = q.currency;
+      nQuote.innerHTML = '<dl class="facts">' + q.items.map(function (i) { return fact((i.kind === 'addon' ? 'Add-on: ' : '') + Admin.esc(i.name), Admin.money(i.amount, cur)); }).join('') +
+        (q.discount ? fact('Special price', Admin.money(-q.discount, cur) + ' <span class="small muted">off the product</span>') : '') +
+        fact('<strong>Total</strong>', '<strong>' + Admin.money(q.total, cur) + '</strong> <span class="small muted">VAT ' + Admin.money(q.vat, cur) + ' included</span>') + '</dl>';
+    }).catch(function (err) { if (seq === quoteSeq) nQuote.innerHTML = '<p class="is-error">' + Admin.esc(err.message) + '</p>'; });
+  }
+  function showHow() {
+    var how = howNow();
+    document.getElementById('new-paid').hidden = how !== 'paid';
+    nf.price.disabled = how === 'free';
+    queueQuote();
+  }
+
+  nf.product.addEventListener('change', fillProduct);
+  nf.option.addEventListener('change', function () { fillCurrency(); fillPrices(); });
+  nf.currency.addEventListener('change', fillPrices);
+  nf.price.addEventListener('input', queueQuote);
+  nf.addEventListener('change', function (ev) { if (ev.target.name === 'addon') queueQuote(); if (ev.target.name === 'how') showHow(); });
+
+  document.getElementById('new-open').addEventListener('click', function () {
+    newCard.hidden = false; nDone.hidden = true; nf.hidden = false;
+    var ready = PRODUCTS.length ? Promise.resolve() : formReady.then(function (r) { return r || Admin.get('shop-manual-form'); }).then(function (r) {
+      PRODUCTS = r.products; PROVIDERS = r.providers; METHODS = r.methods;
+      document.getElementById('new-days').textContent = r.linkDays;
+      nf.product.innerHTML = PRODUCTS.map(function (p) { return '<option value="' + p.id + '">' + Admin.esc(p.name) + (p.status === 'open' ? '' : ' (closed)') + '</option>'; }).join('');
+      nf.method.innerHTML = methodOptions();
+      nf.received.value = nf.received.max = todaySeoul();
+      if (!PRODUCTS.length) Admin.say(nOut, 'No product yet: create one on the Products page.', true);
+      fillProduct();
+    });
+    ready.then(function () { newCard.scrollIntoView({ behavior: 'smooth', block: 'start' }); nf.product.focus(); }).catch(function (err) { Admin.say(nOut, err.message, true); });
+  });
+  document.getElementById('new-close').addEventListener('click', function () { newCard.hidden = true; });
+
+  nf.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var d = formData(), how = d.how;
+    if (!d.customer.email || !d.customer.name) { Admin.say(nOut, 'Give the customer’s email and name.', true); (d.customer.email ? nf.name : nf.email).focus(); return; }
+    if (how === 'link' && d.currency === 'KRW' && PROVIDERS.indexOf('ciderpay') < 0) { Admin.say(nOut, 'CiderPay is not set up on this site: a payment link in won can’t be paid.', true); return; }
+    if (how === 'link' && d.currency === 'USD' && PROVIDERS.indexOf('paypal') < 0) { Admin.say(nOut, 'PayPal is not set up on this site: a payment link in dollars can’t be paid.', true); return; }
+    var what = how === 'link' ? 'Create the order and its payment link for ' + d.customer.name + '?' : how === 'paid' ? 'Record this order as paid by ' + d.customer.name + '? The tax record and ActiveCampaign follow.' : 'Give this program to ' + d.customer.name + ' for free? They get the purchase tags in ActiveCampaign.';
+    if (!confirm(what)) return;
+    var btn = nf.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    Admin.say(nOut, 'Creating…');
+    Admin.post('shop-manual-create', d).then(function (r) {
+      btn.disabled = false;
+      Admin.say(nOut, '');
+      nf.reset(); nf.received.value = todaySeoul(); fillProduct(); showHow();
+      nf.hidden = true; nDone.hidden = false;
+      nDone.innerHTML = '<p><strong>Order #' + r.order.number + ' created</strong> · ' + Admin.money(r.order.total, r.order.currency) + ' · ' + (r.link ? 'waiting for payment' : 'paid') + '</p>' +
+        (r.link ? '<p>Send this payment link to the customer:<br><code class="wrap">' + Admin.esc(r.link) + '</code></p>' +
+          '<div class="admin-actions"><button data-tip="Copy the payment link" class="btn-ghost" type="button" data-copy-link="' + Admin.esc(r.link) + '">Copy link</button></div>' : '') +
+        '<div class="admin-actions" style="margin-top:12px"><button data-tip="Open this order below" class="btn-ghost" type="button" data-open="' + r.order.id + '">Open the order</button>' +
+        '<button data-tip="Make another order by hand" class="btn-ghost" type="button" id="new-again">New order</button></div>';
+      load();
+    }).catch(function (err) { btn.disabled = false; Admin.say(nOut, err.message, true); });
+  });
+  nDone.addEventListener('click', function (ev) {
+    var c = ev.target.closest('[data-copy-link]');
+    if (c) {
+      var url = c.getAttribute('data-copy-link');
+      (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function () { c.textContent = 'Copied'; setTimeout(function () { c.textContent = 'Copy link'; }, 1500); })
+        .catch(function () { window.prompt('Copy the payment link:', url); });
+      return;
+    }
+    var o = ev.target.closest('[data-open]');
+    if (o) { show(o.dataset.open); return; }
+    if (ev.target.id === 'new-again') { nDone.hidden = true; nf.hidden = false; nf.product.focus(); }
+  });
+
   function show(id) {
     detail.hidden = false;
     body.innerHTML = '<p class="admin-empty">Loading…</p>';
-    return Admin.get('shop-order', { id: id }).then(function (r) {
+    return formReady.then(function () { return Admin.get('shop-order', { id: id }); }).then(function (r) {
       var o = r.order, cur = o.currency;
       current = o;
       document.getElementById('detail-title').textContent = 'Order #' + o.number;
@@ -195,12 +434,13 @@
           (r.items.length > 1 ? fact('Items', r.items.map(function (i) {
             return (i.kind === 'addon' ? 'Add-on: ' : '') + Admin.esc(i.name) + ' · ' + Admin.money(i.amount, cur) + (i.vat_rule === 'zero' ? ' <span class="small muted">(no VAT)</span>' : '');
           }).join('<br>')) : '') +
-          fact('Paid with', o.provider === 'paypal' ? 'PayPal' : o.provider === 'ciderpay' ? 'Card (CiderPay)' : '–') +
+          fact(o.paid_at ? 'Paid with' : 'Pays with', paidWith(o, r)) +
           fact('Price', Admin.money(o.subtotal, cur) + (o.discount ? ' − ' + Admin.money(o.discount, cur) + ' discount' : '')) +
           (o.coupon_code ? fact('Coupon', '<code>' + Admin.esc(o.coupon_code) + '</code>' + (o.coupon_campaign ? ' · <a href="/admin/shop/coupons">' + Admin.esc(o.coupon_campaign.name) + '</a>' : '')) : '') +
           fact('Total', Admin.money(o.total, cur)) + fact('Received', Admin.money(o.paid_total, cur)) + fact('Refunded', Admin.money(o.refunded_total, cur)) +
           (o.legacy_id ? fact('WooCommerce order', '#' + o.legacy_id) : '') + (o.note ? fact('Note', Admin.esc(o.note)) : '') +
         '</dl>' +
+        unpaidBlock(o, r) +
         (r.instalments.length ? '<h3 class="admin-h3">Instalments</h3>' + table(['#', 'Due', 'Amount', 'Status'], r.instalments.map(function (i) {
           return '<tr><td class="num">' + i.number + '</td><td class="num">' + Admin.kst(i.due_date + 'T00:00:00+09:00', false) + '</td><td class="num">' + Admin.money(i.amount, cur) + '</td><td>' + badge(i.status, INST[i.status]) + (i.error ? ' <span class="small is-error">' + Admin.esc(i.error) + '</span>' : '') + '</td></tr>';
         }), '') : '') +

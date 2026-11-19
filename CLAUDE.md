@@ -225,7 +225,7 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch. 
 
 Plan, decisions and phases: `docs/commerce-plan.md` (phase table at the top; section 10 = the checkout as built and
 Alex's real-payment tests). Built on the `shop` branch. Phase 1 (products, orders, tax ledger) and phase 2 (checkout,
-pay in full) are built; phase 3 has refunds and coupons so far (instalments and manual orders to come). The site's payment
+pay in full) are built; phase 3 has refunds, coupons and orders made by hand so far (instalments to come). The site's payment
 links still go to WordPress until go-live (phase 5).
 **This code takes real money: every change needs `npm test` and `npm run test:shop` to pass, and a browser check.**
 - Pages: `/checkout/<product>` and `/checkout/complete` (rewrites in `vercel.json` → `api/shop-page.js`), rendered on the
@@ -289,7 +289,8 @@ links still go to WordPress until go-live (phase 5).
   rule (1–99% rounded down, or a fixed amount per currency; products; dates; paid orders per email) and the AC tag key
   (`coupon_issued_<key>`, `coupon_used_<key>`; can't change). Codes are shared (anyone, optional max uses) or personal
   (one email, one use, `valid_days` from the day given, last day = Seoul date). A coupon lowers the product's own price
-  only (the option picked, never add-ons; pay in full only) and never to zero. The checkout's "쿠폰이 있으신가요?" box
+  only (the option picked, never add-ons) and never to zero. On an instalment plan (priced, sold once instalments are
+  built) it comes off the plan's total, then every payment goes down in proportion (`pricing.discountedPlan`). The checkout's "쿠폰이 있으신가요?" box
   has its own small GET form (`?coupon=` re-opens the page with it; checkout.js asks `/api/shop?action=coupon` instead);
   the order form carries the applied code in a hidden `coupon`, checked again with the email by `flow.start`
   (`coupons.forOrder`). An unpaid order under an hour old holds a limited code (not for the same email); a payment is
@@ -297,6 +298,12 @@ links still go to WordPress until go-live (phase 5).
   admin (emails, or everyone with an AC tag in the Contacts copy) or by AC's automation Webhook step
   (`/api/shop-callback?p=ac-coupon&k=…&campaign=<key>`, address shown on the campaign); a person holding a working
   code keeps it. AC gets `COUPON_CODE`, `COUPON_EXPIRES`, `COUPON_LINK` first, then the tag.
+- **Orders made by hand** (phase 3, `api/_lib/shop/manual.js`, admin Orders → "New order"; plan section 13):
+  `origin = 'manual'`, priced by `pricing.quote()` with an optional special price for the product (the difference is
+  the discount). Paid by a **payment link** `/checkout/pay/<token>` (14 days, `orders.LINK_DAYS`; no GTM on that page:
+  the token is in its address; card in won needs the customer's mobile), **already paid** (a `manual` payment on the
+  day received, with its tax line), or **free** (paid at 0, no payment, no tax line, AC tags still added). Any unpaid
+  order can be recorded as paid by hand or cancelled from its page. `pay` is a reserved product slug.
 - Env vars: `SHOP_SECRET` (never change once live), `CIDERPAY_*`, `PAYPAL_*`, `SLACK_WEBHOOK_*` (`.env.example`).
   Previews use the PayPal sandbox and need Vercel's "Protection Bypass for Automation" so providers can reach them.
 - The Kakao address search loads from `t1.kakaocdn.net` with no parameters (the script refuses any, with an alert).

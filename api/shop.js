@@ -10,6 +10,8 @@
  *                 option and currency the page shows) or { error: 'coupon', fields: { coupon: <reason> } }.
  *                 Without JavaScript the button opens the checkout again with ?coupon=… (api/shop-page.js applies it).
  *                 The order itself carries the code applied (`coupon`), checked again with the buyer's email.
+ *   POST pay      { o } from a payment link (/checkout/pay/<token>, an order made in the admin) → 303 to the
+ *                 provider's payment page, or back to the link with ?problem=… . The order's amounts are fixed.
  *   GET  status   ?o=<order token> → { status: 'paid' | 'pending' | 'ended' | 'refunded' | 'unknown' }
  *                 (the thank-you page asks until the provider's confirmation has arrived)
  *   POST after    { o, tracked } from the thank-you page: remembers that the purchase event reached GTM,
@@ -23,6 +25,7 @@ const sync = require('./_lib/shop/sync.js');
 const pricing = require('./_lib/shop/pricing.js');
 const page = require('./_lib/shop/page.js');
 const coupons = require('./_lib/shop/coupons.js');
+const manual = require('./_lib/shop/manual.js');
 const { readBody, sendJson, sendHtml, redirect, sameOrigin } = require('./_lib/shop/http.js');
 const { CheckoutError } = orders;
 
@@ -109,6 +112,26 @@ async function addonsByCurrency(product, offers) {
   return out;
 }
 
+// The button of a payment link. Always answers with a redirect: the payment page, or the link with what went wrong.
+async function payLink(req, res) {
+  const { data } = await readBody(req);
+  const order = await orders.byToken(String(data.o || ''));
+  if (!order || order.origin !== 'manual') return sendHtml(res, 404, page.notFoundPage());
+  const back = (problem) => redirect(res, 303, `/checkout/pay/${encodeURIComponent(order.token)}${problem ? `?problem=${problem}` : ''}`);
+  if (manual.linkState(order)) return back('');
+  try {
+    flow.guardDatabase();
+    const product = await flow.productOf(order);
+    const addonCount = (await orders.items(order.id)).filter((i) => i.kind === 'addon').length;
+    const target = await flow.requestPage(order, product, { addonCount, cancelUrl: `${config.payLinkUrl(order.token)}?problem=cancelled` });
+    return redirect(res, 303, target);
+  } catch (err) {
+    if (err instanceof CheckoutError) return back(err.code === 'not_configured' || err.code === 'unavailable' ? err.code : 'provider');
+    console.error('shop: pay link', err);
+    return back('server');
+  }
+}
+
 async function status(req, res, url) {
   const row = await orders.byToken(url.searchParams.get('o'));
   if (!row) return sendJson(res, 404, { status: 'unknown' });
@@ -134,9 +157,10 @@ module.exports = async function handler(req, res) {
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'GET required' });
       return await status(req, res, url);
     }
-    if (action === 'order' || action === 'after' || action === 'coupon') {
+    if (action === 'order' || action === 'after' || action === 'coupon' || action === 'pay') {
       if (req.method !== 'POST') return sendJson(res, 405, { error: 'POST required' });
       if (!sameOrigin(req)) return sendJson(res, 403, { error: 'bad origin' });
+      if (action === 'pay') return await payLink(req, res);
       return action === 'order' ? await order(req, res) : action === 'coupon' ? await coupon(req, res) : await after(req, res);
     }
     return sendJson(res, 404, { error: 'unknown action' });

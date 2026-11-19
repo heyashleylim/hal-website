@@ -78,19 +78,32 @@ async function start({ product, currency, plan, input, source, ipHash }) {
     }
   }
   const order = await orders.createOrder({ product, currency, plan, option: hasOptions ? option : null, billing, addons, coupon, source: validate.sourceInput(source), ipHash });
-  const title = orderTitle(orders.orderName(order), addons.length);
+  try {
+    return { order, redirect: await requestPage(order, product, { addonCount: addons.length }) };
+  } catch (err) {
+    await orders.abandon(order.id, err.message).catch(() => {});
+    throw err;
+  }
+}
+
+/*
+ * Asks the order's provider for a payment page and marks the order as awaiting payment → the page's address.
+ * `cancelUrl`: where PayPal sends a buyer who cancels (default: the product's checkout).
+ * Throws CheckoutError('not_configured' | 'unavailable' | 'provider').
+ */
+async function requestPage(order, product, { addonCount = 0, cancelUrl = null } = {}) {
+  const title = orderTitle(orders.orderName(order), addonCount);
   try {
     if (order.provider === 'paypal') {
-      const created = await paypal.createOrder({ order, productName: title, slug: product.slug });
+      const created = await paypal.createOrder({ order, productName: title, slug: product.slug, cancelUrl });
       await orders.awaitPayment(order.id, created.id);
-      return { order, redirect: created.approveUrl };
+      return created.approveUrl;
     }
-    const page = await ciderpay.requestPayment({ order, productName: title, billing });
+    const page = await ciderpay.requestPayment({ order, productName: title, billing: order.billing || {} });
     await orders.awaitPayment(order.id, page.payUniqueNo);
-    return { order, redirect: page.payUrl };
+    return page.payUrl;
   } catch (err) {
     const code = err instanceof ciderpay.PayError ? (err.code === 'not_configured' ? 'not_configured' : err.code === 'unavailable' ? 'unavailable' : 'provider') : null;
-    await orders.abandon(order.id, err.message).catch(() => {});
     if (!code) throw err;
     console.error(`shop: order ${order.number} could not start payment:`, err.message);
     throw new CheckoutError(code, err.message);
@@ -149,16 +162,27 @@ async function confirm(order, payment, { sendNow = false } = {}) {
       `Order ${order.number} (${order.product_name})`, `Payment ${payment.ref}: recorded in the ledger.`, 'One of the two payments probably needs a refund.']));
     return { outcome, order: result.order };
   }
-  await step('customer update', () => orders.refreshCustomer(result.order));
-  await step('ActiveCampaign queue', () => sync.queuePurchase(result.order, product, payment));
-  await step('Slack', async () => notify.paid(result.order, payment.method, await settings.read(), undefined, await orders.items(order.id)));
+  await afterPaid(result.order, product, payment, { sendNow });
+  return { outcome, order: result.order };
+}
+
+/*
+ * What follows a recorded payment (or an order given for free in the admin): the customer's details, their
+ * ActiveCampaign tags, Slack, the double-payment check. Each step is on its own: none may fail the caller.
+ *   sendNow  also send the ActiveCampaign updates before returning (4 s budget; the rest goes later)
+ *   slack    announce the payment on Slack (not for an order given for free)
+ */
+async function afterPaid(order, product, payment = {}, { sendNow = false, slack = true } = {}) {
+  const step = async (name, fn) => { try { await fn(); } catch (err) { console.error(`shop: order ${order.number}: ${name} failed`, err); } };
+  await step('customer update', () => orders.refreshCustomer(order));
+  await step('ActiveCampaign queue', () => sync.queuePurchase(order, product, payment));
+  if (slack) await step('Slack', async () => notify.paid(order, payment.method, await settings.read(), undefined, await orders.items(order.id)));
   await step('double payment check', async () => {
-    const other = await orders.samePurchaseRecently(result.order);
-    if (other) await notify.attention('the same buyer paid twice for the same product', [`Orders ${other.number} and ${result.order.number} (${order.product_name}), both paid within 24 hours.`, 'If it was a mistake, refund one at the provider.']);
+    const other = await orders.samePurchaseRecently(order);
+    if (other) await notify.attention('the same buyer paid twice for the same product', [`Orders ${other.number} and ${order.number} (${order.product_name}), both paid within 24 hours.`, 'If it was a mistake, refund one at the provider.']);
   });
   // A short budget: the provider is waiting for our answer. Whatever isn't sent now goes from the thank-you page or the daily job.
   if (sendNow) await step('ActiveCampaign send', () => sync.process({ orderId: order.id, budgetMs: 4000 }));
-  return { outcome, order: result.order };
 }
 
 /*
@@ -214,4 +238,4 @@ async function receiptUrl(orderId) {
   return row ? row.receipt_url : '';
 }
 
-module.exports = { orderTitle, start, confirm, settlePaypal, confirmCapture, productOf, receiptUrl, providers, ensureSynced, repairSync };
+module.exports = { orderTitle, start, confirm, afterPaid, requestPage, guardDatabase, settlePaypal, confirmCapture, productOf, receiptUrl, providers, ensureSynced, repairSync };

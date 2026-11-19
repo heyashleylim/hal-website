@@ -198,6 +198,11 @@
 .co-facts dt{color:var(--muted);font-size:14px;flex:none}
 .co-facts dd{margin:0;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
 .co-thanks{font-size:16px;line-height:1.7}
+/* A payment link (/checkout/pay/<token>): the order's facts, then one button. */
+.co-paylink__form{width:100%;display:grid;margin-top:8px}
+.co-paylink .co-pay{margin-top:0}
+.co-paylink .co-consent{margin-top:0}
+.co-paylink .co-problem{width:100%;text-align:left}
 .co-spinner{width:44px;height:44px;border:4px solid var(--line-soft);border-top-color:var(--accent);border-radius:50%;animation:co-spin 1s linear infinite}
 .co-pending.is-slow .co-spinner{display:none}
 @keyframes co-spin{to{transform:rotate(360deg)}}

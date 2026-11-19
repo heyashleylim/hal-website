@@ -2,6 +2,7 @@
  * The shop's pages (rewrites in vercel.json):
  *   GET /checkout/<product>   → ?view=checkout&slug=<product>   the checkout form
  *   GET /checkout/complete    → ?view=complete&o=<order token>  where the buyer lands after the payment page
+ *   GET /checkout/pay/<token> → ?view=pay&o=<order token>       the payment link of an order made in the admin
  *
  * Server-rendered (api/_lib/shop/page.js). The thank-you page never marks an order paid because someone
  * opened it: only a provider's confirmation does. For PayPal, opening it is the moment we capture the payment
@@ -13,6 +14,7 @@ const pricing = require('./_lib/shop/pricing.js');
 const settings = require('./_lib/shop/settings.js');
 const page = require('./_lib/shop/page.js');
 const coupons = require('./_lib/shop/coupons.js');
+const manual = require('./_lib/shop/manual.js');
 const config = require('./_lib/shop/config.js');
 const { sendHtml, redirect } = require('./_lib/shop/http.js');
 
@@ -79,6 +81,20 @@ async function complete(req, res, url) {
   return sendHtml(res, 200, page.completePage({ order, product, items, receiptUrl, tries, slow: tries >= SLOW_AFTER }));
 }
 
+// A payment link: the order as made in the admin, and a button to its payment page. Paid → the thank-you page.
+async function pay(req, res, url) {
+  const order = await orders.byToken(tokenFrom(url));
+  if (!order || order.origin !== 'manual') return sendHtml(res, 404, page.notFoundPage());
+  const state = manual.linkState(order);
+  if (state === 'paid') return redirect(res, 303, `/checkout/complete?o=${encodeURIComponent(order.token)}`);
+  const problem = String(url.searchParams.get('problem') || '');
+  return sendHtml(res, 200, page.payPage({
+    order, items: await orders.items(order.id), state, lastDay: manual.linkLastDay(order),
+    problem: ['cancelled', 'declined', 'provider', 'not_configured', 'unavailable', 'server'].includes(problem) ? problem : '',
+    settings: await settings.read(),
+  }));
+}
+
 module.exports = async function handler(req, res) {
   const url = new URL(req.url, 'http://local');
   const view = url.searchParams.get('view');
@@ -91,6 +107,7 @@ module.exports = async function handler(req, res) {
   }
   try {
     if (view === 'complete') return await complete(req, res, url);
+    if (view === 'pay') return await pay(req, res, url);
     return await checkout(req, res, url);
   } catch (err) {
     console.error('shop-page', err);
