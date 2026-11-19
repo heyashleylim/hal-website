@@ -12,6 +12,8 @@ const flow = require('./_lib/shop/flow.js');
 const pricing = require('./_lib/shop/pricing.js');
 const settings = require('./_lib/shop/settings.js');
 const page = require('./_lib/shop/page.js');
+const coupons = require('./_lib/shop/coupons.js');
+const config = require('./_lib/shop/config.js');
 const { sendHtml, redirect } = require('./_lib/shop/http.js');
 
 const PROBLEMS = new Set(['cancelled', 'declined', 'provider', 'server']);
@@ -29,8 +31,19 @@ async function checkout(req, res, url) {
   const problem = PROBLEMS.has(url.searchParams.get('problem')) ? url.searchParams.get('problem') : '';
   const addons = {};
   for (const cur of [...new Set(offers.map((o) => o.currency))]) addons[cur] = await orders.addonChoices(product, cur);
+  // A code in the link (?coupon=…, as ActiveCampaign emails send it) is applied without typing.
+  let coupon = null;
+  const code = coupons.normalize(url.searchParams.get('coupon'));
+  if (code) {
+    try {
+      coupon = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], ipHash: config.ipHash(req) });
+    } catch (err) {
+      if (!(err instanceof coupons.CouponError)) throw err;
+      coupon = { code, error: err.code === 'too_many' ? 'coupon_unknown' : err.code };
+    }
+  }
   return sendHtml(res, 200, page.checkoutPage({
-    product, offers, currency, problem, addons,
+    product, offers, currency, problem, addons, coupon,
     settings: await settings.read(), query: Object.fromEntries(url.searchParams),
   }));
 }

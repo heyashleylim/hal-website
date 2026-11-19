@@ -56,7 +56,8 @@ const actions = {
   async 'shop-order'(input) {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     const order = await db.one(
-      `SELECT ${ORDER_COLUMNS}, o.billing, o.source, o.note, c.phone, c.country, c.postcode, c.address1, c.address2
+      `SELECT ${ORDER_COLUMNS}, o.billing, o.source, o.note, c.phone, c.country, c.postcode, c.address1, c.address2, o.coupon_code,
+              (SELECT json_build_object('id', k.id, 'name', k.name, 'key', k.key) FROM shop_coupons x JOIN shop_coupon_campaigns k ON k.id = x.campaign_id WHERE x.id = o.coupon_id) AS coupon_campaign
          FROM shop_orders o JOIN shop_customers c ON c.id = o.customer_id WHERE o.id = $1`, [id]);
     if (!order) throw userError('order not found', 404);
     const [items, payments, instalments, lines, outbox, notices, refundRows] = await Promise.all([

@@ -6,7 +6,7 @@
  * On a paid order:
  *   contact   the buyer exists in AC (created with their name if new) and is on the Master Contact List
  *   tag_add   the product's purchase tag (purchased_eft, purchased_nsmb_XX_YYYYMM…) and its extra tags, and the
- *             same for each add-on bought with it
+ *             same for each add-on bought with it; coupon_used_<campaign> when a coupon was used
  *   fields    ORDER_NUMBER, ORDER_PRODUCT, ORDER_DATE, ORDER_TOTAL, ORDER_PLAN, ORDER_RECEIPT_URL
  * A contact field that doesn't exist in AC yet is skipped and reported (it never blocks the tags).
  */
@@ -32,12 +32,14 @@ async function enqueue({ customerId, orderId = null, op, payload = {}, dedupe = 
 
 // What a paid order sends to AC (pure): [{ op, payload, dedupe }].
 // `addons`: the add-on products bought with it; each brings its own purchase tag and extra tags.
-function purchaseOps(order, product, payment = {}, addons = []) {
+// `couponKey`: the key of the coupon campaign used (→ coupon_used_<key>), or ''.
+function purchaseOps(order, product, payment = {}, addons = [], couponKey = '') {
   const key = `o${order.id}`;
   const ops = [{ op: 'contact', payload: { name: (order.billing || {}).name || '' }, dedupe: `${key}:contact` }];
   // The product's tags, the pricing option's own tag (VIP…) and each add-on's.
   const optionTag = order.price_option && order.price_option.tag;
   const tags = [...new Set([...[product, ...(addons || [])].flatMap((p) => [p.purchase_tag, ...(p.extra_tags || [])]), optionTag].map((t) => String(t || '').trim()).filter(Boolean))];
+  if (couponKey) tags.push(`coupon_used_${couponKey}`);
   for (const tag of tags) ops.push({ op: 'tag_add', payload: { tag }, dedupe: `${key}:tag:${tag}` });
   ops.push({
     op: 'fields',
@@ -59,7 +61,9 @@ function purchaseOps(order, product, payment = {}, addons = []) {
 async function queuePurchase(order, product, payment) {
   const addons = await db.query(
     `SELECT p.* FROM shop_order_items i JOIN shop_products p ON p.id = i.product_id WHERE i.order_id = $1 AND i.kind = 'addon' ORDER BY i.position`, [order.id]);
-  for (const x of purchaseOps(order, product, payment, addons)) await enqueue({ customerId: order.customer_id, orderId: order.id, ...x });
+  const coupon = order.coupon_id
+    ? await db.one('SELECT k.key FROM shop_coupons c JOIN shop_coupon_campaigns k ON k.id = c.campaign_id WHERE c.id = $1', [order.coupon_id]) : null;
+  for (const x of purchaseOps(order, product, payment, addons, coupon ? coupon.key : '')) await enqueue({ customerId: order.customer_id, orderId: order.id, ...x });
 }
 
 // The customer's AC contact id: known, found by email, or created (only then is our name used: AC's own

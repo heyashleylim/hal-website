@@ -75,6 +75,18 @@ const copy = {
   },
   paying: '결제 화면으로 이동하고 있어요…',
 
+  // Coupons (phase 3). The toggle line is the one in docs/commerce-plan.md; the rest is new copy, to review.
+  coupon: {
+    toggle: '쿠폰이 있으신가요?',
+    label: '쿠폰 코드',
+    apply: '적용',
+    applying: '확인 중…',
+    remove: '쿠폰 빼기',
+    applied: (code) => `${code} 쿠폰이 적용되었어요.`,
+    line: (code) => `쿠폰 할인 (${code})`,
+    notHere: '지금 선택하신 옵션이나 결제 방법에는 이 쿠폰이 적용되지 않아요.',
+  },
+
   // Field problems. Keys are the codes api/_lib/shop/validate.js returns.
   errors: {
     name_required: '이름을 입력해 주세요.',
@@ -91,6 +103,15 @@ const copy = {
     address1_long: '주소가 너무 길어요.',
     address2_long: '상세 주소가 너무 길어요.',
     country_required: '국가를 선택해 주세요.',
+    // Coupons: keys are the codes api/_lib/shop/coupons.js returns.
+    coupon_unknown: '사용할 수 없는 쿠폰 코드예요. 다시 확인해 주세요.',
+    coupon_not_started: '아직 사용 기간이 아닌 쿠폰이에요.',
+    coupon_expired: '사용 기간이 지난 쿠폰이에요.',
+    coupon_product: '이 상품에는 사용할 수 없는 쿠폰이에요.',
+    coupon_currency: '선택하신 결제 방법으로는 사용할 수 없는 쿠폰이에요. 다른 결제 방법을 선택해 주세요.',
+    coupon_not_yours: '이 쿠폰은 쿠폰을 받으신 이메일 주소로만 사용할 수 있어요.',
+    coupon_used_up: '사용이 모두 끝난 쿠폰이에요.',
+    coupon_already_used: '이미 사용하신 쿠폰이에요.',
   },
   emailTypo: (suggestion) => `혹시 ${suggestion} 아닌가요?`,
   emailTypoUse: '이 주소로 바꾸기',
@@ -103,6 +124,8 @@ const copy = {
     addon_unavailable: '선택하신 추가 상품은 지금 함께 구매할 수 없어요. 주문 내용을 확인하고 다시 시도해 주세요.',
     option_unavailable: '선택하신 옵션은 지금 구매할 수 없어요. 페이지를 새로 고친 뒤 옵션을 다시 선택해 주세요.',
     currency_changed: '결제 방법에 맞춰 금액을 다시 보여 드려요. 주문 내용을 확인하신 뒤 다시 눌러 주세요.',
+    coupon: '쿠폰을 확인해 주세요.',
+    coupon_applied: '쿠폰이 적용된 금액을 보여 드려요. 주문 내용을 확인하신 뒤 다시 눌러 주세요.',
     too_many: '짧은 시간에 요청이 너무 많았어요. 잠시 후 다시 시도해 주세요.',
     provider: '결제 화면을 여는 중에 문제가 생겼어요. 잠시 후 다시 시도해 주세요. 계속되면 ' + SUPPORT_EMAIL + '으로 알려 주세요.',
     not_configured: '지금은 결제를 진행할 수 없어요. ' + SUPPORT_EMAIL + '으로 알려 주시면 바로 도와드릴게요.',
@@ -128,6 +151,7 @@ const copy = {
   },
 
   complete: {
+    coupon: '쿠폰',
     paidTitle: '결제가 완료되었어요',
     paidLead: (name) => `${name}님, 감사합니다.`,
     order: '주문 번호',

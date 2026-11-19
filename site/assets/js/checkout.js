@@ -353,13 +353,21 @@
     return { amount: o[currency] || 0, vatRule: (data.vatRule || {})[currency] || 'taxable', name: name,
       item: { item_id: data.product.id, item_name: data.product.name, item_variant: o.label || undefined, price: unit(o[currency] || 0), quantity: 1 } };
   }
+  // The coupon applied (data.coupon = { code, off: { optionKey: { KRW, USD } } }), as the server worked it out.
+  // null when this option/currency can't take it (the order would be refused): the page says so.
+  function discountNow() {
+    if (!data.coupon) return 0;
+    var row = data.coupon.off && data.coupon.off[option().key];
+    var off = row ? row[currency] : null;
+    return off == null ? null : off;
+  }
   function addonBox(id) { return form.querySelector('.co-addon__check[data-addon="' + id + '"]'); }
   function addonItem(a) { return { item_id: a.slug, item_name: a.name, price: unit(a[currency].amount), quantity: 1 }; }
   function chosenAddons() { return ADDONS.filter(function (a) { var b = addonBox(a.id); return a[currency] && b && b.checked && !b.disabled; }); }
   function cartItems() { return [main().item].concat(chosenAddons().map(addonItem)); }
   function refreshOrder() {
-    var m = main(), chosen = chosenAddons();
-    var total = m.amount + chosen.reduce(function (sum, a) { return sum + a[currency].amount; }, 0);
+    var m = main(), chosen = chosenAddons(), off = discountNow() || 0;
+    var total = m.amount - off + chosen.reduce(function (sum, a) { return sum + a[currency].amount; }, 0);
     // Prices in the current currency only; add-ons not sold in it are put away (and unticked).
     Array.prototype.forEach.call(form.querySelectorAll('[data-cur]'), function (x) { x.hidden = x.getAttribute('data-cur') !== currency; });
     ADDONS.forEach(function (a) {
@@ -369,7 +377,14 @@
       if (box) { box.disabled = !here; if (!here) box.checked = false; }
       if (row) row.hidden = !(here && box && box.checked);
     });
-    var vat = vatOf([m].concat(chosen.map(function (a) { return a[currency]; })));
+    var vat = vatOf([{ amount: m.amount - off, vatRule: m.vatRule }].concat(chosen.map(function (a) { return a[currency]; })));
+    var discountRow = form.querySelector('[data-discount-row]');
+    if (discountRow) {
+      discountRow.hidden = !off;
+      discountRow.querySelector('[data-discount-name]').textContent = off ? String(T.line || '').replace('{code}', data.coupon.code) : '';
+      discountRow.querySelector('[data-discount]').textContent = off ? money(-off) : '';
+    }
+    couponNote();
     var nameEl = form.querySelector('[data-main-name]'), amountEl = form.querySelector('[data-main-amount]');
     var totalEl = form.querySelector('[data-total]'), vatEl = form.querySelector('[data-vat]');
     if (nameEl) nameEl.textContent = m.name;
@@ -418,6 +433,70 @@
       refreshOrder();
     });
   });
+  // ---------- coupon ----------
+  // "적용" asks the server what the code takes off each price; the order form's hidden `coupon` then carries it.
+  // Without JavaScript the same button opens the page again with ?coupon=… (its own small form).
+  var T = data.couponTexts || {};
+  var couponInput = document.getElementById('co-coupon-code');
+  var couponApplied = document.getElementById('co-coupon-applied');
+  var couponApply = document.getElementById('co-coupon-apply');
+  var couponOk = document.getElementById('coupon-ok');
+  var couponRemove = document.getElementById('co-coupon-remove');
+  var couponBox = document.getElementById('co-coupon');
+  var couponBusy = false;
+  function couponCode(v) { return String(v || '').replace(/\s+/g, '').toUpperCase(); }
+  function couponError(code) {
+    if (!couponInput) return;
+    var box = couponInput.closest('.co-field'), out = document.getElementById('coupon-error');
+    if (box) box.classList.toggle('is-invalid', Boolean(code));
+    if (code) couponInput.setAttribute('aria-invalid', 'true'); else couponInput.removeAttribute('aria-invalid');
+    if (out) out.textContent = code ? (data.errors && data.errors[code]) || (data.errors && data.errors.coupon_unknown) || '' : '';
+    if (code && couponBox) couponBox.open = true;
+  }
+  function couponNote() {
+    if (!couponOk) return;
+    var msg = couponOk.querySelector('[data-coupon-msg]');
+    couponOk.hidden = !data.coupon;
+    if (data.coupon && msg) msg.textContent = discountNow() == null ? T.notHere || '' : String(T.applied || '').replace('{code}', data.coupon.code);
+    if (couponRemove) couponRemove.hidden = !data.coupon;
+  }
+  function setCoupon(c) {
+    data.coupon = c;
+    if (couponApplied) couponApplied.value = c ? c.code : '';
+    if (couponInput) couponInput.value = c ? c.code : '';
+    couponError('');
+    refreshOrder();
+  }
+  // → a promise of true when the code is applied (or cleared), false when it was refused.
+  function applyCoupon() {
+    var code = couponCode(couponInput && couponInput.value);
+    if (!code) { setCoupon(null); return Promise.resolve(true); }
+    if (couponBusy) return Promise.resolve(false);
+    couponBusy = true;
+    if (couponApply) { couponApply.textContent = T.applying || couponApply.textContent; couponApply.setAttribute('aria-disabled', 'true'); }
+    function done() { couponBusy = false; if (couponApply) { couponApply.textContent = T.apply || couponApply.textContent; couponApply.removeAttribute('aria-disabled'); } }
+    return post('coupon', { slug: data.slug, code: code }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (b) {
+        done();
+        if (res.ok && b && b.coupon) {
+          setCoupon({ code: b.coupon.code, off: b.coupon.off });
+          window.dataLayer.push({ event: 'coupon_applied', coupon: b.coupon.code });
+          return true;
+        }
+        if (b && b.error === 'too_many') { say('too_many'); return false; }
+        couponError((b && b.fields && b.fields.coupon) || 'coupon_unknown');
+        return false;
+      });
+    }).catch(function () { done(); say('network'); return false; });
+  }
+  var couponForm = document.getElementById('co-coupon-form');
+  if (couponForm) couponForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    applyCoupon().then(function (ok) { if (!ok && couponInput) couponInput.focus(); });
+  });
+  if (couponRemove) couponRemove.addEventListener('click', function () { setCoupon(null); if (couponInput) couponInput.focus(); });
+  if (couponInput) couponInput.addEventListener('input', function () { if (couponInput.getAttribute('aria-invalid')) couponError(''); });
+
   function syncCurrency() { var r = form.querySelector('input[name="currency"]:checked'); if (r) currency = r.value; }
 
   // ---------- submit ----------
@@ -430,7 +509,8 @@
   function fail(code, fields) {
     setBusy(false);
     var first = null;
-    if (fields) Object.keys(fields).forEach(function (n) { show(n, fields[n]); if (!first && input(n)) first = input(n); });
+    if (fields && fields.coupon) { couponError(fields.coupon); first = couponInput; }
+    if (fields) Object.keys(fields).forEach(function (n) { if (n === 'coupon') return; show(n, fields[n]); if (!first && input(n)) first = input(n); });
     say(code || 'server');
     if (first && first.hasAttribute('readonly') && search && !search.hidden) search.focus();
     else if (first) first.focus();
@@ -448,6 +528,14 @@
       else input(first).focus();
       return;
     }
+    // A code typed (or changed) but not applied yet: apply it first and show the new price before paying.
+    if (couponInput && couponCode(couponInput.value) !== (data.coupon ? data.coupon.code : '')) {
+      applyCoupon().then(function (ok) {
+        if (ok && data.coupon) { say('coupon_applied'); button.focus(); }
+        else if (couponInput) couponInput.focus();
+      });
+      return;
+    }
     say('');
     setBusy(true);
     save();
@@ -458,7 +546,7 @@
       body[f.name] = f.value;
     });
     window.dataLayer.push({ ecommerce: null });
-    window.dataLayer.push({ event: 'add_payment_info', ecommerce: { currency: currency, value: data.value, payment_type: currency === 'USD' ? 'paypal' : 'card', items: cartItems() } });
+    window.dataLayer.push({ event: 'add_payment_info', ecommerce: { currency: currency, value: data.value, coupon: data.coupon ? data.coupon.code : undefined, payment_type: currency === 'USD' ? 'paypal' : 'card', items: cartItems() } });
 
     var controller = window.AbortController ? new AbortController() : null;
     var timer = setTimeout(function () { if (controller) controller.abort(); }, 30000);

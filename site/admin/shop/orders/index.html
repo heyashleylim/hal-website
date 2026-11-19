@@ -197,6 +197,7 @@
           }).join('<br>')) : '') +
           fact('Paid with', o.provider === 'paypal' ? 'PayPal' : o.provider === 'ciderpay' ? 'Card (CiderPay)' : '–') +
           fact('Price', Admin.money(o.subtotal, cur) + (o.discount ? ' − ' + Admin.money(o.discount, cur) + ' discount' : '')) +
+          (o.coupon_code ? fact('Coupon', '<code>' + Admin.esc(o.coupon_code) + '</code>' + (o.coupon_campaign ? ' · <a href="/admin/shop/coupons">' + Admin.esc(o.coupon_campaign.name) + '</a>' : '')) : '') +
           fact('Total', Admin.money(o.total, cur)) + fact('Received', Admin.money(o.paid_total, cur)) + fact('Refunded', Admin.money(o.refunded_total, cur)) +
           (o.legacy_id ? fact('WooCommerce order', '#' + o.legacy_id) : '') + (o.note ? fact('Note', Admin.esc(o.note)) : '') +
         '</dl>' +
@@ -229,6 +230,9 @@
     form.product.innerHTML = '<option value="">All</option>' + r.products.map(function (p) { return '<option value="' + p.id + '">' + Admin.esc(p.name) + '</option>'; }).join('');
   }).catch(function () {});
   load();
+  // /admin/shop/orders?id=<order> (links from the Coupons page) opens that order.
+  var wanted = new URLSearchParams(location.search).get('id');
+  if (wanted && /^\d+$/.test(wanted)) show(wanted);
 })();
 </script>
 </body>

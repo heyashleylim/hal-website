@@ -270,6 +270,42 @@ function addonsBlock(list, currency, values) {
       </section>`;
 }
 
+/*
+ * "쿠폰이 있으신가요?": the code field and its button, right above the order. The field and the button belong to a
+ * small form of their own (#co-coupon-form, after the order form: forms can't be nested), so pressing Enter in
+ * the buyer's details still pays, and "적용" without JavaScript simply opens the checkout again with ?coupon=…
+ * (the server applies a code in the link). With JavaScript, checkout.js asks the server and updates the order in
+ * place. The order form carries the code applied in its own hidden field `coupon`: only that code is used.
+ */
+function couponBlock(coupon, notHere) {
+  const c = copy.coupon;
+  const applied = coupon && coupon.off ? coupon : null;
+  const error = coupon && coupon.error ? copy.errors[coupon.error] || copy.errors.coupon_unknown : '';
+  const code = coupon ? coupon.code || '' : '';
+  return `<details class="co-coupon" id="co-coupon"${code ? ' open' : ''}>
+        <summary>${esc(c.toggle)}</summary>
+        <div class="co-field co-coupon__field${error ? ' is-invalid' : ''}" data-field="coupon">
+          <label for="co-coupon-code">${esc(c.label)}</label>
+          <div class="co-coupon__row">
+            <input id="co-coupon-code" name="coupon" form="co-coupon-form" type="text" value="${esc(code)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" aria-describedby="coupon-error coupon-ok"${error ? ' aria-invalid="true"' : ''}>
+            <button class="co-coupon__apply" type="submit" form="co-coupon-form" id="co-coupon-apply">${esc(c.apply)}</button>
+          </div>
+          <p class="co-field__error" id="coupon-error" role="alert">${esc(error)}</p>
+          <p class="co-coupon__ok" id="coupon-ok" role="status"${applied ? '' : ' hidden'}><span data-coupon-msg>${esc(applied ? (notHere ? c.notHere : c.applied(applied.code)) : '')}</span> <button class="co-coupon__remove" type="button" id="co-coupon-remove" hidden>${esc(c.remove)}</button></p>
+        </div>
+      </details>
+      <input type="hidden" name="coupon" id="co-coupon-applied" value="${esc(applied ? applied.code : '')}">`;
+}
+
+// The coupon's own form (see couponBlock): opens this checkout again with the code, the payment method and the
+// campaign values of the page.
+function couponForm(product, currency, source) {
+  return `<form id="co-coupon-form" method="get" action="/checkout/${esc(product.slug)}" hidden>
+    <input type="hidden" name="currency" value="${esc(currency.toLowerCase())}">
+    ${Object.entries(source).map(([k, val]) => `<input type="hidden" name="${esc(k)}" value="${esc(val)}">`).join('')}
+  </form>`;
+}
+
 // A choice card (a pricing option or a payment method): a real radio button with its label laid out as a card.
 function choice({ name, value, id, checked, title, price = '', note = '', extra = '' }) {
   return `<div class="co-choice">
@@ -298,8 +334,10 @@ function choice({ name, value, id, checked, title, price = '', note = '', extra 
  *   problem           a code from copy.problems to show above the form
  *   settings          shop settings (checkout_texts)
  *   query             campaign values to carry through the form
+ *   coupon            the coupon applied ({ code, label, off } from coupons.forPage), or { code, error } when the code
+ *                     typed (or in the link) can't be used, or null
  */
-function checkoutPage({ product, offers, currency, addons = {}, values = {}, errors = null, problem = '', settings = {}, query = {} }) {
+function checkoutPage({ product, offers, currency, addons = {}, values = {}, errors = null, problem = '', settings = {}, query = {}, coupon = null }) {
   const offer = offers.find((o) => o.currency === currency) || offers[0];
   currency = offer.currency;
   const currencies = CURRENCY_ORDER.filter((cur) => offers.some((o) => o.currency === cur && o.plan === 'full'));
@@ -319,7 +357,10 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
   // prices the order again on submit.
   const addonList = offer.plan === 'full' ? addonUnion(product, addonsBy, currencies) : [];
   const chosen = addonList.filter((x) => x.by[currency] && ticked(values, x.product.id));
-  const now = pricing.quote(product, { currency, plan: offer.plan, option: optionKey || null, addons: chosen.map((x) => x.product) });
+  const applied = coupon && coupon.off ? coupon : null;
+  const offNow = applied && applied.off[optionKey] ? applied.off[optionKey][currency] : null;
+  const discount = offer.plan === 'full' && offNow != null ? offNow : 0;
+  const now = pricing.quote(product, { currency, plan: offer.plan, option: optionKey || null, addons: chosen.map((x) => x.product), discount });
   const payLabel = copy.pay(money(now.dueToday));
   const vatText = (vat) => (vat > 0 ? copy.summary.vat(money(vat)) : '');
 
@@ -381,9 +422,12 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
     options: (opts.length ? opts : [{ key: '', label: '', price_krw: product.price_krw, price_usd: product.price_usd }])
       .map((o) => ({ key: o.key, label: String(o.label || ''), ...Object.fromEntries(currencies.map((cur) => [cur, pricing.priceIn(o, cur)])) })),
     addons: addonList.map((x) => ({ id: x.product.id, slug: x.product.slug, name: x.product.name, ...Object.fromEntries(currencies.map((cur) => [cur, x.by[cur] ? { amount: x.by[cur].amount, vatRule: x.by[cur].vatRule } : null])) })),
+    coupon: applied && offer.plan === 'full' ? { code: applied.code, off: applied.off } : null,
+    couponTexts: { applied: copy.coupon.applied('{code}'), line: copy.coupon.line('{code}'), notHere: copy.coupon.notHere, apply: copy.coupon.apply, applying: copy.coupon.applying },
   };
 
-  const summaryRows = `<div class="co-order__row"><dt data-main-name>${esc(now.items[0].name)}</dt><dd data-main-amount>${esc(money(now.items[0].amount))}</dd></div>
+  const summaryRows = `<div class="co-order__row"><dt data-main-name>${esc(now.items[0].name)}</dt><dd data-main-amount>${esc(money(now.items[0].amount + now.discount))}</dd></div>
+          <div class="co-order__row co-order__row--discount" data-discount-row${now.discount ? '' : ' hidden'}><dt data-discount-name>${esc(applied ? copy.coupon.line(applied.code) : '')}</dt><dd data-discount>${esc(now.discount ? money(-now.discount) : '')}</dd></div>
           ${addonList.map((x) => `<div class="co-order__row co-order__row--addon" data-line="${esc(x.product.id)}"${chosen.includes(x) ? '' : ' hidden'}>
             <dt>${esc(x.product.name)}<button class="co-order__remove" type="button" data-remove="${esc(x.product.id)}" hidden aria-label="${esc(copy.addons.removeLabel(x.product.name))}">${CROSS}<span aria-hidden="true">${esc(copy.addons.remove)}</span></button></dt>
             <dd>${dual(Object.fromEntries(Object.entries(x.by).map(([cur, y]) => [cur, y.amount])), currency)}</dd></div>`).join('\n          ')}`;
@@ -408,6 +452,8 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
 
       ${addonsBlock(addonList, currency, values)}
 
+      ${offer.plan === 'full' ? couponBlock(coupon, applied && offNow == null) : ''}
+
       <section class="co-order" aria-labelledby="co-order-title">
         <h2 class="co-order__title" id="co-order-title">${esc(copy.summary.title)}</h2>
         <dl>
@@ -421,6 +467,7 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
       ${texts.secure_note ? `<p class="co-secure">${LOCK}<span>${esc(texts.secure_note)}</span></p>` : ''}
       <p class="co-consent">${consentHtml(texts.consent)}</p>
   </form>
+  ${offer.plan === 'full' ? couponForm(product, currency, source) : ''}
   ${side(product, texts)}
 </div>`;
   return layout({ title: `${copy.title} · ${product.name}`, body, data });
@@ -508,7 +555,7 @@ function completePage({ order, product = null, items = [], receiptUrl = '', slow
       complete: 'paid', token: order.token,
       // Sent to GTM once per order (the server remembers when it has been).
       purchase: order.tracked_at ? null : {
-        transaction_id: String(order.number), value, tax: unit(vat), currency: order.currency,
+        transaction_id: String(order.number), value, tax: unit(vat), currency: order.currency, coupon: order.coupon_code || undefined,
         items: sold.map((i) => ({ item_id: i.slug || (product && i.kind === 'main' ? product.slug : String(i.product_id)), item_name: i.name, price: unit(i.amount), quantity: 1 })),
       },
     };
@@ -522,6 +569,7 @@ function completePage({ order, product = null, items = [], receiptUrl = '', slow
     <div><dt>${esc(c.order)}</dt><dd>${esc(order.number)}</dd></div>
     <div><dt>${esc(c.product)}</dt><dd>${esc(order.price_option && order.price_option.label ? `${order.product_name} · ${order.price_option.label}` : order.product_name)}</dd></div>
     ${addons.map((i) => `<div><dt>${esc(c.addon)}</dt><dd>${esc(i.name)}</dd></div>`).join('')}
+    ${order.coupon_code && order.discount ? `<div><dt>${esc(c.coupon)}</dt><dd>${esc(order.coupon_code)} (${esc(pricing.formatMoney(-order.discount, order.currency))})</dd></div>` : ''}
     <div><dt>${esc(c.amount)}</dt><dd>${esc(amount)}</dd></div>
     <div><dt>${esc(c.date)}</dt><dd>${esc(kstDate(order.paid_at))}</dd></div>
   </dl>

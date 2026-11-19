@@ -14,6 +14,7 @@ const notify = require('./notify.js');
 const ciderpay = require('./pay/ciderpay.js');
 const paypal = require('./pay/paypal.js');
 const config = require('./config.js');
+const coupons = require('./coupons.js');
 const { CheckoutError } = orders;
 
 // Payment providers this deployment can use (keys present).
@@ -37,8 +38,8 @@ async function productOf(order) {
 
 /*
  * → { order, redirect } where `redirect` is the provider's payment page.
- * Throws CheckoutError: 'invalid' (with .fields), 'closed', 'unavailable', 'option_unavailable', 'addon_unavailable', 'too_many',
- * 'provider', 'not_configured'.
+ * Throws CheckoutError: 'invalid' (with .fields), 'coupon' (with .fields.coupon), 'closed', 'unavailable', 'option_unavailable',
+ * 'addon_unavailable', 'too_many', 'provider', 'not_configured'.
  */
 async function start({ product, currency, plan, input, source, ipHash }) {
   // First: is this product on sale, in this currency, with this plan? Only then is the form worth checking.
@@ -64,7 +65,19 @@ async function start({ product, currency, plan, input, source, ipHash }) {
   const checked = validate.checkoutInput(input);
   if (!checked.ok) throw new CheckoutError('invalid', 'form', checked.errors);
   const billing = checked.value;
-  const order = await orders.createOrder({ product, currency, plan, option: hasOptions ? option : null, billing, addons, source: validate.sourceInput(source), ipHash });
+  // A coupon: checked again here with the buyer's email (its owner, their earlier uses), whatever the page showed.
+  let coupon = null;
+  const code = coupons.normalize(input && input.coupon);
+  if (code) {
+    try {
+      coupon = await coupons.forOrder({ code, product, optionKey: hasOptions ? option : null, currency, plan, email: billing.email, ipHash });
+    } catch (err) {
+      if (!(err instanceof coupons.CouponError)) throw err;
+      if (err.code === 'too_many') throw new CheckoutError('too_many', 'coupon guesses');
+      throw new CheckoutError('coupon', err.message, { coupon: err.code });
+    }
+  }
+  const order = await orders.createOrder({ product, currency, plan, option: hasOptions ? option : null, billing, addons, coupon, source: validate.sourceInput(source), ipHash });
   const title = orderTitle(orders.orderName(order), addons.length);
   try {
     if (order.provider === 'paypal') {

@@ -66,17 +66,18 @@ function requestedAddons(input) {
 /*
  * Creates the order for one purchase. `billing` is the cleaned form (validate.checkoutInput).
  * `addons`: the add-on products the buyer ticked, each one of addonChoices() (checked by the caller).
+ * `coupon`: { coupon, discount } from coupons.forOrder (checked by the caller), or null.
  * The order and its items are written by one statement.
  * Throws CheckoutError('closed' | 'unavailable' | 'too_many').
  */
-async function createOrder({ product, currency, plan, option = null, billing, addons = [], source = {}, ipHash = null, now = new Date() }) {
+async function createOrder({ product, currency, plan, option = null, billing, addons = [], coupon = null, source = {}, ipHash = null, now = new Date() }) {
   if (!pricing.saleState(product, now).open) throw new CheckoutError('closed');
   if (!offers(product).some((o) => o.currency === currency && o.plan === plan)) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
   // A product with pricing options is only sold with one of them named: never a default the buyer didn't see.
   if (pricing.priceOptions(product).length && !option) throw new CheckoutError('option_unavailable', `no pricing option chosen for ${product.slug}`);
   let offer;
   try {
-    offer = { ...pricing.quote(product, { currency, plan, addons, option }), provider: providerFor(currency) };
+    offer = { ...pricing.quote(product, { currency, plan, addons, option, discount: coupon ? coupon.discount : 0 }), provider: providerFor(currency) };
   } catch (err) {
     if (err instanceof pricing.PricingError) {
       const code = err.code === 'bad_option' || err.code === 'option_plan' ? 'option_unavailable'
@@ -104,8 +105,8 @@ async function createOrder({ product, currency, plan, option = null, billing, ad
   const it = offer.items;
   const order = await db.one(
     `WITH o AS (
-       INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash, price_option)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14, $20::jsonb) RETURNING *),
+       INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash, price_option, coupon_id, coupon_code)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14, $20::jsonb, $21, $22) RETURNING *),
      i AS (
        INSERT INTO shop_order_items (order_id, position, kind, product_id, name, amount, vat_rule)
        SELECT o.id, x.position - 1, x.kind, x.product_id, x.name, x.amount, x.vat_rule
@@ -115,7 +116,7 @@ async function createOrder({ product, currency, plan, option = null, billing, ad
     [config.newToken(), customer.id, product.id, product.name, offer.currency, offer.plan, offer.subtotal, offer.discount, offer.total, offer.dueToday,
       offer.provider, JSON.stringify(billing), JSON.stringify(source), ipHash,
       it.map((x) => x.kind), it.map((x) => x.product_id), it.map((x) => x.name), it.map((x) => x.amount), it.map((x) => x.vatRule),
-      offer.option ? JSON.stringify(offer.option) : null],
+      offer.option ? JSON.stringify(offer.option) : null, coupon ? coupon.coupon.id : null, coupon ? coupon.coupon.code : null],
   );
   if (!order || order.item_count !== it.length) throw new Error('the order and its items were not saved together');
   delete order.item_count;

@@ -4,6 +4,10 @@
  *   POST ?p=ciderpay&k=<key>   CiderPay's "feedback" (form-encoded). The key is ours (config.callbackKey);
  *                              the notice must also carry the order's token and our signature (var1, var2).
  *   POST ?p=paypal             PayPal webhooks, verified with PayPal before anything is believed.
+ *   POST ?p=ac-coupon&k=<key>&campaign=<campaign key>
+ *                              An ActiveCampaign automation's "Webhook" step: give this contact (contact[email]) their
+ *                              own code of the campaign, written to their AC fields and tagged coupon_issued_<key>.
+ *                              A contact who still holds a working code of the campaign gets that one again.
  *
  * Every notice is stored in shop_callbacks with what we did with it. Answers: 200 once handled (also for a
  * repeat), 4xx when the notice is refused, 500 when something failed on our side (so the provider tries again).
@@ -15,6 +19,8 @@ const notify = require('./_lib/shop/notify.js');
 const ciderpay = require('./_lib/shop/pay/ciderpay.js');
 const paypal = require('./_lib/shop/pay/paypal.js');
 const refunds = require('./_lib/shop/refunds.js');
+const coupons = require('./_lib/shop/coupons.js');
+const sync = require('./_lib/shop/sync.js');
 const { readBody, sendJson } = require('./_lib/shop/http.js');
 
 const done = (res, outcome) => sendJson(res, 200, { status: 'ok', outcome });
@@ -114,6 +120,41 @@ async function fromPaypal(req, res, state) {
   return done(res, 'ignored');
 }
 
+// The contact's email from AC's webhook body (form fields contact[email], or JSON { contact: { email } }).
+function acEmail(data) {
+  const c = data.contact && typeof data.contact === 'object' ? data.contact : {};
+  return String(data['contact[email]'] || c.email || data.email || '').trim().toLowerCase();
+}
+
+async function fromAcCoupon(req, res, url, state) {
+  if (!config.safeEqual(url.searchParams.get('k') || '', config.acCouponKey())) return sendJson(res, 403, { status: 'error', message: 'forbidden' });
+  state.verified = true;
+  const { text, data: parsed } = await readBody(req);
+  let data = parsed;
+  if (text && text.trim().startsWith('{')) { try { data = JSON.parse(text); } catch (_) { /* keep the form fields */ } }
+  const key = String(url.searchParams.get('campaign') || '');
+  const email = acEmail(data);
+  const brief = { campaign: key, email };
+  const campaign = await coupons.campaignByKey(key);
+  if (!campaign || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    await orders.logCallback({ provider: 'ac-coupon', outcome: 'rejected', reason: campaign ? 'no contact email in the webhook' : `no coupon campaign "${key}"`, payload: brief });
+    return sendJson(res, campaign ? 400 : 404, { status: 'error', message: campaign ? 'no email' : 'unknown campaign' });
+  }
+  let r;
+  try {
+    r = await coupons.issue(campaign, [email], { by: 'ac', resend: true });
+  } catch (err) {
+    if (!(err instanceof coupons.CouponError)) throw err;
+    await orders.logCallback({ provider: 'ac-coupon', outcome: 'rejected', reason: err.message, payload: brief });
+    return sendJson(res, 409, { status: 'error', message: err.code });
+  }
+  const given = r.created[0] || r.kept[0];
+  await orders.logCallback({ provider: 'ac-coupon', outcome: r.created.length ? 'issued' : 'kept', reason: given ? given.code : '', payload: brief });
+  // Write the fields and the tag now (short budget: AC is waiting); the rest goes with the daily job.
+  try { await sync.process({ budgetMs: 5000 }); } catch (err) { console.error('shop-callback: AC send after coupon', err.message); }
+  return done(res, r.created.length ? 'issued' : 'kept');
+}
+
 module.exports = async function handler(req, res) {
   const url = new URL(req.url, 'http://local');
   const provider = url.searchParams.get('p');
@@ -123,6 +164,7 @@ module.exports = async function handler(req, res) {
     if (!config.configured()) throw new Error('SHOP_SECRET is not set');
     if (provider === 'ciderpay') return await fromCiderpay(req, res, url, state);
     if (provider === 'paypal') return await fromPaypal(req, res, state);
+    if (provider === 'ac-coupon') return await fromAcCoupon(req, res, url, state);
     return sendJson(res, 404, { status: 'error', message: 'unknown provider' });
   } catch (err) {
     console.error('shop-callback', provider, err);

@@ -22,7 +22,7 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 | **0. Inventory** | WordPress exports, the list of what tags AC today, PayPal app + sandbox, accountant's answers. | The open points of section 8 that block a phase are cleared. |
 | **1. Foundations** ✅ 2026-11-10 | Migration `005`, pricing + ledger modules with tests, Shop admin: Products, Orders (read), Settings. | A product can be created in the admin and quoted by the API. |
 | **2. Checkout, pay in full** (built 2026-11-11, section 10) | Checkout page, Kakao search, CiderPay pay-in-full, PayPal, notices, thank-you page, Slack, AC sync for purchases, dataLayer. | A real ₩1,000 payment and a sandbox $ payment go through on a preview, end to end. **Still to do: Alex's tests in section 10.** |
-| **3. Instalments, refunds, coupons** (refunds built 2026-11-19, section 11) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
+| **3. Instalments, refunds, coupons** (refunds and coupons built 2026-11-19, sections 11–12) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
 | **4. Tax & reports + import** | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
 | **5. Go live** | Section 6, steps 3–6. Vercel Pro. | No payment link points to WordPress. |
 | **6. Referrals + `/my`** | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
@@ -742,3 +742,43 @@ unexpected, the refund ends as "failed" (nothing changed) or "check" (say what C
 does a partial cancel's notice carry in `price` (the amount cancelled or the original)? If it is the amount cancelled,
 dashboard cancels could be recorded automatically.
 
+## 12. Phase 3 as built: coupons (2026-11-19)
+
+| Piece | Where |
+|---|---|
+| Rules (pure, unit-tested) and the database side | `api/_lib/shop/coupons.js`; tests `tests/shop/coupons.test.js` |
+| Database | `db/migrations/017_shop_coupons.sql`: `shop_coupon_campaigns`, `shop_coupons`, `shop_orders.coupon_id/coupon_code`, `shop_coupon_misses` |
+| Checkout | "쿠폰이 있으신가요?" above the order (`page.js` `couponBlock`), `?coupon=` in the link, `checkout.js` "적용", `/api/shop?action=coupon` |
+| Admin | Shop → Coupons: campaigns, shared codes, personal codes (emails or an AC tag), code states, CSV, the AC webhook address |
+| ActiveCampaign | `coupon_issued_<key>` + `COUPON_CODE`, `COUPON_EXPIRES`, `COUPON_LINK` (personal codes); `coupon_used_<key>` on a paid order |
+
+**Decisions taken while building (change them if Ashley wants otherwise)**
+
+- A coupon discounts the **product's own price** (the pricing option picked), never the add-ons, and only in pay in
+  full (instalments come later in phase 3). Add-ons are already offers of their own.
+- A percentage is **rounded down** to the won / cent; a discount that would leave nothing to pay is refused (no free
+  orders: CiderPay can't charge ₩0). 100% coupons don't exist.
+- A **use** is a paid order. An order still waiting for payment and under an hour old holds a limited code for
+  everyone else (so two people can't both pay with the last use); the same email starting again isn't blocked.
+  Refunded orders still count as uses (give the person a new code if needed).
+- The **per-person limit** belongs to the campaign (default 1 paid order per email, across all its codes).
+- A **personal code** works for its email only, once, for `valid_days` counting the day it is given, and never past
+  the campaign's end. Someone who already holds a working code of the campaign keeps it rather than getting a second.
+- Without JavaScript, "적용" re-opens the checkout with `?coupon=` (what was typed in the form is lost; with
+  JavaScript nothing is lost). Pressing Enter in the buyer's details still pays.
+- New Korean strings in `copy.ko.js` (`coupon`, the `coupon_*` errors, `problems.coupon` / `coupon_applied`,
+  `complete.coupon`): written in the checkout's 해요체; Ashley may want to reword them.
+
+**Setting up the AC automation that hands out codes**
+
+1. In the admin, create the campaign (Shop → Coupons → New campaign): discount, products, "Days a personal code works",
+   the checkout link.
+2. Create the contact fields `COUPON_CODE`, `COUPON_EXPIRES`, `COUPON_LINK` in ActiveCampaign (text fields).
+3. In the automation: a **Webhook** step posting to the address shown on the campaign, then **Wait until** the contact
+   has the tag `coupon_issued_<key>`, then the email using `%COUPON_CODE%`, `%COUPON_EXPIRES%` and `%COUPON_LINK%`.
+4. Optional: an automation on `coupon_used_<key>` to stop the reminders.
+
+**To test with Alex** (with the ₩1,000 test product of section 10): create a campaign "₩100 off" (fixed amount
+₩100, that product only) with a shared code, open `/checkout/<test product>?coupon=<code>`, check the page shows
+₩900, pay, then check the order (discount ₩100, coupon shown), its tax line (₩900), ActiveCampaign
+(`coupon_used_<key>`), and refund it from the admin (₩900 goes back).

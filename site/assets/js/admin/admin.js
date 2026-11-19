@@ -33,6 +33,7 @@ window.Admin = (function () {
       { title: 'Manage', items: [
         ['/admin/shop/orders', 'Orders'],
         ['/admin/shop/products', 'Products'],
+        ['/admin/shop/coupons', 'Coupons'],
       ] },
       { title: 'Setup', items: [['/admin/shop/settings', 'Settings']] },
     ] },

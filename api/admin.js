@@ -41,6 +41,7 @@ const MODULES = [
   require('./_lib/admin/waitlist.js'),
   require('./_lib/admin/shop-products.js'),
   require('./_lib/admin/shop-orders.js'),
+  require('./_lib/admin/shop-coupons.js'),
   require('./_lib/admin/emails.js'),
   require('./_lib/admin/contacts.js'),
   require('./_lib/admin/program-students.js'),

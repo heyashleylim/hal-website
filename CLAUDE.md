@@ -23,7 +23,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options, 016 refunds), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options, 016 refunds, 017 coupons), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -225,14 +225,14 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch. 
 
 Plan, decisions and phases: `docs/commerce-plan.md` (phase table at the top; section 10 = the checkout as built and
 Alex's real-payment tests). Built on the `shop` branch. Phase 1 (products, orders, tax ledger) and phase 2 (checkout,
-pay in full) are built; phase 3 has refunds so far (instalments, coupons and manual orders to come). The site's payment
+pay in full) are built; phase 3 has refunds and coupons so far (instalments and manual orders to come). The site's payment
 links still go to WordPress until go-live (phase 5).
 **This code takes real money: every change needs `npm test` and `npm run test:shop` to pass, and a browser check.**
 - Pages: `/checkout/<product>` and `/checkout/complete` (rewrites in `vercel.json` → `api/shop-page.js`), rendered on the
   server by `api/_lib/shop/page.js`, in Korean (`copy.ko.js` holds every customer-facing string), `noindex`, with GTM.
   `/checkout`, `/checkout/order-received/*` and `/checkout/order-pay/*` still redirect to WordPress; a product can't use
   those addresses or `complete`.
-- Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
+- Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `coupons/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
   actions prefixed `shop-`.
 - Money is a whole number in the smallest unit (won; cents for USD), VAT included. **Every amount is computed on the
   server by `api/_lib/shop/pricing.js`** (pure, unit-tested); the browser never sends an amount. Change price rules there
@@ -285,6 +285,18 @@ links still go to WordPress until go-live (phase 5).
   statement writes the refund payment (`refund_of`), its negative tax lines and the order's totals/status; then AC
   (`refund_<product>` or `refund_partial_<product>`, `REFUND_AMOUNT`, `REFUND_DATE`; a full refund removes the purchase
   tags), podcast access revoked on a full refund (`api/_lib/enrolments.js`, shared with the AC revoke webhook), Slack.
+- **Coupons** (phase 3, `api/_lib/shop/coupons.js`, migration 017, admin `/admin/shop/coupons/`): a campaign holds the
+  rule (1–99% rounded down, or a fixed amount per currency; products; dates; paid orders per email) and the AC tag key
+  (`coupon_issued_<key>`, `coupon_used_<key>`; can't change). Codes are shared (anyone, optional max uses) or personal
+  (one email, one use, `valid_days` from the day given, last day = Seoul date). A coupon lowers the product's own price
+  only (the option picked, never add-ons; pay in full only) and never to zero. The checkout's "쿠폰이 있으신가요?" box
+  has its own small GET form (`?coupon=` re-opens the page with it; checkout.js asks `/api/shop?action=coupon` instead);
+  the order form carries the applied code in a hidden `coupon`, checked again with the email by `flow.start`
+  (`coupons.forOrder`). An unpaid order under an hour old holds a limited code (not for the same email); a payment is
+  never refused because of a coupon. 20 unknown codes per network per hour → `too_many`. Personal codes: given in the
+  admin (emails, or everyone with an AC tag in the Contacts copy) or by AC's automation Webhook step
+  (`/api/shop-callback?p=ac-coupon&k=…&campaign=<key>`, address shown on the campaign); a person holding a working
+  code keeps it. AC gets `COUPON_CODE`, `COUPON_EXPIRES`, `COUPON_LINK` first, then the tag.
 - Env vars: `SHOP_SECRET` (never change once live), `CIDERPAY_*`, `PAYPAL_*`, `SLACK_WEBHOOK_*` (`.env.example`).
   Previews use the PayPal sandbox and need Vercel's "Protection Bypass for Automation" so providers can reach them.
 - The Kakao address search loads from `t1.kakaocdn.net` with no parameters (the script refuses any, with an alert).

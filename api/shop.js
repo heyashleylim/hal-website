@@ -6,6 +6,10 @@
  *                 The only inputs that matter are the product, the currency (= payment method: KRW card,
  *                 USD PayPal), the plan, the pricing option, the add-ons ticked (addon_<id>) and the buyer's
  *                 details: every amount is computed here from the products.
+ *   POST coupon   { slug, code } from checkout.js's "적용" → { coupon: { code, label, off } } (the discount on every
+ *                 option and currency the page shows) or { error: 'coupon', fields: { coupon: <reason> } }.
+ *                 Without JavaScript the button opens the checkout again with ?coupon=… (api/shop-page.js applies it).
+ *                 The order itself carries the code applied (`coupon`), checked again with the buyer's email.
  *   GET  status   ?o=<order token> → { status: 'paid' | 'pending' | 'ended' | 'refunded' | 'unknown' }
  *                 (the thank-you page asks until the provider's confirmation has arrived)
  *   POST after    { o, tracked } from the thank-you page: remembers that the purchase event reached GTM,
@@ -18,10 +22,11 @@ const settings = require('./_lib/shop/settings.js');
 const sync = require('./_lib/shop/sync.js');
 const pricing = require('./_lib/shop/pricing.js');
 const page = require('./_lib/shop/page.js');
+const coupons = require('./_lib/shop/coupons.js');
 const { readBody, sendJson, sendHtml, redirect, sameOrigin } = require('./_lib/shop/http.js');
 const { CheckoutError } = orders;
 
-const STATUS = { invalid: 422, closed: 409, unavailable: 409, addon_unavailable: 409, option_unavailable: 409, currency_changed: 409, too_many: 429, provider: 502, not_configured: 503, server: 500 };
+const STATUS = { invalid: 422, coupon: 422, closed: 409, unavailable: 409, addon_unavailable: 409, option_unavailable: 409, currency_changed: 409, too_many: 429, provider: 502, not_configured: 503, server: 500 };
 
 async function order(req, res) {
   const wantsJson = /json/i.test(String(req.headers['content-type'] || ''));
@@ -38,7 +43,10 @@ async function order(req, res) {
     const sale = pricing.saleState(product);
     if (!sale.open || !offers.some((o) => o.currency === currency)) return sendHtml(res, status === 422 ? 409 : status, page.closedPage({ product, reason: sale.reason || 'closed' }));
     const addons = await addonsByCurrency(product, offers);
-    return sendHtml(res, status, page.checkoutPage({ product, offers, currency, addons, values: data, errors: fields, problem: code, settings: await settings.read(), query: data }));
+    const typed = coupons.normalize(data.coupon);
+    const coupon = fields && fields.coupon ? { code: typed, error: fields.coupon } : await pageCoupon(product, offers, typed, config.ipHash(req));
+    const errors = fields && fields.coupon ? Object.fromEntries(Object.entries(fields).filter(([k]) => k !== 'coupon')) : fields;
+    return sendHtml(res, status, page.checkoutPage({ product, offers, currency, addons, values: data, errors, problem: code, settings: await settings.read(), query: data, coupon }));
   };
 
   // An add-on is only sold with the product that offers it, never on its own.
@@ -51,6 +59,7 @@ async function order(req, res) {
   // method (card ↔ PayPal, so another currency) first sees the page again in that currency, then pays.
   const shown = String(data.shown_currency || '').toUpperCase();
   if (!wantsJson && (shown === 'KRW' || shown === 'USD') && shown !== currency) return fail('currency_changed');
+
   try {
     const started = await flow.start({
       product, currency, plan: String(data.plan || 'full'), input: data, source: data, ipHash: config.ipHash(req),
@@ -60,6 +69,36 @@ async function order(req, res) {
     if (err instanceof CheckoutError) return fail(err.code, err.fields);
     console.error('shop: order', err);
     return fail('server');
+  }
+}
+
+// The coupon to show on a page made again: applied, or why it can't be used (null without a code).
+async function pageCoupon(product, offers, code, ipHash) {
+  if (!code) return null;
+  try {
+    return await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], ipHash });
+  } catch (err) {
+    if (err instanceof coupons.CouponError) return { code, error: err.code === 'too_many' ? 'coupon_unknown' : err.code };
+    throw err;
+  }
+}
+
+// "적용" with JavaScript: the discount this code gives on every price the page can show.
+async function coupon(req, res) {
+  const { data } = await readBody(req);
+  const product = await orders.productBySlug(data.slug);
+  if (!product || product.status === 'draft' || product.addon_only) return sendJson(res, 404, { error: 'closed' });
+  const offers = orders.offers(product, flow.providers());
+  if (!pricing.saleState(product).open || !offers.length) return sendJson(res, 409, { error: 'closed' });
+  const code = coupons.normalize(data.code);
+  if (!code) return sendJson(res, 422, { error: 'coupon', fields: { coupon: 'coupon_unknown' } });
+  try {
+    const found = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], ipHash: config.ipHash(req) });
+    return sendJson(res, 200, { coupon: found });
+  } catch (err) {
+    if (!(err instanceof coupons.CouponError)) throw err;
+    if (err.code === 'too_many') return sendJson(res, 429, { error: 'too_many' });
+    return sendJson(res, 422, { error: 'coupon', fields: { coupon: err.code } });
   }
 }
 
@@ -95,10 +134,10 @@ module.exports = async function handler(req, res) {
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'GET required' });
       return await status(req, res, url);
     }
-    if (action === 'order' || action === 'after') {
+    if (action === 'order' || action === 'after' || action === 'coupon') {
       if (req.method !== 'POST') return sendJson(res, 405, { error: 'POST required' });
       if (!sameOrigin(req)) return sendJson(res, 403, { error: 'bad origin' });
-      return action === 'order' ? await order(req, res) : await after(req, res);
+      return action === 'order' ? await order(req, res) : action === 'coupon' ? await coupon(req, res) : await after(req, res);
     }
     return sendJson(res, 404, { error: 'unknown action' });
   } catch (err) {
