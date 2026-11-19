@@ -11,12 +11,18 @@ window.StudentRecords = (function () {
     video_testimonial: 'Video testimonial (transcript)',
   };
   var SHORT = { sales_call_form: 'Form', sales_call: 'Call', onboarding: 'Onboarding', testimonial: 'Testimonial', video_testimonial: 'Video' };
-  var ROUNDS = { 'v2-2026-07': 'Spreadsheet analysis (Jul 2026)', 'reread-2026-11': 'Second read (Nov 2026)' };
+  var ROUNDS = { 'v2-2026-07': 'Spreadsheet analysis (Jul 2026)', 'reread-2026-11': 'Second read (Nov 2026)', 'third-read-2026-11': 'Third read (Nov 2026, another model)' };
+  var ROUND_ORDER = Object.keys(ROUNDS);
+  // Rounds in the order they were made (unknown ones last, by name).
+  function byRound(a, b) {
+    var i = ROUND_ORDER.indexOf(a), j = ROUND_ORDER.indexOf(b);
+    return (i < 0 ? 99 : i) - (j < 0 ? 99 : j) || (a < b ? -1 : a > b ? 1 : 0);
+  }
   var PERMISSION = { unknown: 'Not asked', ask: 'Ask first', yes: 'May be used', no: 'Do not use' };
   var CONFIDENCE = { H: 'high', M: 'medium', L: 'low' };
 
   function round(r) { return ROUNDS[r] || r; }
-  function roundShort(r) { return r === 'v2-2026-07' ? 'Sheet' : r === 'reread-2026-11' ? 'Re-read' : r; }
+  function roundShort(r) { return r === 'v2-2026-07' ? 'Sheet' : r === 'reread-2026-11' ? 'Re-read' : r === 'third-read-2026-11' ? '3rd read' : r; }
   function persona(id, labels, long) {
     if (!id) return '<span class="muted">–</span>';
     var l = labels && labels[id];
@@ -58,6 +64,6 @@ window.StudentRecords = (function () {
   function catsIn(card) {
     return Array.prototype.map.call(card.querySelectorAll('input[data-cat]:checked'), function (i) { return i.dataset.cat; });
   }
-  return { goodFor: goodFor, catsIn: catsIn, KINDS: KINDS, SHORT: SHORT, ROUNDS: ROUNDS, PERMISSION: PERMISSION, CONFIDENCE: CONFIDENCE, round: round, roundShort: roundShort,
+  return { goodFor: goodFor, catsIn: catsIn, KINDS: KINDS, SHORT: SHORT, ROUNDS: ROUNDS, PERMISSION: PERMISSION, CONFIDENCE: CONFIDENCE, round: round, roundShort: roundShort, byRound: byRound,
     persona: persona, stars: stars, permission: permission, name: name, bilingual: bilingual };
 })();

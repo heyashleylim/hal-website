@@ -28,7 +28,7 @@
       <h2 id="decide-title" style="margin:0">Waiting for your decision</h2>
       <a class="btn-ghost" href="/admin/students/list?decide=1">See them in the list</a>
     </div>
-    <p class="muted" style="margin-bottom:12px">Students for whom the two analyses disagree (persona, or testimonial rating) and you haven’t decided yet. Open one to compare both analyses next to her words in English.</p>
+    <p class="muted" style="margin-bottom:12px">Students for whom the analyses disagree (persona, or testimonial rating) and you haven’t decided yet. Open one to compare the analyses next to her words in English.</p>
     <div id="decide" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
   </section>
 
@@ -43,7 +43,7 @@
     <ul>
       <li><strong>Students’ words are never changed.</strong> Each text (sales call, onboarding questionnaire, written and video testimonial) is kept exactly as it was written, with an English translation next to it. The database refuses any edit.</li>
       <li><strong>Snippets are always word for word.</strong> A snippet is a passage of a student’s text: the database checks every character. Quotes from the old analysis that were not word for word are kept in that analysis, marked “not word for word”, and are not snippets.</li>
-      <li><strong>Two analyses, your decision.</strong> The spreadsheet’s analysis (July 2026) and an independent second read (November 2026) sit side by side. Where they agree, that is used; where they disagree, you choose.</li>
+      <li><strong>Three analyses, your decision.</strong> The spreadsheet’s analysis (July 2026), an independent second read and a third read by another model (both November 2026) sit side by side. Where all of them agree, that is used; where they disagree, you choose.</li>
       <li><strong>Sensitive and private.</strong> Snippets about health, suicide, abuse or children are marked sensitive and left out of the snippet library by default. Mark on each student whether her words may be used publicly.</li>
     </ul>
   </section>
@@ -77,7 +77,7 @@
 
     var rounds = {}, ids = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
     list.forEach(function (s) { s.rounds.forEach(function (r) { rounds[r.round] = rounds[r.round] || {}; rounds[r.round][r.persona] = (rounds[r.round][r.persona] || 0) + 1; }); });
-    var names = Object.keys(rounds).sort();
+    var names = Object.keys(rounds).sort(S.byRound);
     document.getElementById('personas').innerHTML = '<table class="admin-table"><thead><tr><th>Persona</th>' +
       names.map(function (r) { return '<th class="num">' + esc(S.round(r)) + '</th>'; }).join('') + '<th class="num">Your decision</th></tr></thead><tbody>' +
       ids.map(function (p) {

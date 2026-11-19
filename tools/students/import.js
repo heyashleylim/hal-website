@@ -1,11 +1,15 @@
 /*
- * Imports a program's student spreadsheet (and, optionally, a second analysis round) into the Students section.
+ * Imports a program's student spreadsheet (and, optionally, another analysis round) into the Students section.
  *
  *   node --env-file-if-exists=.env.local tools/students/import.js <file.xlsx> [--program nsmb] [--second-read <file.json>]
  *        [--round-name reread-2026-11] [--same 49:21] [--preview] [--dry-run]
  *
  *   --preview      the previews' database (PODCAST_DATABASE_URL) instead of production (DATABASE_URL)
  *   --same 49:21   sheet row 49 is the same person as sheet row 21 (repeat enrolment); repeatable
+ *   --second-read  a round written by an analysis session (format: _originals/students-third-read/PROMPT.md), saved
+ *                  under --round-name. Rounds already in the database stay as they are; rerunning a round replaces it.
+ *                  Its snippets' English (`en`) and "good for" categories (`cats`) fill in what a snippet doesn't have
+ *                  yet; its `persona_fit` is kept with the analysis.
  *
  * Neither file may be inside the repository's tracked files (the repo is public): keep them outside it or in the
  * git-ignored _originals/ folder.
@@ -16,13 +20,16 @@
  *
  * Importing again is safe: students are matched by program + "#"; a text that is unchanged is left alone, a changed
  * text is added as a new version (the old one is kept); analyses of a round are replaced by the file's; snippets are
- * added once; the admin's decisions (persona, rating, permission, notes, contact) are never overwritten.
+ * added once; the admin's decisions (persona, rating, permission, notes, contact) are never overwritten. A persona or
+ * rating the import itself filled in (decided_note "every analysis round agrees", never saved in the admin) is cleared
+ * again when a new round disagrees, so the student goes back to "waiting for your decision".
  * Texts and snippets are stored exactly as in the file (the database refuses anything else).
  */
 const fs = require('node:fs');
 const path = require('node:path');
 const { Pool } = require('@neondatabase/serverless');
 const xlsx = require('../../site/assets/js/admin/xlsx.js');
+const { USE_CATS } = require('../../api/_lib/admin/program-students.js');
 
 const ROUND1 = 'v2-2026-07';
 const TEXT_COLUMNS = {
@@ -166,10 +173,17 @@ async function main() {
       const pos = (await db.query(`SELECT strpos(text_ko, $2) AS p FROM student_texts WHERE id = $1`, [tid, quote])).rows[0].p;
       if (!pos) return false;
       const r = await db.query(
-        `INSERT INTO student_snippets (text_id, start, quote, use_for, origin, sensitive) VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO student_snippets (text_id, start, quote, use_for, origin, sensitive, quote_en, use_cats) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (text_id, start, quote) DO NOTHING RETURNING id`,
-        [tid, pos, quote, fields.use_for || '', fields.origin, Boolean(fields.sensitive)]);
+        [tid, pos, quote, fields.use_for || '', fields.origin, Boolean(fields.sensitive), fields.en || '', fields.cats || []]);
       if (r.rows.length) counts.snippets_added++;
+      // a snippet already there: only fill what it doesn't have yet (its English, its categories)
+      else if (fields.en || (fields.cats || []).length) {
+        await db.query(
+          `UPDATE student_snippets SET quote_en = CASE WHEN quote_en = '' THEN $4 ELSE quote_en END,
+                  use_cats = CASE WHEN use_cats = '{}' THEN $5::text[] ELSE use_cats END
+            WHERE text_id = $1 AND start = $2 AND quote = $3`, [tid, pos, quote, fields.en || '', fields.cats || []]);
+      }
       return true;
     }
 
@@ -209,14 +223,36 @@ async function main() {
       const scores = Object.fromEntries(['specificity', 'outcome', 'quotability', 'completeness', 'depth', 'advocacy', 'return_signal'].filter((k) => r[k] != null).map((k) => [k, r[k]]));
       for (const sn of r.snippets || []) {
         const kind = SECOND_SOURCE[sn.source];
-        if (!(await snippet(row, kind, sn.text, { origin: round2, use_for: sn.use, sensitive: sn.sensitive }))) counts.snippets_not_exact.push(`${row} (${round2})`);
+        if (sn.cats) for (const c of sn.cats) if (!(c in USE_CATS)) throw new Error(`${round2} #${row}: unknown "good for" category ${c}`);
+        if (!(await snippet(row, kind, sn.text, { origin: round2, use_for: sn.use, sensitive: sn.sensitive, en: sn.en, cats: sn.cats }))) counts.snippets_not_exact.push(`${row} (${round2})`);
       }
       await analysis(ids.get(row), round2, {
         persona: r.persona || null, persona_alt: r.alternate || null, confidence: r.confidence || null, why: r.why, trigger: r.trigger,
         outcomes: r.named_outcomes, generational: r.generational_motive ?? null, rating: r.rating ?? null, scores, rating_why: r.rating_why,
-        flags: r.sensitive_flags, notes: r.notes,
+        flags: r.sensitive_flags, notes: r.notes, extra: r.persona_fit ? { persona_fit: r.persona_fit } : {},
       });
     }
+
+    // A persona or rating the import filled in earlier, that a round now disagrees with, goes back to undecided,
+    // unless the admin has saved this student since (then it is the admin's decision and stays).
+    const AUTO = 'every analysis round agrees';
+    const undone = (await db.query(
+      `WITH a AS (SELECT student_id, count(*) AS n, count(DISTINCT persona) AS personas, count(DISTINCT rating) AS ratings, count(rating) AS rated
+                    FROM student_analyses GROUP BY student_id),
+            u AS (SELECT p.id, p.sheet_row,
+                         (p.persona IS NOT NULL AND a.personas > 1) AS persona_off,
+                         (p.rating IS NOT NULL AND NOT (a.ratings = 1 AND a.rated = a.n)) AS rating_off
+                    FROM program_students p JOIN a ON a.student_id = p.id
+                   WHERE p.program = $1 AND p.decided_note = $2
+                     AND NOT EXISTS (SELECT 1 FROM admin_log l WHERE l.action = 'program-student-save' AND l.target = p.name || ' (cohort ' || p.cohort || ')'))
+       UPDATE program_students p SET
+         persona = CASE WHEN u.persona_off THEN NULL ELSE p.persona END,
+         rating = CASE WHEN u.rating_off THEN NULL ELSE p.rating END,
+         decided_note = CASE WHEN (u.persona_off OR p.persona IS NULL) AND (u.rating_off OR p.rating IS NULL) THEN '' ELSE p.decided_note END,
+         updated_at = now()
+        FROM u WHERE u.id = p.id AND (u.persona_off OR u.rating_off)
+       RETURNING p.sheet_row, u.persona_off, u.rating_off`, [program, AUTO])).rows;
+    counts.undone = undone.map((r) => `#${r.sheet_row} ${[r.persona_off && 'persona', r.rating_off && 'rating'].filter(Boolean).join(' + ')}`);
 
     // where every round agrees, that is the decision until the admin changes it
     await db.query(
@@ -226,8 +262,8 @@ async function main() {
        UPDATE program_students p SET
          persona = CASE WHEN p.persona IS NULL AND a.personas = 1 THEN a.persona ELSE p.persona END,
          rating = CASE WHEN p.rating IS NULL AND a.ratings = 1 AND a.rated = a.n THEN a.rating ELSE p.rating END,
-         decided_note = CASE WHEN p.decided_note = '' AND (a.personas = 1 OR (a.ratings = 1 AND a.rated = a.n)) THEN 'every analysis round agrees' ELSE p.decided_note END
-        FROM a WHERE a.student_id = p.id AND p.program = $1 AND a.n > 1 AND (p.persona IS NULL OR p.rating IS NULL)`, [program]);
+         decided_note = CASE WHEN p.decided_note = '' AND (a.personas = 1 OR (a.ratings = 1 AND a.rated = a.n)) THEN $2 ELSE p.decided_note END
+        FROM a WHERE a.student_id = p.id AND p.program = $1 AND a.n > 1 AND (p.persona IS NULL OR p.rating IS NULL)`, [program, AUTO]);
     const decided = (await db.query(`SELECT count(*) FILTER (WHERE persona IS NOT NULL)::int AS persona, count(*) FILTER (WHERE rating IS NOT NULL)::int AS rating FROM program_students WHERE program = $1`, [program])).rows[0];
     counts.decided = `${decided.persona} personas and ${decided.rating} ratings`;
 
@@ -246,6 +282,7 @@ async function main() {
     if (flag('--dry-run')) { await db.query('ROLLBACK'); console.log(`DRY RUN on the ${where}: nothing saved`); } else await db.query('COMMIT');
     console.log(`${where}: ${list.length} students (${counts.students_added} new), ${counts.texts_added} texts added, ${counts.texts_new_version} new text versions, ` +
       `${counts.analyses} analyses, ${counts.snippets_added} snippets added, ${counts.decided} decided (where every round agrees), ${counts.reference} reference sheets.`);
+    if (counts.undone.length) console.log(`Filled in by an earlier import, now disputed by a round, so back to "waiting for your decision": ${counts.undone.join(', ')}`);
     if (counts.snippets_not_exact.length) console.log(`Not word for word in the texts, so not saved as snippets (kept in the analysis as written): rows ${counts.snippets_not_exact.join(', ')}`);
   } catch (err) {
     await db.query('ROLLBACK').catch(() => {});

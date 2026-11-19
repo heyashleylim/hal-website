@@ -339,9 +339,13 @@ onboarding questionnaires and testimonials, starting with NSMB. Admin section `/
   new version (`superseded_by`). A snippet (`student_snippets`) must be an exact passage of its text: a trigger checks
   `substr(text_ko, start, length) = quote` and refuses any change to its words. Snippets added in the admin are found
   again in the text on the server. Keep testimonials verbatim everywhere else too (content rules above).
-- Analyses (`student_analyses`) are kept per round side by side: `v2-2026-07` (the spreadsheet's) and `reread-2026-11`
-  (independent second read, Nov 2026). Where every round agrees, the import sets the decision; otherwise the admin
-  decides (`program_students.persona` / `rating`), and never gets overwritten by a re-import. Persona names come from the
+- Analyses (`student_analyses`) are kept per round side by side: `v2-2026-07` (the spreadsheet's), `reread-2026-11`
+  (independent second read, Nov 2026) and `third-read-2026-11` (another model, blind, Nov 2026, with a 0–3 fit score per
+  persona in `extra.persona_fit`). A new round: run `_originals/students-third-read/PROMPT.md` in a fresh session, then
+  `import.js … --second-read <its json> --round-name <name>` (and add the name to ROUNDS in `student-records.js`).
+  Where every round agrees, the import sets the decision; otherwise the admin decides (`program_students.persona` /
+  `rating`), and never gets overwritten by a re-import. A decision the import set that a new round disputes goes back
+  to undecided, unless the admin has saved that student. Persona names come from the
   persona sheet in `student_reference`, not from the public site files.
 - **None of it is in the repo** (it is public). Source files live outside it or in the git-ignored `_originals/`
   (`_originals/students-reanalysis-2026-11-18/` = the second read; `_originals/students-translations/` = translated batches).

@@ -47,8 +47,10 @@
     return options(['P1', 'P2', 'P3', 'P4', 'P5', 'P6'].map(function (p) { return [p, p + (data.labels[p] ? ' · ' + data.labels[p].en : '')]; }), current, empty);
   }
 
-  function roundCard(a, other) {
-    var differs = function (key) { return other && a[key] !== other[key] ? ' class="st-differs"' : ''; };
+  // others = the other rounds: a value is outlined when any of them says something else.
+  function roundCard(a, others) {
+    var differs = function (key) { return others.some(function (o) { return a[key] !== o[key]; }) ? ' class="st-differs"' : ''; };
+    var fit = a.extra && a.extra.persona_fit ? Object.keys(a.extra.persona_fit).sort().map(function (p) { return p + ' ' + a.extra.persona_fit[p]; }).join(' · ') : '';
     var scores = Object.keys(a.scores || {}).map(function (k) {
       var v = a.scores[k];
       return (SCORE_NAMES[k] || k) + ': ' + (v === true ? 'yes' : v === false ? 'no' : v);
@@ -58,7 +60,8 @@
     var flags = (a.flags || []).length ? '<ul>' + a.flags.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>' : '';
     return '<article class="st-round"><h3>' + esc(S.round(a.round)) + '</h3><dl>' +
       '<dt>Persona</dt><dd><span' + differs('persona') + '>' + S.persona(a.persona, data.labels, true) + '</span>' +
-        (a.persona_alt ? '<br><span class="muted">Alternate: ' + esc(a.persona_alt) + '</span>' : '') + (a.confidence ? '<br><span class="muted">Confidence: ' + esc(S.CONFIDENCE[a.confidence] || a.confidence) + '</span>' : '') + '</dd>' +
+        (a.persona_alt ? '<br><span class="muted">Alternate: ' + esc(a.persona_alt) + '</span>' : '') + (a.confidence ? '<br><span class="muted">Confidence: ' + esc(S.CONFIDENCE[a.confidence] || a.confidence) + '</span>' : '') +
+        (fit ? '<br><span class="muted small" title="How well each persona fits, 0 to 3">Fit (0–3): ' + esc(fit) + '</span>' : '') + '</dd>' +
       (a.why ? '<dt>Why</dt><dd>' + esc(a.why) + '</dd>' : '') +
       (a.trigger_text ? '<dt>Why she bought now</dt><dd>' + esc(a.trigger_text) + '</dd>' : '') +
       ((a.outcomes || []).length ? '<dt>Results she names</dt><dd>' + a.outcomes.map(esc).join('<br>') + '</dd>' : '') +
@@ -133,7 +136,7 @@
       '</section>' +
 
       '<section class="st-section" aria-labelledby="analyses-title"><h2 id="analyses-title">The analyses <span class="muted small">' + (rounds.length > 1 ? 'side by side; outlined where they differ' : '') + '</span></h2>' +
-        (rounds.length ? '<div class="st-compare">' + rounds.map(function (a, i) { return roundCard(a, rounds[i ? 0 : 1]); }).join('') + '</div>' : '<p class="muted">No analysis yet.</p>') +
+        (rounds.length ? '<div class="st-compare">' + rounds.map(function (a) { return roundCard(a, rounds.filter(function (o) { return o !== a; })); }).join('') + '</div>' : '<p class="muted">No analysis yet.</p>') +
       '</section>' +
 
       '<section class="st-section" aria-labelledby="snippets-title"><h2 id="snippets-title">Snippets <span class="muted small">' + data.snippets.length + ' · always word for word. To add one, select a passage in a Korean text below.</span></h2>' +
