@@ -15,6 +15,7 @@ const ciderpay = require('./pay/ciderpay.js');
 const paypal = require('./pay/paypal.js');
 const config = require('./config.js');
 const coupons = require('./coupons.js');
+const ledger = require('./ledger.js');
 const { CheckoutError } = orders;
 
 // Payment providers this deployment can use (keys present).
@@ -45,7 +46,8 @@ async function start({ product, currency, plan, input, source, ipHash }) {
   // First: is this product on sale, in this currency, with this plan? Only then is the form worth checking.
   guardDatabase();
   if (!pricing.saleState(product).open) throw new CheckoutError('closed');
-  if (!orders.offers(product, providers()).some((o) => o.currency === currency && o.plan === plan)) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
+  const instalments = plan === 'instalment' && (await settings.read()).instalments.enabled === true;
+  if (!orders.offers(product, providers(), { instalments }).some((o) => o.currency === currency && o.plan === plan)) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
   // Add-ons: only the ones this checkout offers right now. One that is no longer offered (closed since the page
   // was opened) stops the order rather than being dropped: the buyer would pay for less than they chose.
   const wanted = orders.requestedAddons(input);
@@ -77,7 +79,7 @@ async function start({ product, currency, plan, input, source, ipHash }) {
       throw new CheckoutError('coupon', err.message, { coupon: err.code });
     }
   }
-  const order = await orders.createOrder({ product, currency, plan, option: hasOptions ? option : null, billing, addons, coupon, source: validate.sourceInput(source), ipHash });
+  const order = await orders.createOrder({ product, currency, plan, option: hasOptions ? option : null, billing, addons, coupon, source: validate.sourceInput(source), ipHash, instalments });
   try {
     return { order, redirect: await requestPage(order, product, { addonCount: addons.length }) };
   } catch (err) {
@@ -99,7 +101,10 @@ async function requestPage(order, product, { addonCount = 0, cancelUrl = null } 
       await orders.awaitPayment(order.id, created.id);
       return created.approveUrl;
     }
-    const page = await ciderpay.requestPayment({ order, productName: title, billing: order.billing || {} });
+    // An instalment plan: CiderPay's agreement page, which also charges the first payment.
+    const page = order.plan === 'instalment'
+      ? await ciderpay.requestPlan({ order, productName: title, billing: order.billing || {}, terms: order.plan_terms, start: ledger.seoul(new Date()).date })
+      : await ciderpay.requestPayment({ order, productName: title, billing: order.billing || {} });
     await orders.awaitPayment(order.id, page.payUniqueNo);
     return page.payUrl;
   } catch (err) {
@@ -176,6 +181,7 @@ async function afterPaid(order, product, payment = {}, { sendNow = false, slack 
   const step = async (name, fn) => { try { await fn(); } catch (err) { console.error(`shop: order ${order.number}: ${name} failed`, err); } };
   await step('customer update', () => orders.refreshCustomer(order));
   await step('ActiveCampaign queue', () => sync.queuePurchase(order, product, payment));
+  if (order.plan === 'instalment') await step('instalment plan started', () => require('./instalments.js').started(order, product));
   if (slack) await step('Slack', async () => notify.paid(order, payment.method, await settings.read(), undefined, await orders.items(order.id)));
   await step('double payment check', async () => {
     const other = await orders.samePurchaseRecently(order);

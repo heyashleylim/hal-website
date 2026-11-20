@@ -40,14 +40,19 @@ const actions = {
     if (status && !STATUSES.includes(status)) throw userError('unknown status');
     const product = input.product ? int(input.product, { min: 1, max: 2147483647, label: 'product' }) : null;
     const limit = int(input.limit || 200, { min: 1, max: 1000, label: 'limit' });
+    // "attention": instalment plans with a failed or late instalment.
+    const plan = text(input.plan, { max: 20 });
+    if (plan && !['instalment', 'attention'].includes(plan)) throw userError('unknown plan filter');
     const rows = await db.query(
       `SELECT ${ORDER_COLUMNS}
          FROM shop_orders o JOIN shop_customers c ON c.id = o.customer_id
         WHERE ($1 = '' OR o.number::text = $1 OR c.email ILIKE '%' || $1 || '%' OR c.name ILIKE '%' || $1 || '%')
           AND ($2 = '' OR o.status = $2)
           AND ($3::int IS NULL OR o.product_id = $3 OR EXISTS (SELECT 1 FROM shop_order_items i WHERE i.order_id = o.id AND i.product_id = $3))
+          AND ($5 = '' OR (o.plan = 'instalment' AND o.plan_status IS NOT NULL
+                AND ($5 = 'instalment' OR EXISTS (SELECT 1 FROM shop_instalments i WHERE i.order_id = o.id AND i.status IN ('failed', 'overdue')))))
         ORDER BY o.created_at DESC, o.id DESC LIMIT $4`,
-      [q, status, product, limit],
+      [q, status, product, limit, plan],
     );
     return { orders: rows, statuses: STATUSES };
   },
@@ -56,7 +61,7 @@ const actions = {
   async 'shop-order'(input) {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     const order = await db.one(
-      `SELECT ${ORDER_COLUMNS}, o.billing, o.source, o.note, c.phone, c.country, c.postcode, c.address1, c.address2, o.coupon_code,
+      `SELECT ${ORDER_COLUMNS}, o.billing, o.source, o.note, o.plan_terms, o.rp_card, o.rp_closed_at, (o.rp_token IS NOT NULL) AS rp_agreed, c.phone, c.country, c.postcode, c.address1, c.address2, o.coupon_code,
               (SELECT json_build_object('id', k.id, 'name', k.name, 'key', k.key) FROM shop_coupons x JOIN shop_coupon_campaigns k ON k.id = x.campaign_id WHERE x.id = o.coupon_id) AS coupon_campaign
          FROM shop_orders o JOIN shop_customers c ON c.id = o.customer_id WHERE o.id = $1`, [id]);
     if (!order) throw userError('order not found', 404);
@@ -64,7 +69,7 @@ const actions = {
       db.query(`SELECT position, kind, product_id, name, amount, vat_rule FROM shop_order_items WHERE order_id = $1 ORDER BY position`, [id]),
       db.query(`SELECT id, provider, kind, currency, amount, fee, instalment_no, provider_ref, approval_no, method, receipt_url, at
                   FROM shop_payments WHERE order_id = $1 ORDER BY at, id`, [id]),
-      db.query(`SELECT number, to_char(due_date, 'YYYY-MM-DD') AS due_date, amount, status, error FROM shop_instalments WHERE order_id = $1 ORDER BY number`, [id]),
+      db.query(`SELECT number, to_char(due_date, 'YYYY-MM-DD') AS due_date, amount, status, error, note, payment_id FROM shop_instalments WHERE order_id = $1 ORDER BY number`, [id]),
       db.query(`SELECT at, kind, method, currency, amount, supply, vat, vat_rule, fee, fx_rate, amount_krw, note FROM shop_ledger WHERE order_id = $1 ORDER BY at, id`, [id]),
       db.query(`SELECT op, payload, status, attempts, last_error, created_at, done_at FROM shop_outbox WHERE order_id = $1 ORDER BY id`, [id]),
       db.query(`SELECT at, provider, outcome, reason FROM shop_callbacks WHERE order_id = $1 ORDER BY at, id`, [id]),

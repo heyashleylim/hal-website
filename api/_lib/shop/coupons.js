@@ -201,17 +201,35 @@ async function find(code, ipHash) {
 }
 
 /*
- * The checkout page applies a code (before the buyer's email is known): → { code, label, off } where `off` is
- * offTable(). Throws CouponError when the code can't be used on this product at all.
+ * The checkout page applies a code (before the buyer's email is known): → { code, label, off, planOff } where `off`
+ * is offTable() and `planOff` the discount on the product's instalment plan (its total, KRW), or null when the
+ * code can't lower it. Throws CouponError when the code can't be used on this product at all (on the instalment
+ * checkout, `plan` = 'instalment': when it can't be used on the plan).
  */
-async function forPage({ code, product, currencies, ipHash = null, now = new Date() }) {
+async function forPage({ code, product, currencies, plan = 'full', ipHash = null, now = new Date() }) {
   const row = await find(code, ipHash);
   const why = problem(row, row.campaign, { productId: product.id, now, used: (await usage(row)).used });
   if (why) throw new CouponError(why);
   const off = offTable(row.campaign, product, currencies);
-  const cells = Object.values(off).flatMap((x) => Object.values(x));
-  if (!cells.some((n) => n != null)) throw new CouponError(row.campaign.kind === 'amount' ? 'coupon_currency' : 'coupon_product');
-  return { code: row.code, label: describe(row.campaign), off };
+  const planOff = planDiscount(row.campaign, product);
+  if (plan === 'instalment') {
+    if (planOff == null) throw new CouponError(row.campaign.kind === 'amount' && row.campaign.amount_krw == null ? 'coupon_currency' : 'coupon_product');
+  } else {
+    const cells = Object.values(off).flatMap((x) => Object.values(x));
+    if (!cells.some((n) => n != null)) throw new CouponError(row.campaign.kind === 'amount' ? 'coupon_currency' : 'coupon_product');
+  }
+  return { code: row.code, label: describe(row.campaign), off, planOff };
+}
+
+// The discount a campaign gives on the product's instalment plan (on its total, KRW), or null (no plan, or it
+// would leave an instalment at zero).
+function planDiscount(campaign, product) {
+  const p = pricing.instalmentPlan(product);
+  if (!p) return null;
+  const d = discountFor(campaign, p.total, 'KRW');
+  if (d == null) return null;
+  try { pricing.discountedPlan(p, d); } catch (err) { return null; }
+  return d;
 }
 
 /*
@@ -228,11 +246,7 @@ async function forOrder({ code, product, optionKey = null, currency, plan = 'ful
   const opt = plan === 'instalment' ? null : pricing.optionOf(product, optionKey || null);
   const plannable = plan === 'instalment' ? pricing.instalmentPlan(product) : null;
   if (plan === 'instalment' && (!plannable || currency !== 'KRW')) throw new CouponError('coupon_product', 'this product has no instalment plan in this currency');
-  const price = plannable ? plannable.total : pricing.priceIn(opt || product, currency);
-  let discount = discountFor(row.campaign, price, currency);
-  if (discount != null && plannable) {
-    try { pricing.discountedPlan(plannable, discount); } catch (err) { discount = null; }
-  }
+  const discount = plannable ? planDiscount(row.campaign, product) : discountFor(row.campaign, pricing.priceIn(opt || product, currency), currency);
   if (discount == null) throw new CouponError('coupon_product', 'the discount would leave nothing to pay');
   return { coupon: row, campaign: row.campaign, discount };
 }
@@ -310,5 +324,5 @@ async function queueIssued(campaign, codes, slug, stamp = '') {
 
 module.exports = {
   HOLD_MINUTES, MISSES, ISSUE_MAX, CouponError, normalize, isCode, newCode, discountFor, problem, offTable, describe, expiryOf, lastDay,
-  linkOf, issuedOps, byCode, usage, forPage, forOrder, campaignByKey, linkSlug, issue,
+  linkOf, issuedOps, byCode, usage, forPage, forOrder, planDiscount, campaignByKey, linkSlug, issue,
 };

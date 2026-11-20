@@ -42,14 +42,16 @@ async function order(req, res) {
     if (wantsJson) return sendJson(res, status, { error: code, fields: fields || undefined });
     // Without JavaScript: the same page again, with what was typed and what to fix.
     if (!product || product.status === 'draft' || product.addon_only) return sendHtml(res, 404, page.notFoundPage());
-    const offers = orders.offers(product, flow.providers());
+    const shopSettings = await settings.read();
+    const offers = orders.offers(product, flow.providers(), { instalments: shopSettings.instalments.enabled === true });
     const sale = pricing.saleState(product);
     if (!sale.open || !offers.some((o) => o.currency === currency)) return sendHtml(res, status === 422 ? 409 : status, page.closedPage({ product, reason: sale.reason || 'closed' }));
+    const plan = String(data.plan || '') === 'instalment' && offers.some((o) => o.plan === 'instalment') ? 'instalment' : 'full';
     const addons = await addonsByCurrency(product, offers);
     const typed = coupons.normalize(data.coupon);
-    const coupon = fields && fields.coupon ? { code: typed, error: fields.coupon } : await pageCoupon(product, offers, typed, config.ipHash(req));
+    const coupon = fields && fields.coupon ? { code: typed, error: fields.coupon } : await pageCoupon(product, offers, typed, config.ipHash(req), plan);
     const errors = fields && fields.coupon ? Object.fromEntries(Object.entries(fields).filter(([k]) => k !== 'coupon')) : fields;
-    return sendHtml(res, status, page.checkoutPage({ product, offers, currency, addons, values: data, errors, problem: code, settings: await settings.read(), query: data, coupon }));
+    return sendHtml(res, status, page.checkoutPage({ product, offers, currency, addons, values: data, errors, problem: code, settings: shopSettings, query: data, coupon, plan }));
   };
 
   // An add-on is only sold with the product that offers it, never on its own.
@@ -76,10 +78,10 @@ async function order(req, res) {
 }
 
 // The coupon to show on a page made again: applied, or why it can't be used (null without a code).
-async function pageCoupon(product, offers, code, ipHash) {
+async function pageCoupon(product, offers, code, ipHash, plan = 'full') {
   if (!code) return null;
   try {
-    return await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], ipHash });
+    return await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], plan, ipHash });
   } catch (err) {
     if (err instanceof coupons.CouponError) return { code, error: err.code === 'too_many' ? 'coupon_unknown' : err.code };
     throw err;
@@ -91,12 +93,13 @@ async function coupon(req, res) {
   const { data } = await readBody(req);
   const product = await orders.productBySlug(data.slug);
   if (!product || product.status === 'draft' || product.addon_only) return sendJson(res, 404, { error: 'closed' });
-  const offers = orders.offers(product, flow.providers());
+  const offers = orders.offers(product, flow.providers(), { instalments: (await settings.read()).instalments.enabled === true });
   if (!pricing.saleState(product).open || !offers.length) return sendJson(res, 409, { error: 'closed' });
   const code = coupons.normalize(data.code);
   if (!code) return sendJson(res, 422, { error: 'coupon', fields: { coupon: 'coupon_unknown' } });
+  const plan = String(data.plan || '') === 'instalment' && offers.some((o) => o.plan === 'instalment') ? 'instalment' : 'full';
   try {
-    const found = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], ipHash: config.ipHash(req) });
+    const found = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], plan, ipHash: config.ipHash(req) });
     return sendJson(res, 200, { coupon: found });
   } catch (err) {
     if (!(err instanceof coupons.CouponError)) throw err;

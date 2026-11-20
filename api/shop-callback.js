@@ -3,6 +3,7 @@
  *
  *   POST ?p=ciderpay&k=<key>   CiderPay's "feedback" (form-encoded). The key is ours (config.callbackKey);
  *                              the notice must also carry the order's token and our signature (var1, var2).
+ *                              Instalment-plan notices (cmd=…) go to instalments.fromCiderpay.
  *   POST ?p=paypal             PayPal webhooks, verified with PayPal before anything is believed.
  *   POST ?p=ac-coupon&k=<key>&campaign=<campaign key>
  *                              An ActiveCampaign automation's "Webhook" step: give this contact (contact[email]) their
@@ -19,6 +20,7 @@ const notify = require('./_lib/shop/notify.js');
 const ciderpay = require('./_lib/shop/pay/ciderpay.js');
 const paypal = require('./_lib/shop/pay/paypal.js');
 const refunds = require('./_lib/shop/refunds.js');
+const instalments = require('./_lib/shop/instalments.js');
 const coupons = require('./_lib/shop/coupons.js');
 const sync = require('./_lib/shop/sync.js');
 const { readBody, sendJson } = require('./_lib/shop/http.js');
@@ -32,9 +34,14 @@ async function fromCiderpay(req, res, url, state) {
   const payload = text == null ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v == null ? '' : String(v)])) : ciderpay.parseBody(text, req.headers['content-type']);
   const notice = ciderpay.readNotice(payload);
 
+  // Instalment plans (cmd = agreeRegularPayment, completeRpPayment, errorRpPayment…): instalments.js.
+  if (notice.kind === 'recurring') {
+    const outcome = await instalments.fromCiderpay(notice, payload);
+    if (outcome === 'unknown_order') return sendJson(res, 404, { status: 'error', message: 'unknown order' });
+    return outcome === 'rejected' ? sendJson(res, 400, { status: 'error', message: 'rejected' }) : done(res, outcome);
+  }
   if (notice.kind !== 'paid' && notice.kind !== 'cancelled') {
-    // Instalment notices (cmd=…) and anything unknown: kept, handled from phase 3 on.
-    await orders.logCallback({ provider: 'ciderpay', outcome: 'ignored', reason: notice.cmd ? `recurring notice: ${notice.cmd}` : 'unknown notice', payload });
+    await orders.logCallback({ provider: 'ciderpay', outcome: 'ignored', reason: 'unknown notice', payload });
     return done(res, 'ignored');
   }
 

@@ -87,6 +87,20 @@ const copy = {
     notHere: '지금 선택하신 옵션이나 결제 방법에는 이 쿠폰이 적용되지 않아요.',
   },
 
+  // Instalment plans (분할 결제, KRW card only). "일시불 / 분할 결제" are the words of the NSMB page; the rest is
+  // new copy (2026-11-20), to review.
+  plan: {
+    offerTitle: '분할 결제도 가능해요',
+    offerLine: (first, monthly, count) => `오늘 ${first}, 이후 매월 ${monthly}씩 ${count}회`,
+    offerLink: '분할 결제로 신청하기 →',
+    fullLink: '일시불로 결제하기',
+    chosen: '분할 결제',
+    note: '다음 화면에서 카드를 등록하면 첫 결제가 바로 진행되고, 이후 매월 같은 날 자동으로 결제돼요.',
+    today: '오늘 결제',
+    monthly: (day, count) => `이후 매월 ${day}일 · ${count}회`,
+    each: (amount) => `${amount}씩`,
+  },
+
   // Field problems. Keys are the codes api/_lib/shop/validate.js returns.
   errors: {
     name_required: '이름을 입력해 주세요.',
@@ -152,6 +166,8 @@ const copy = {
 
   complete: {
     coupon: '쿠폰',
+    planNext: '다음 결제',
+    planNextLine: (date, amount, left) => `${date} ${amount} (남은 결제 ${left}회)`,
     paidTitle: '결제가 완료되었어요',
     paidLead: (name) => `${name}님, 감사합니다.`,
     order: '주문 번호',

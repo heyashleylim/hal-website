@@ -63,7 +63,8 @@
     <label>Search <input type="search" name="q" placeholder="Order number, email or name" maxlength="100"></label>
     <label>Status <select name="status"><option value="">All</option></select></label>
     <label>Product <select name="product"><option value="">All</option></select></label>
-    <button data-tip="Show the orders that match the search, status and product chosen" class="btn-sm" type="submit">Search</button>
+    <label>Plan <select name="plan"><option value="">All</option><option value="instalment">Instalment plans</option><option value="attention">Instalments failed or late</option></select></label>
+    <button data-tip="Show the orders that match the search, status, product and plan chosen" class="btn-sm" type="submit">Search</button>
   </form>
 
   <section class="admin-card" aria-label="Orders">
@@ -96,7 +97,7 @@
 
   function load() {
     list.innerHTML = '<p class="admin-empty">Loading…</p>';
-    return Admin.get('shop-orders', { q: form.q.value.trim(), status: form.status.value, product: form.product.value }).then(function (r) {
+    return Admin.get('shop-orders', { q: form.q.value.trim(), status: form.status.value, product: form.product.value, plan: form.plan.value }).then(function (r) {
       if (!filled) {
         filled = true;
         form.status.innerHTML = '<option value="">All</option>' + r.statuses.map(function (s) { return '<option value="' + s + '">' + LABEL[s] + '</option>'; }).join('');
@@ -290,6 +291,89 @@
       .catch(function (err) { alert(err.message); b.disabled = false; });
   });
 
+  // ---------- Instalment plan: schedule, pause / resume / stop, an instalment paid another way ----------
+  function planBlock(o, r) {
+    if (!r.instalments.length || !o.plan_status) return '';
+    var cur = o.currency, t = o.plan_terms || {}, st = o.plan_status;
+    var running = st === 'active' || st === 'overdue' || st === 'paused';
+    var facts = '<dl class="facts">' +
+      fact('Plan', t.count ? Admin.money(t.first, cur) + ' at checkout, then ' + Admin.money(t.monthly, cur) + ' × ' + t.count + ' on day ' + t.day + ' of each month' : '–') +
+      fact('Plan status', badge(st, PLAN[st])) +
+      fact('CiderPay agreement', (o.rp_agreed ? 'Received' + (o.rp_card ? ' (card …' + Admin.esc(o.rp_card) + ')' : '') : '<span class="is-error">No agreement notice yet</span>') +
+        (o.rp_closed_at ? '<br><span class="small muted">Ended at CiderPay ' + Admin.kst(o.rp_closed_at) + '</span>' : '')) +
+      '</dl>';
+    var rows = table(['#', 'Due', 'Amount', 'Status', ''], r.instalments.map(function (i) {
+      var open = i.status === 'due' || i.status === 'failed' || i.status === 'overdue';
+      return '<tr><td class="num">' + i.number + '</td><td class="num">' + Admin.kst(i.due_date + 'T00:00:00+09:00', false) + '</td><td class="num">' + Admin.money(i.amount, cur) + '</td>' +
+        '<td>' + badge(i.status, INST[i.status]) + (i.error ? ' <span class="small is-error">' + Admin.esc(i.error) + '</span>' : '') + '</td>' +
+        '<td>' + (open && i.number > 1 && running ? '<button data-tip="This instalment was paid another way (bank transfer…): record it with its tax line" class="btn-ghost" type="button" data-settle="' + i.number + '">Record as paid</button>' : '') + '</td></tr>';
+    }), '');
+    var actions = running ? '<div class="admin-actions" style="margin-top:12px">' +
+      (st === 'paused'
+        ? '<button data-tip="Charge the card again from the next billing day (at CiderPay too). Instalments whose date passed meanwhile are flagged tomorrow morning" class="btn-ghost" type="button" data-plan="resume">Resume plan</button>'
+        : '<button data-tip="No charges for now (at CiderPay too), for a customer who asks for time. CiderPay’s plan still ends on its original end date" class="btn-ghost" type="button" data-plan="pause">Pause plan</button>') +
+      '<button data-tip="End the plan: no more charges (the agreement is ended at CiderPay), the instalments not paid are cancelled, ActiveCampaign gets cancelled_<product>. Money received stays: refund it separately" class="btn-ghost" type="button" data-plan="stop">Stop plan</button>' +
+      '</div><p class="admin-form__result" role="status" aria-live="polite" id="plan-out"></p>' : '';
+    var settle = '<form class="admin-form" id="settle-form" novalidate hidden>' +
+      '<p class="admin-form__wide muted small" id="settle-what"></p>' +
+      '<input type="hidden" name="number">' +
+      '<label>Received by <select name="method">' + methodOptions() + '</select></label>' +
+      '<label>Date received <input name="received" type="date" value="' + todaySeoul() + '" max="' + todaySeoul() + '"></label>' +
+      '<label>Reference <span class="hint">optional</span><input name="reference" maxlength="200" autocomplete="off"></label>' +
+      '<div class="admin-form__actions"><button data-tip="Record this instalment as received outside CiderPay" class="btn" type="submit">Record instalment</button>' +
+      '<button data-tip="Close this form without recording anything" class="btn-ghost" type="button" data-settle-close>Cancel</button></div>' +
+      '<p class="admin-form__result" role="status" aria-live="polite" id="settle-out"></p></form>';
+    return '<h3 class="admin-h3">Instalment plan</h3>' + facts + rows + settle + actions;
+  }
+
+  document.getElementById('detail-body').addEventListener('click', function (ev) {
+    var o = current, sf = document.getElementById('settle-form');
+    var s = ev.target.closest('[data-settle]');
+    if (s && sf) {
+      var n = Number(s.dataset.settle), row = (o && current) ? s.closest('tr') : null;
+      sf.number.value = n;
+      document.getElementById('settle-what').textContent = 'Instalment ' + n + (row ? ' (' + row.children[2].textContent + ')' : '') + ' was paid another way: record it as received. The order’s tax record, ActiveCampaign and the plan follow.';
+      sf.hidden = false;
+      sf.method.focus();
+      return;
+    }
+    if (ev.target.closest('[data-settle-close]') && sf) { sf.hidden = true; return; }
+    var b = ev.target.closest('[data-plan]');
+    if (!b) return;
+    var action = b.dataset.plan, out = document.getElementById('plan-out'), body = { order: o.id };
+    if (action === 'pause' && !confirm('Pause the instalment plan of order #' + o.number + '? CiderPay stops charging the card until you resume it.')) return;
+    if (action === 'resume' && !confirm('Resume the instalment plan of order #' + o.number + '? CiderPay charges the card again from the next billing day.')) return;
+    if (action === 'stop') {
+      var reason = window.prompt('Stop the instalment plan of order #' + o.number + '? No more charges; the instalments not paid are cancelled. Money already received is NOT refunded.\nReason (optional):', '');
+      if (reason === null) return;
+      body.reason = reason;
+    }
+    function send(force) {
+      b.disabled = true;
+      if (force) body.force = true;
+      Admin.say(out, 'Asking CiderPay…');
+      Admin.post('shop-plan-' + action, body).then(function () { return show(o.id).then(load); }).catch(function (err) {
+        b.disabled = false;
+        Admin.say(out, err.message, true);
+        // CiderPay refused or didn't answer: after checking its dashboard, the plan can still be stopped here.
+        if (action === 'stop' && !force && /CiderPay/.test(err.message) && confirm(err.message + '\n\nIf you ended the plan in CiderPay’s dashboard yourself (or checked it is already ended), stop it here anyway?')) send(true);
+      });
+    }
+    send(false);
+  });
+
+  document.getElementById('detail-body').addEventListener('submit', function (ev) {
+    if (ev.target.id !== 'settle-form') return;
+    ev.preventDefault();
+    var f = ev.target, o = current, out = document.getElementById('settle-out');
+    if (!confirm('Record instalment ' + f.number.value + ' of order #' + o.number + ' as received by ' + f.method.options[f.method.selectedIndex].text + '?')) return;
+    Array.prototype.forEach.call(f.querySelectorAll('button'), function (x) { x.disabled = true; });
+    Admin.say(out, 'Recording…');
+    Admin.post('shop-instalment-paid', { order: o.id, number: f.number.value, method: f.method.value, received: f.received.value, reference: f.reference.value.trim() })
+      .then(function () { return show(o.id).then(load); })
+      .catch(function (err) { Admin.say(out, err.message, true); Array.prototype.forEach.call(f.querySelectorAll('button'), function (x) { x.disabled = false; }); });
+  });
+
   // ---------- New order ----------
   var newCard = document.getElementById('new'), nf = document.getElementById('new-form'), nOut = document.getElementById('new-out');
   var nQuote = document.getElementById('new-quote'), nDone = document.getElementById('new-done');
@@ -441,9 +525,7 @@
           (o.legacy_id ? fact('WooCommerce order', '#' + o.legacy_id) : '') + (o.note ? fact('Note', Admin.esc(o.note)) : '') +
         '</dl>' +
         unpaidBlock(o, r) +
-        (r.instalments.length ? '<h3 class="admin-h3">Instalments</h3>' + table(['#', 'Due', 'Amount', 'Status'], r.instalments.map(function (i) {
-          return '<tr><td class="num">' + i.number + '</td><td class="num">' + Admin.kst(i.due_date + 'T00:00:00+09:00', false) + '</td><td class="num">' + Admin.money(i.amount, cur) + '</td><td>' + badge(i.status, INST[i.status]) + (i.error ? ' <span class="small is-error">' + Admin.esc(i.error) + '</span>' : '') + '</td></tr>';
-        }), '') : '') +
+        planBlock(o, r) +
         refundBlock(o, r) +
         '<h3 class="admin-h3">Payments</h3>' + table(['Date', 'Type', 'Amount', 'Method', 'Reference', 'Receipt'], r.payments.map(function (p) {
           return '<tr><td class="num">' + Admin.kst(p.at) + '</td><td>' + (p.kind === 'refund' ? badge('Refund', 'badge--warn') : 'Payment' + (p.instalment_no ? ' ' + p.instalment_no : '')) + '</td><td class="num">' + Admin.money(p.kind === 'refund' ? -p.amount : p.amount, p.currency) + '</td>' +
@@ -469,6 +551,9 @@
   Admin.get('shop-products').then(function (r) {
     form.product.innerHTML = '<option value="">All</option>' + r.products.map(function (p) { return '<option value="' + p.id + '">' + Admin.esc(p.name) + '</option>'; }).join('');
   }).catch(function () {});
+  // ?plan=attention (the Overview's "instalments failed or late") filters the list.
+  var planWanted = new URLSearchParams(location.search).get('plan');
+  if (planWanted === 'attention' || planWanted === 'instalment') form.plan.value = planWanted;
   load();
   // /admin/shop/orders?id=<order> (links from the Coupons page) opens that order.
   var wanted = new URLSearchParams(location.search).get('id');

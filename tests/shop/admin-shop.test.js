@@ -103,7 +103,8 @@ test('settings keep only known keys', () => {
   const s = products.settingsInput({ checkout_texts: { consent: ' 동의합니다 ', hack: 'x' }, notifications: { paid: false, refund: 'false' }, other: 1 });
   assert.deepEqual(s.checkout_texts, { consent: '동의합니다', guarantee: '', secure_note: '', paypal_instalments: '' });
   assert.deepEqual(s.notifications, { paid: false, refund: false, instalment_failed: true });
-  assert.deepEqual(Object.keys(s), ['checkout_texts', 'notifications']);
+  assert.deepEqual(Object.keys(s), ['checkout_texts', 'notifications', 'instalments']);
+  assert.deepEqual(s.instalments, { enabled: false });
 });
 
 test('shop actions are prefixed, and every write is a known action', () => {

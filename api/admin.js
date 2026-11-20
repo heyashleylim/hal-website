@@ -23,13 +23,14 @@ const emailsTranslate = require('./_lib/emails/translate.js');
 const contactsSync = require('./_lib/contacts/ac-sync.js');
 
 // Shop daily job: unpaid orders older than a day expire; paid orders missing their ActiveCampaign updates get them;
-// updates still waiting are sent.
+// instalments late with no word from CiderPay are flagged (Slack, AC); updates still waiting are sent.
 async function shopJob() {
   const expired = await shopOrders.expireStale();
   const requeued = await require('./_lib/shop/flow.js').repairSync();
   const refundsToCheck = await require('./_lib/shop/refunds.js').sweep();
+  const instalments = await require('./_lib/shop/instalments.js').checkLate();
   const sent = await shopSync.process({ budgetMs: 60 * 1000 });
-  return { expired, requeued, refundsToCheck, sent };
+  return { expired, requeued, refundsToCheck, instalments, sent };
 }
 
 const MODULES = [
@@ -43,6 +44,7 @@ const MODULES = [
   require('./_lib/admin/shop-orders.js'),
   require('./_lib/admin/shop-coupons.js'),
   require('./_lib/admin/shop-manual.js'),
+  require('./_lib/admin/shop-plans.js'),
   require('./_lib/admin/emails.js'),
   require('./_lib/admin/contacts.js'),
   require('./_lib/admin/program-students.js'),

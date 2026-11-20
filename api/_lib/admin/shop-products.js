@@ -162,7 +162,7 @@ function productInput(input) {
   const parts = [instalment_first, instalment_monthly, instalment_count].filter((x) => x != null).length;
   if (parts !== 0 && parts !== 3) throw userError('The instalment plan needs all three: first payment, monthly payment and number of monthly payments (or leave all three empty)');
   if (parts === 3 && price_krw == null) throw userError('The instalment plan is for KRW: add a KRW price');
-  if (parts === 3 && price_options.length) throw userError('Pricing options and an instalment plan can’t be combined yet (instalments join the options in phase 3): remove one');
+  if (parts === 3 && price_options.length) throw userError('Pricing options and an instalment plan can’t be combined yet: remove one');
 
   const sale_starts_at = seoulTime(input.sale_starts_at, 'Sale start');
   const sale_ends_at = seoulTime(input.sale_ends_at, 'Sale end');
@@ -264,6 +264,8 @@ function settingsInput(input) {
   return {
     checkout_texts: Object.fromEntries(Object.keys(SETTINGS.checkout_texts).map((k) => [k, text(t[k], { max: 500, label: k })])),
     notifications: Object.fromEntries(Object.keys(SETTINGS.notifications).map((k) => [k, n[k] !== false && n[k] !== 'false'])),
+    // Off unless ticked: selling instalment plans is a deliberate choice.
+    instalments: { enabled: Boolean(input.instalments) && (input.instalments.enabled === true || input.instalments.enabled === 'true') },
   };
 }
 
@@ -354,6 +356,7 @@ const actions = {
         // Where the providers must send their notices (the CiderPay address is sent with each payment request).
         paypal_webhook_url: shopConfig.configured() ? safe(() => shopConfig.callbackUrl('paypal').replace(/x-vercel-protection-bypass=[^&]+/, 'x-vercel-protection-bypass=…')) : null,
         order_fields: require('../shop/sync.js').ORDER_FIELDS,
+        plan_fields: Object.keys(require('../shop/instalments.js').planFields({ currency: 'KRW' }, [])),
       },
     };
   },

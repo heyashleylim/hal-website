@@ -204,6 +204,13 @@ async function after(order, refund) {
   await step('ActiveCampaign queue', async () => {
     for (const x of refundOps(order, product, addons, refund, { full })) await sync.enqueue({ customerId: order.customer_id, orderId: order.id, ...x });
   });
+  // A fully refunded instalment order: no more charges (the plan is stopped, at CiderPay too).
+  if (full && order.plan === 'instalment' && ['active', 'overdue', 'paused'].includes(order.plan_status)) {
+    await step('stop the instalment plan', async () => {
+      const r = await require('./instalments.js').stop(order.id, { by: 'refund', reason: 'order fully refunded', force: true });
+      if (!r.endedAtCiderpay) await notify.attention('a refunded instalment plan could not be ended at CiderPay', [`Order ${order.number} (${orders.orderName(order)})`, 'End the plan in CiderPay’s dashboard, or the card will be charged again.']);
+    });
+  }
   if (full) {
     await step('podcast access', async () => {
       const customer = await db.one('SELECT email FROM shop_customers WHERE id = $1', [order.customer_id]);

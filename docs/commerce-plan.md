@@ -22,7 +22,7 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 | **0. Inventory** | WordPress exports, the list of what tags AC today, PayPal app + sandbox, accountant's answers. | The open points of section 8 that block a phase are cleared. |
 | **1. Foundations** ✅ 2026-11-10 | Migration `005`, pricing + ledger modules with tests, Shop admin: Products, Orders (read), Settings. | A product can be created in the admin and quoted by the API. |
 | **2. Checkout, pay in full** (built 2026-11-11, section 10) | Checkout page, Kakao search, CiderPay pay-in-full, PayPal, notices, thank-you page, Slack, AC sync for purchases, dataLayer. | A real ₩1,000 payment and a sandbox $ payment go through on a preview, end to end. **Still to do: Alex's tests in section 10.** |
-| **3. Instalments, refunds, coupons** (refunds, coupons and manual orders built 2026-11-19, sections 11–13) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
+| **3. Instalments, refunds, coupons** (refunds, coupons and manual orders built 2026-11-19, sections 11–13; instalment plans built 2026-11-20, section 14, switched off until tested) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
 | **4. Tax & reports + import** | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
 | **5. Go live** | Section 6, steps 3–6. Vercel Pro. | No payment link points to WordPress. |
 | **6. Referrals + `/my`** | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
@@ -832,4 +832,92 @@ in the schema from phase 1. Tests: `tests/shop/manual.test.js`, e2e groups "Manu
 mobile → copy the link, open it on a phone, pay ₩900 by card → the order is paid, with its tax line and AC tags. Then
 New order → same product, "Already paid another way" (bank transfer, today) → paid at once, tax line dated today.
 Refund both (the first through CiderPay, the second "Record a refund made by hand").
+
+## 14. Phase 3 as built: instalment plans (2026-11-20)
+
+Code: `api/_lib/shop/instalments.js` (the plan's life), `ciderpay.requestPlan / planAction / planNoticeProblem`
+(CiderPay's 정기 결제), `orders.planTerms / planRows` and `recordPayment` (the schedule), `api/_lib/admin/shop-plans.js`
+(actions `shop-plan-pause`, `shop-plan-resume`, `shop-plan-stop`, `shop-instalment-paid`), the instalment checkout in
+`page.checkoutPage({ plan: 'instalment' })`. Migration 018 (`plan_terms`, `rp_card`, `rp_closed_at` on orders;
+`alerted_at`, `note` on instalments; one payment per instalment). Tests: `tests/shop/instalments.test.js`, e2e groups
+"Instalments: …".
+
+**Where the CiderPay details come from.** CiderPay's documentation site (uddocs.net) stopped loading on 2026-11-20. The
+calls follow the documentation as read on 2026-11-10 (kept in that session's notes) and the WooCommerce plugin that
+sells NSMB instalments today (`woocommerce-gateway-ciderpay.php` v3.0.0): `POST /oapi/regularPay/request` with the
+`devID` / `devToken` headers (the plugin sends the member id and the same API token), the agreement page in the
+answer's `var1`; `turnSeq` 0 = the first charge; the plan ends 7 days after the last due date (`limitDateStr`). Not
+tested against the real CiderPay yet: **the switch stays off until Alex's test below passes.**
+
+**How it works**
+
+1. **Switch**: Shop → Settings → "Sell instalment plans" (off by default, per database: a preview can be switched on
+   alone). While off, nothing about plans shows on the checkout and an instalment order is refused; notices for plans
+   already running are still handled.
+2. **Checkout**: a product with a plan (first payment, monthly payment, number of monthly payments, KRW) gets a second
+   checkout, `/checkout/<product>?plan=instalment` (the Products page shows the link). The usual checkout shows a box
+   under the card method: "분할 결제도 가능해요 — 오늘 ₩930,000, 이후 매월 ₩930,000씩 2회 → 분할 결제로 신청하기". The
+   instalment checkout takes the card only (no PayPal, no add-ons, no pricing options), shows "오늘 결제" and "이후 매월
+   N일 · n회" in the order, and links back to paying in full. A coupon comes off the plan's total and every payment goes
+   down in proportion (section 12); applying one reloads the page with the new amounts.
+3. **The order** stores its terms (`plan_terms` = first, monthly, count, billing day) and its schedule
+   (`shop_instalments`: 1 = paid at checkout, then one per month). The billing day is the day of the order, capped at 30
+   (28 for an order on 29 February), as the plugin sent it; the dates are set again from the day the first payment is
+   made.
+4. **CiderPay's agreement page** charges the first payment. Its notices:
+   - `agreeRegularPayment`: the plan's token (`rp_token`, to pause or end it) and the card's last 4 digits are kept.
+   - `rejectRegularPayment`: the unpaid order is cancelled.
+   - `completeRpPayment` `turnSeq` 0: the first payment, exactly like a payment in full (order paid, purchase tags,
+     Slack), plus `instalment_active_<product>` and the plan fields. Later turns: the payment and its tax line
+     (`kind = instalment`), the instalment marked paid (one statement), `instalment_paid_<product>_<n>`, Slack
+     "instalment 2 of 3". The last one: plan `completed`, `instalment_completed_<product>`, and the agreement is ended
+     at CiderPay (`destroyMp`; retried by the daily job if CiderPay doesn't answer).
+   - `errorRpPayment`: the instalment `failed` with CiderPay's message, the plan `overdue`, **Slack at once** (who,
+     which program, which instalment, amount, date, CiderPay's reason, link to the order) and
+     `instalment_failed_<product>` so an AC automation can email the customer. Once per instalment.
+   - Each notice must carry our token and signature (`var1`/`var2`, sent with every plan request), or, if CiderPay
+     leaves them out of a charge notice, the plan's own token learned from a checked agreement notice.
+5. **Silent failures**: every morning, an instalment of a running plan whose date passed **2 days** ago with no notice
+   becomes `overdue`, with the same alert and tag.
+6. **Paid after all** (CiderPay retries, or the admin records a bank transfer): `instalment_failed_` removed, the plan
+   back to `active`, Slack "Instalment received after all".
+7. **Money that shouldn't have come** (a second charge for an instalment already paid, a charge for a stopped or
+   completed plan): held, never recorded, Slack "refund it in CiderPay's dashboard if it is real" (like a second payment
+   of a paid order).
+
+**In the admin** (Shop → Orders → an instalment order → "Instalment plan"): terms, plan status, CiderPay agreement
+(card …1234, ended date), the schedule, and:
+- **Record as paid** on an unpaid instalment: paid another way (bank transfer…), with the day received and a reference;
+  its own payment (`manual-<order>-i<n>`) and tax line.
+- **Pause / Resume** (at CiderPay too). While paused, passed dates aren't flagged; after resuming, the next morning's
+  check flags any instalment whose date passed. CiderPay's plan still ends on its original end date: instalments
+  pushed past it must be collected by hand.
+- **Stop plan**: ended at CiderPay, unpaid instalments cancelled, `cancelled_<product>`. If CiderPay refuses or doesn't
+  answer, nothing changes unless the admin confirms they checked CiderPay's dashboard ("stop it here anyway").
+- A **full refund** of the order stops the plan the same way (Slack if CiderPay couldn't end it).
+- Orders list: Plan filter ("Instalment plans", "Instalments failed or late"); the Overview's count links there.
+
+**Decisions taken while building (change them if Ashley wants otherwise)**
+
+- A separate checkout address per plan (like WooCommerce's variants) rather than a switch inside one page: amounts,
+  coupon and add-ons differ too much to switch in place, and it works without JavaScript. Typed details carry over
+  between the two pages.
+- Instalments not with add-ons or pricing options (as before). The first payment can't be recorded by hand (there is
+  no card agreement without CiderPay's page).
+- AC tag numbers are the instalment's number: `instalment_paid_<product>_2` is the first monthly payment.
+- "One-off payment link for a missed instalment" (section 3.2 step 4) is not built: send the customer a bank account,
+  then "Record as paid". Say if a link is wanted.
+- New Korean strings (`copy.plan`, `copy.complete.planNext`): "일시불 / 분할 결제" are the NSMB page's words, the rest is
+  new copy for Ashley to review.
+
+**To test with Alex (a preview with its own database, real card, ₩1,000 amounts)**
+
+1. Product: a test product at ₩3,000 with a plan of ₩1,000 first + ₩1,000 × 2 monthly. Settings → tick "Sell
+   instalment plans" (on that preview only).
+2. Open `/checkout/<product>?plan=instalment`, pay ₩1,000 on CiderPay's page. Check: order paid, plan active, card
+   …digits shown, schedule dated today / next month / the month after, Slack "instalment 1 of 3", AC tags.
+3. In CiderPay's dashboard, check the plan exists with the right day and end date. Then Admin → Pause, Resume (check
+   CiderPay shows each), and finally Stop (CiderPay shows it ended). Refund the ₩1,000.
+4. Optionally leave a second plan running a month to see the second charge arrive (`turnSeq` 1) and be recorded.
+5. Only then: tick the switch in production.
 

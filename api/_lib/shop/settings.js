@@ -9,6 +9,8 @@ const DEFAULTS = {
   checkout_texts: { consent: '', guarantee: '', secure_note: '', paypal_instalments: '' },
   // Slack messages (webhook addresses are Vercel env vars).
   notifications: { paid: true, refund: true, instalment_failed: true },
+  // Instalment plans at checkout (docs/commerce-plan.md section 14): off until a real plan has been tested.
+  instalments: { enabled: false },
 };
 
 async function read() {

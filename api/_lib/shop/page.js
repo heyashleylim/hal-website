@@ -12,6 +12,7 @@ const path = require('node:path');
 const copy = require('./copy.ko.js');
 const pricing = require('./pricing.js');
 const validate = require('./validate.js');
+const ledger = require('./ledger.js');
 
 const GTM_ID = 'GTM-MK4FNWNV'; // the container used on every public page (tools/rebuild/gtm.py)
 const SITE = path.join(__dirname, '..', '..', '..', 'site');
@@ -300,9 +301,10 @@ function couponBlock(coupon, notHere) {
 
 // The coupon's own form (see couponBlock): opens this checkout again with the code, the payment method and the
 // campaign values of the page.
-function couponForm(product, currency, source) {
+function couponForm(product, currency, source, plan = 'full') {
   return `<form id="co-coupon-form" method="get" action="/checkout/${esc(product.slug)}" hidden>
     <input type="hidden" name="currency" value="${esc(currency.toLowerCase())}">
+    ${plan === 'instalment' ? '<input type="hidden" name="plan" value="instalment">' : ''}
     ${Object.entries(source).map(([k, val]) => `<input type="hidden" name="${esc(k)}" value="${esc(val)}">`).join('')}
   </form>`;
 }
@@ -335,13 +337,19 @@ function choice({ name, value, id, checked, title, price = '', note = '', extra 
  *   problem           a code from copy.problems to show above the form
  *   settings          shop settings (checkout_texts)
  *   query             campaign values to carry through the form
- *   coupon            the coupon applied ({ code, label, off } from coupons.forPage), or { code, error } when the code
- *                     typed (or in the link) can't be used, or null
+ *   coupon            the coupon applied ({ code, label, off, planOff } from coupons.forPage), or { code, error } when
+ *                     the code typed (or in the link) can't be used, or null
+ *   plan              'instalment' for the instalment checkout (/checkout/<product>?plan=instalment): card in won only,
+ *                     no add-ons, the order shows what is paid today and then each month. The pay-in-full checkout of
+ *                     a product with a plan links to it (and back).
  */
-function checkoutPage({ product, offers, currency, addons = {}, values = {}, errors = null, problem = '', settings = {}, query = {}, coupon = null }) {
-  const offer = offers.find((o) => o.currency === currency) || offers[0];
+function checkoutPage({ product, offers, currency, addons = {}, values = {}, errors = null, problem = '', settings = {}, query = {}, coupon = null, plan = 'full' }) {
+  const planOffer = plan === 'instalment' ? offers.find((o) => o.plan === 'instalment') : null;
+  const offer = planOffer || offers.find((o) => o.currency === currency && o.plan === 'full') || offers.find((o) => o.plan === 'full') || offers[0];
   currency = offer.currency;
-  const currencies = CURRENCY_ORDER.filter((cur) => offers.some((o) => o.currency === cur && o.plan === 'full'));
+  const planMode = offer.plan === 'instalment';
+  const instalmentOffer = offers.find((o) => o.plan === 'instalment') || null;
+  const currencies = planMode ? [currency] : CURRENCY_ORDER.filter((cur) => offers.some((o) => o.currency === cur && o.plan === 'full'));
   const addonsBy = Array.isArray(addons) ? { [currency]: addons } : addons || {};
   const texts = (settings && settings.checkout_texts) || {};
   const money = (n) => pricing.formatMoney(n, currency);
@@ -350,7 +358,7 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
   const c = product.content || {};
 
   // Pricing options (기본 / VIP…): the one picked before a failed submit stays picked; else the first.
-  const opts = pricing.priceOptions(product);
+  const opts = planMode ? [] : pricing.priceOptions(product);
   const optionKey = opts.length ? (opts.find((o) => o.key === v('option')) || opts[0]).key : '';
 
   // The add-ons, and the order as it stands when the page opens (add-ons ticked before a failed submit stay
@@ -359,8 +367,8 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
   const addonList = offer.plan === 'full' ? addonUnion(product, addonsBy, currencies) : [];
   const chosen = addonList.filter((x) => x.by[currency] && ticked(values, x.product.id));
   const applied = coupon && coupon.off ? coupon : null;
-  const offNow = applied && applied.off[optionKey] ? applied.off[optionKey][currency] : null;
-  const discount = offer.plan === 'full' && offNow != null ? offNow : 0;
+  const offNow = !applied ? null : planMode ? (applied.planOff == null ? null : applied.planOff) : applied.off[optionKey] ? applied.off[optionKey][currency] : null;
+  const discount = offNow != null ? offNow : 0;
   const now = pricing.quote(product, { currency, plan: offer.plan, option: optionKey || null, addons: chosen.map((x) => x.product), discount });
   const payLabel = copy.pay(money(now.dueToday));
   const vatText = (vat) => (vat > 0 ? copy.summary.vat(money(vat)) : '');
@@ -405,25 +413,56 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
   }).join('\n        ')}
       </div>` : '';
 
+  // The other checkout of a product with an instalment plan (pay in full ↔ instalments), keeping the campaign
+  // values and the coupon of this page.
+  const otherPlan = (target) => {
+    const q = new URLSearchParams(source);
+    if (applied) q.set('coupon', applied.code);
+    if (target === 'instalment') q.set('plan', 'instalment');
+    const qs = q.toString();
+    return `/checkout/${encodeURIComponent(product.slug)}${qs ? `?${qs}` : ''}`;
+  };
+  const pc = copy.plan;
+  const planTerms = (o) => {
+    const [first, ...rest] = o.payments.map((x) => x.amount);
+    return { first, monthly: rest[0], count: rest.length };
+  };
+
   // How to pay: card (won, CiderPay) or PayPal (dollars). Only the methods this product and this site can take.
+  // The instalment checkout takes the card only; the pay-in-full one offers the plan under the card (won prices).
+  let planBox = '';
+  if (planMode) {
+    planBox = `<p class="co-plan-note">${esc(pc.note)}</p>
+      <p class="co-plan-switch"><a class="co-link" href="${esc(otherPlan('full'))}">${esc(pc.fullLink)}</a></p>`;
+  } else if (instalmentOffer && currencies.includes('KRW')) {
+    const t = planTerms(instalmentOffer);
+    planBox = `<div class="co-plan-offer" data-cur="KRW"${currency === 'KRW' ? '' : ' hidden'}>
+        <p class="co-plan-offer__title">${esc(pc.offerTitle)}</p>
+        <p class="co-plan-offer__line">${esc(pc.offerLine(pricing.formatMoney(t.first, 'KRW'), pricing.formatMoney(t.monthly, 'KRW'), t.count))}</p>
+        <p><a class="co-link" href="${esc(otherPlan('instalment'))}">${esc(pc.offerLink)}</a></p>
+      </div>`;
+  }
   const methodStep = `<div class="co-choices co-choices--methods">
         ${currencies.map((cur) => (cur === 'USD'
     ? choice({ name: 'currency', value: 'USD', id: 'co-method-paypal', checked: currency === 'USD', title: esc(copy.methods.paypal), note: esc(copy.methods.paypalNote), extra: texts.paypal_instalments ? `<span class="co-choice__note">${esc(texts.paypal_instalments)}</span>` : '' })
-    : choice({ name: 'currency', value: 'KRW', id: 'co-method-card', checked: currency === 'KRW', title: esc(copy.methods.card), note: esc(copy.methods.cardNote) }))).join('\n        ')}
-      </div>`;
+    : choice({ name: 'currency', value: 'KRW', id: 'co-method-card', checked: currency === 'KRW', title: esc(copy.methods.card) + (planMode ? ` · ${esc(pc.chosen)}` : ''), note: esc(copy.methods.cardNote) }))).join('\n        ')}
+      </div>
+      ${planBox}`;
 
   // What checkout.js needs to keep the prices, the total and the analytics events right in either currency.
   const data = {
-    slug: product.slug, currency, plan: offer.plan, payLabel, payTemplate: copy.pay('{price}'), vatTemplate: copy.summary.vat('{price}'), paying: copy.paying,
+    slug: product.slug, currency, plan: offer.plan, planTotal: planMode ? now.total : undefined, payLabel, payTemplate: copy.pay('{price}'), vatTemplate: copy.summary.vat('{price}'), paying: copy.paying,
     errors: copy.errors, problems: copy.problems, emailTypo: copy.emailTypo('{email}'), emailTypoUse: copy.emailTypoUse,
     search: { open: copy.fields.search, again: copy.fields.searchAgain, failed: copy.fields.searchFailed },
     postcode: { kr: copy.fields.postcode, other: copy.fields.postcodeOptional },
     product: { id: product.slug, name: product.name },
     vatRule: Object.fromEntries(currencies.map((cur) => [cur, pricing.vatRule(product, cur)])),
-    options: (opts.length ? opts : [{ key: '', label: '', price_krw: product.price_krw, price_usd: product.price_usd }])
-      .map((o) => ({ key: o.key, label: String(o.label || ''), ...Object.fromEntries(currencies.map((cur) => [cur, pricing.priceIn(o, cur)])) })),
+    // The instalment checkout's one "option" is the plan: its total before any discount.
+    options: planMode ? [{ key: '', label: '', [currency]: now.items[0].amount + now.discount }]
+      : (opts.length ? opts : [{ key: '', label: '', price_krw: product.price_krw, price_usd: product.price_usd }])
+        .map((o) => ({ key: o.key, label: String(o.label || ''), ...Object.fromEntries(currencies.map((cur) => [cur, pricing.priceIn(o, cur)])) })),
     addons: addonList.map((x) => ({ id: x.product.id, slug: x.product.slug, name: x.product.name, ...Object.fromEntries(currencies.map((cur) => [cur, x.by[cur] ? { amount: x.by[cur].amount, vatRule: x.by[cur].vatRule } : null])) })),
-    coupon: applied && offer.plan === 'full' ? { code: applied.code, off: applied.off } : null,
+    coupon: !applied ? null : planMode ? { code: applied.code, off: { '': { [currency]: offNow } } } : { code: applied.code, off: applied.off },
     couponTexts: { applied: copy.coupon.applied('{code}'), line: copy.coupon.line('{code}'), notHere: copy.coupon.notHere, apply: copy.coupon.apply, applying: copy.coupon.applying },
   };
 
@@ -431,7 +470,12 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
           <div class="co-order__row co-order__row--discount" data-discount-row${now.discount ? '' : ' hidden'}><dt data-discount-name>${esc(applied ? copy.coupon.line(applied.code) : '')}</dt><dd data-discount>${esc(now.discount ? money(-now.discount) : '')}</dd></div>
           ${addonList.map((x) => `<div class="co-order__row co-order__row--addon" data-line="${esc(x.product.id)}"${chosen.includes(x) ? '' : ' hidden'}>
             <dt>${esc(x.product.name)}<button class="co-order__remove" type="button" data-remove="${esc(x.product.id)}" hidden aria-label="${esc(copy.addons.removeLabel(x.product.name))}">${CROSS}<span aria-hidden="true">${esc(copy.addons.remove)}</span></button></dt>
-            <dd>${dual(Object.fromEntries(Object.entries(x.by).map(([cur, y]) => [cur, y.amount])), currency)}</dd></div>`).join('\n          ')}`;
+            <dd>${dual(Object.fromEntries(Object.entries(x.by).map(([cur, y]) => [cur, y.amount])), currency)}</dd></div>`).join('\n          ')}
+          ${planMode ? (() => {
+    const t = planTerms(now);
+    return `<div class="co-order__row co-order__row--plan"><dt>${esc(pc.today)}</dt><dd>${esc(money(t.first))}</dd></div>
+          <div class="co-order__row co-order__row--plan"><dt>${esc(pc.monthly(pricing.billingDay(ledger.seoul(new Date()).date), t.count))}</dt><dd>${esc(pc.each(money(t.monthly)))}</dd></div>`;
+  })() : ''}`;
 
   let n = 0;
   const body = `<div class="co-wrap co-grid">
@@ -453,7 +497,7 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
 
       ${addonsBlock(addonList, currency, values)}
 
-      ${offer.plan === 'full' ? couponBlock(coupon, applied && offNow == null) : ''}
+      ${couponBlock(coupon, applied && offNow == null)}
 
       <section class="co-order" aria-labelledby="co-order-title">
         <h2 class="co-order__title" id="co-order-title">${esc(copy.summary.title)}</h2>
@@ -468,7 +512,7 @@ function checkoutPage({ product, offers, currency, addons = {}, values = {}, err
       ${texts.secure_note ? `<p class="co-secure">${LOCK}<span>${esc(texts.secure_note)}</span></p>` : ''}
       <p class="co-consent">${consentHtml(texts.consent)}</p>
   </form>
-  ${offer.plan === 'full' ? couponForm(product, currency, source) : ''}
+  ${couponForm(product, currency, source, offer.plan)}
   ${side(product, texts)}
 </div>`;
   return layout({ title: `${copy.title} · ${product.name}`, body, data });
@@ -528,8 +572,9 @@ function kstDate(value) {
  *   product    its product (for the thank-you text and the "pay again" link)
  *   receiptUrl the provider's receipt for the payment, if any
  *   slow       true when the caller already waited and the payment is still unconfirmed (no-JavaScript reloads)
+ *   plan       an instalment order's schedule (instalments.rowsOf): the next payment is shown
  */
-function completePage({ order, product = null, items = [], receiptUrl = '', slow = false, tries = 0 }) {
+function completePage({ order, product = null, items = [], receiptUrl = '', slow = false, tries = 0, plan = [] }) {
   const c = copy.complete;
   if (!order) {
     return layout({
@@ -575,6 +620,11 @@ function completePage({ order, product = null, items = [], receiptUrl = '', slow
     ${order.coupon_code && order.discount ? `<div><dt>${esc(c.coupon)}</dt><dd>${esc(order.coupon_code)} (${esc(pricing.formatMoney(-order.discount, order.currency))})</dd></div>` : ''}
     <div><dt>${esc(c.amount)}</dt><dd>${esc(amount)}</dd></div>
     <div><dt>${esc(c.date)}</dt><dd>${esc(kstDate(order.paid_at))}</dd></div>
+    ${(() => {
+    const open = (plan || []).filter((r) => ['due', 'failed', 'overdue'].includes(r.status));
+    if (order.plan !== 'instalment' || !open.length) return '';
+    return `<div><dt>${esc(c.planNext)}</dt><dd>${esc(c.planNextLine(kstDate(`${open[0].due_date}T12:00:00+09:00`), pricing.formatMoney(open[0].amount, order.currency), open.length))}</dd></div>`;
+  })()}
   </dl>
   ${receiptUrl && /^https:\/\//.test(receiptUrl) ? `<p><a class="co-link" href="${esc(receiptUrl)}" target="_blank" rel="noopener noreferrer">${esc(c.receipt)}</a></p>` : ''}
   <p class="co-thanks">${esc(thanks).replace(/\n/g, '<br>')}</p>

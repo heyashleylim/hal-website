@@ -23,7 +23,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options, 016 refunds, 017 coupons), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options, 016 refunds, 017 coupons, 018 instalment plans), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -225,7 +225,7 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch. 
 
 Plan, decisions and phases: `docs/commerce-plan.md` (phase table at the top; section 10 = the checkout as built and
 Alex's real-payment tests). Built on the `shop` branch. Phase 1 (products, orders, tax ledger) and phase 2 (checkout,
-pay in full) are built; phase 3 has refunds, coupons and orders made by hand so far (instalments to come). The site's payment
+pay in full) are built; phase 3 has refunds, coupons, orders made by hand and instalment plans (switched off until tested). The site's payment
 links still go to WordPress until go-live (phase 5).
 **This code takes real money: every change needs `npm test` and `npm run test:shop` to pass, and a browser check.**
 - Pages: `/checkout/<product>` and `/checkout/complete` (rewrites in `vercel.json` → `api/shop-page.js`), rendered on the
@@ -273,8 +273,21 @@ links still go to WordPress until go-live (phase 5).
   (`option_unavailable` otherwise). The order keeps `{ key, label, tag }` in `shop_orders.price_option`, its main item
   is named "product · option", and the option's tag is added in AC with the product's. Not with instalment plans yet:
   they join the same picker in phase 3.
-- Instalment plans are stored on products but not sold yet (`orders.INSTALMENTS_ENABLED`, phase 3). The refund window is
-  14 days.
+- **Instalment plans** (phase 3, `api/_lib/shop/instalments.js`, migration 018, plan section 14): KRW card only, through
+  CiderPay's 정기 결제 (`ciderpay.requestPlan`: first payment at once, then monthly on the billing day, ending 7 days after
+  the last date; `devID`/`devToken` headers = the member id and API token). **Sold only while Shop → Settings → "Sell
+  instalment plans" is ticked** (off until a real plan has been tested): then a product with a plan has a second checkout,
+  `/checkout/<product>?plan=instalment` (card only, no add-ons or options; "today / each month" in the order), linked
+  from the usual one. The order carries its terms (`plan_terms`) and schedule (`shop_instalments`, dated again from the
+  first payment). Notices (`cmd`): agree (keeps `rp_token`), reject (cancels the unpaid order), completeRpPayment
+  (`turnSeq` 0 = instalment 1, through `flow.confirm`; later ones recorded with their tax line by `confirmInstalment`),
+  errorRpPayment (instalment failed, plan overdue, Slack + AC `instalment_failed_<product>` once). The daily job flags
+  instalments 2 days past their date with no notice (same alert), and ends agreements of completed/stopped plans at
+  CiderPay. A charge for an instalment already paid, or for a stopped/completed plan, is held (not recorded) with an
+  alert. Admin order page: pause / resume / stop (at CiderPay; stop can be forced after checking its dashboard), record
+  an instalment paid another way. A full refund stops the plan. AC: `instalment_active_`, `instalment_paid_<product>_<n>`,
+  `instalment_completed_`, `instalment_failed_`, `cancelled_<product>`; fields `INSTALMENT_NEXT_DATE`,
+  `INSTALMENT_NEXT_AMOUNT`, `INSTALMENT_REMAINING`. The refund window is 14 days.
 - **Refunds** (phase 3, `api/_lib/shop/refunds.js`, table `shop_refunds`, migration 016): on the admin order page, all or
   part of a payment, with a reason. CiderPay: `/oapi/payment/cancel`, or `/cancelRequest` once settled (`requested`
   until CiderPay's CANCEL notice). PayPal: `/v2/payments/captures/{id}/refund` (`custom_id` = `r<refund id>`; its
@@ -289,8 +302,7 @@ links still go to WordPress until go-live (phase 5).
   rule (1–99% rounded down, or a fixed amount per currency; products; dates; paid orders per email) and the AC tag key
   (`coupon_issued_<key>`, `coupon_used_<key>`; can't change). Codes are shared (anyone, optional max uses) or personal
   (one email, one use, `valid_days` from the day given, last day = Seoul date). A coupon lowers the product's own price
-  only (the option picked, never add-ons) and never to zero. On an instalment plan (priced, sold once instalments are
-  built) it comes off the plan's total, then every payment goes down in proportion (`pricing.discountedPlan`). The checkout's "쿠폰이 있으신가요?" box
+  only (the option picked, never add-ons) and never to zero. On an instalment plan it comes off the plan's total, then every payment goes down in proportion (`pricing.discountedPlan`). The checkout's "쿠폰이 있으신가요?" box
   has its own small GET form (`?coupon=` re-opens the page with it; checkout.js asks `/api/shop?action=coupon` instead);
   the order form carries the applied code in a hidden `coupon`, checked again with the email by `flow.start`
   (`coupons.forOrder`). An unpaid order under an hour old holds a limited code (not for the same email); a payment is

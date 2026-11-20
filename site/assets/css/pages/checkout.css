@@ -248,3 +248,14 @@
 .co-phone.is-compact .co-phone__shown::after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;margin-top:-5px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
 .co-phone.is-compact .co-phone__cc:focus-within .co-phone__shown{outline:3px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
 .co-field.is-invalid .co-phone__shown{border-color:var(--accent)}
+
+/* Instalment plans: the offer under the card method (pay-in-full checkout), the note and switch on the instalment
+   checkout, and the "today / each month" rows of its order. */
+.co-plan-offer{margin-top:12px;padding:14px 16px;border:1px dashed var(--line);border-radius:var(--r-md);background:var(--bg-alt)}
+.co-plan-offer p{margin:0}
+.co-plan-offer__title{font:700 15px/1.5 var(--font-body);color:var(--ink)}
+.co-plan-offer__line{margin-top:2px !important;font-size:14px;line-height:1.6;color:var(--ink-2)}
+.co-plan-offer .co-link,.co-plan-switch .co-link{display:inline-flex;align-items:center;min-height:44px}
+.co-plan-note{margin:12px 0 0;font-size:14px;line-height:1.7;color:var(--ink-2)}
+.co-plan-switch{margin:4px 0 0}
+.co-order__row--plan dt,.co-order__row--plan dd{color:var(--ink-2);font-size:14px}

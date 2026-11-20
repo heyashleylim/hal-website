@@ -1125,6 +1125,195 @@ async function main() {
     mj = await admin('shop-product-save', { name: 'Pay', slug: 'pay', status: 'draft', price_krw: '1000', content: {} });
     check('a product can’t use /checkout/pay', /already uses/.test(mj.error || ''));
 
+    // ---------- instalment plans ----------
+    const pricingMod = require('../../api/_lib/shop/pricing.js');
+    const ordersMod = require('../../api/_lib/shop/orders.js');
+    const plansMod = require('../../api/_lib/shop/instalments.js');
+    const planRowsOf = (orderId) => sql(`SELECT number, to_char(due_date, 'YYYY-MM-DD') AS due_date, amount, status, error, payment_id, alerted_at FROM shop_instalments WHERE order_id = $1 ORDER BY number`, [orderId]);
+    const lastNotice = async (n) => { try { return JSON.parse(n.body).outcome; } catch (_) { return n.body; } };
+    const day = (offset) => new Date(Date.now() + offset * 86400000);
+    const NSMB = 'nsmb_03_202701';
+    // jsonb gives keys back in its own order: compare objects with their keys sorted.
+    const keysSorted = (o) => (o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1))) : o);
+    // Starts a plan for buyer n: the order, its fake CiderPay plan, and (agree = true) the buyer agreeing and paying.
+    async function planOrder(n, { agree = true } = {}) {
+      const iRes = await postJson('/api/shop?action=order', buyer(n, { slug: 'e2e-nsmb', plan: 'instalment' }), from());
+      const b = await iRes.json();
+      const iPid = b.redirect ? new URL(b.redirect).searchParams.get('id') : null;
+      if (agree && iPid) await get(`/__fake/ciderpay/plan-do?id=${iPid}&act=agree`);
+      return { res: iRes, b, pid: iPid, o: await orderOf(`buyer${n}@example.com`) };
+    }
+
+    group('Instalments: switched off');
+    html = await (await get('/checkout/e2e-nsmb?plan=instalment')).text();
+    check('?plan=instalment shows the usual checkout while plans are not sold', html.includes('name="plan" value="full"') && !html.includes('분할 결제도'));
+
+    group('Instalments: the checkout');
+    let sj = await admin('shop-settings-save', { checkout_texts: {}, notifications: { paid: true, refund: true, instalment_failed: true }, instalments: { enabled: true } });
+    eq('Shop → Settings: plans switched on', sj.settings && sj.settings.instalments, { enabled: true });
+    html = await (await get('/checkout/e2e-nsmb')).text();
+    check('the pay-in-full checkout offers the plan, with a link', html.includes('분할 결제도 가능해요') && html.includes('오늘 ₩930,000, 이후 매월 ₩930,000씩 2회') && html.includes('href="/checkout/e2e-nsmb?plan=instalment"'));
+    html = await (await get('/checkout/e2e-nsmb?plan=instalment')).text();
+    check('the instalment checkout: card only, today then each month, ₩930,000 now', html.includes('name="plan" value="instalment"') && !html.includes('co-method-paypal') && html.includes('오늘 결제') && html.includes('₩930,000 결제하기') && html.includes('data-total>₩2,790,000<'));
+    r = await postJson('/api/shop?action=order', buyer(302, { slug: 'e2e-nsmb', plan: 'instalment', currency: 'USD' }), from());
+    eq('a plan in dollars is refused', [r.status, (await r.json()).error], [409, 'unavailable']);
+    r = await postJson('/api/shop?action=order', buyer(302, { slug: 'e2e-eft', plan: 'instalment' }), from());
+    eq('a plan for a product without one is refused', [r.status, (await r.json()).error], [409, 'unavailable']);
+    let ip1 = await planOrder(301, { agree: false });
+    check('the buyer is sent to CiderPay’s agreement page', ip1.res.status === 200 && ip1.b.redirect.startsWith(base + '/__fake/ciderpay/plan?id='));
+    const startDay = todayKst;
+    const terms1 = { first: 930000, monthly: 930000, count: 2, day: pricingMod.billingDay(startDay) };
+    eq('the order: a plan of 3 payments, ₩930,000 now', [ip1.o.plan, ip1.o.total, ip1.o.due_today, ip1.o.status, ip1.o.plan_status, keysSorted(ip1.o.plan_terms), ip1.o.provider_request], ['instalment', 2790000, 930000, 'awaiting_payment', null, keysSorted(terms1), ip1.pid]);
+    eq('its schedule is written with it, nothing paid', (await planRowsOf(ip1.o.id)).map((x) => [x.number, x.amount, x.status]), [[1, 930000, 'due'], [2, 930000, 'due'], [3, 930000, 'due']]);
+    let planBody = fake.plans.get(ip1.pid).body;
+    eq('CiderPay was asked for: ₩930,000 now, then ₩930,000 on the billing day, our token and signature on every notice',
+      [planBody.firstBillingType, planBody.firstPrice, planBody.price, planBody.periodDateType, planBody.periodDateVal, planBody.customMobile, planBody.var1, planBody.payVar1, planBody.var2 === planBody.payVar2 && planBody.var2.length === 32],
+      ['MUST_FIRST_PAYMENT', 930000, 930000, 'MONTH', String(terms1.day), '01012345678', ip1.o.token, ip1.o.token, true]);
+    eq('…ending 7 days after the last due date', planBody.limitDateStr, plansMod.addDays(ordersMod.planRows(terms1, startDay)[2].due_date, 7));
+
+    group('Instalments: agreement and first payment');
+    r = await get(`/__fake/ciderpay/plan-do?id=${ip1.pid}&act=agree`);
+    check('back on the thank-you page', r.status === 302 && r.headers.get('location').includes('/checkout/complete?o=' + ip1.o.token));
+    let po = await orderOf('buyer301@example.com');
+    eq('paid, the plan running, the agreement kept', [po.status, po.plan_status, po.paid_total, po.rp_token, po.rp_card], ['paid', 'active', 930000, 'RP' + ip1.pid, '1234']);
+    let ppay = await one(`SELECT * FROM shop_payments WHERE order_id = $1`, [po.id]);
+    eq('the payment is instalment 1', [ppay.provider, ppay.amount, ppay.instalment_no], ['ciderpay', 930000, 1]);
+    eq('its tax line: an instalment', await sql(`SELECT kind, amount, supply, vat FROM shop_ledger WHERE order_id = $1`, [po.id]), [{ kind: 'instalment', amount: 930000, supply: 845455, vat: 84545 }]);
+    let prows = await planRowsOf(po.id);
+    eq('the schedule: 1 paid, dated from today', prows.map((x) => [x.number, x.due_date, x.status, x.payment_id === ppay.id]), ordersMod.planRows(terms1, startDay).map((x, i) => [x.number, x.due_date, i ? 'due' : 'paid', !i]));
+    check('ActiveCampaign: purchase tag and instalment_active', (await tagsOf(po.id)).join(' ').includes(`+purchased_${NSMB}`) && (await tagsOf(po.id)).includes(`+instalment_active_${NSMB}`));
+    let pf = await one(`SELECT payload->'fields' AS f FROM shop_outbox WHERE order_id = $1 AND op = 'fields' AND payload->'fields' ? 'INSTALMENT_NEXT_DATE' ORDER BY id DESC LIMIT 1`, [po.id]);
+    eq('…and the plan fields', keysSorted(pf && pf.f), keysSorted({ INSTALMENT_NEXT_DATE: prows[1].due_date, INSTALMENT_NEXT_AMOUNT: '₩930,000', INSTALMENT_REMAINING: '₩1,860,000' }));
+    html = await (await get(`/checkout/complete?o=${po.token}`)).text();
+    check('the thank-you page shows the next payment', html.includes('다음 결제') && html.includes('남은 결제 2회'));
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 0, orderNo: ppay.provider_ref });
+    eq('the first payment’s notice again: acknowledged, recorded once', [n.status, await lastNotice(n), await count('shop_payments', 'order_id = $1', [po.id])], [200, 'duplicate', 1]);
+
+    group('Instalments: monthly charges');
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 1 });
+    eq('instalment 2 charged: recorded', [n.status, await lastNotice(n)], [200, 'paid']);
+    const pay2 = await one(`SELECT * FROM shop_payments WHERE order_id = $1 AND instalment_no = 2`, [po.id]);
+    po = await orderOf('buyer301@example.com');
+    eq('payment, tax line, order total', [pay2 && pay2.amount, await count('shop_ledger', `order_id = $1 AND kind = 'instalment'`, [po.id]), po.paid_total, po.plan_status], [930000, 2, 1860000, 'active']);
+    eq('the schedule: 2 paid', (await planRowsOf(po.id)).map((x) => x.status), ['paid', 'paid', 'due']);
+    check('ActiveCampaign: instalment_paid_…_2', (await tagsOf(po.id)).includes(`+instalment_paid_${NSMB}_2`));
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 1, orderNo: pay2.provider_ref });
+    eq('the same charge again: acknowledged once', [await lastNotice(n), await count('shop_payments', 'order_id = $1', [po.id])], ['duplicate', 2]);
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 1 });
+    eq('a second, different charge for instalment 2: held, NOT recorded', [n.status, await lastNotice(n), await count('shop_payments', 'order_id = $1', [po.id])], [200, 'extra', 2]);
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 2, amount: 1000 });
+    eq('a wrong amount: refused', [n.status, (await planRowsOf(po.id))[2].status], [400, 'due']);
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 2, var2: 'A'.repeat(32) });
+    eq('a forged signature: refused', [n.status, (await planRowsOf(po.id))[2].status], [400, 'due']);
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 2, memberID: 'someone-else' });
+    eq('another merchant: refused', n.status, 400);
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 7 });
+    eq('an instalment the plan doesn’t have: refused', [n.status, await count('shop_payments', 'order_id = $1', [po.id])], [400, 2]);
+
+    group('Instalments: a failed charge, then paid after all');
+    n = await fake.notifyPlan(ip1.pid, 'errorRpPayment', { turnSeq: 2, message: '잔액 부족' });
+    eq('failure notice: acknowledged', [n.status, await lastNotice(n)], [200, 'failed']);
+    prows = await planRowsOf(po.id);
+    po = await orderOf('buyer301@example.com');
+    eq('the instalment failed with CiderPay’s reason, the plan overdue', [prows[2].status, prows[2].error, Boolean(prows[2].alerted_at), po.plan_status], ['failed', '잔액 부족', true, 'overdue']);
+    check('ActiveCampaign: instalment_failed (the customer’s email starts from it)', (await tagsOf(po.id)).includes(`+instalment_failed_${NSMB}`));
+    let iOv = await adminGet('shop-overview', {});
+    check('the Overview counts it', iOv.overview.attention.instalments >= 1);
+    let plist = await adminGet('shop-orders', { plan: 'attention' });
+    check('Orders → “Instalments failed or late” lists it', plist.orders.some((x) => x.id === po.id));
+    n = await fake.notifyPlan(ip1.pid, 'errorRpPayment', { turnSeq: 2, message: '잔액 부족' });
+    eq('a second failure notice: no second alert or tag', (await tagsOf(po.id)).filter((t) => t === `+instalment_failed_${NSMB}`).length, 1);
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 2 });
+    eq('then CiderPay charges it: recorded', [n.status, await lastNotice(n)], [200, 'paid']);
+    po = await orderOf('buyer301@example.com');
+    eq('every instalment paid: plan completed, the whole total received', [po.plan_status, po.paid_total, po.total, po.status], ['completed', 2790000, 2790000, 'paid']);
+    const t301 = await tagsOf(po.id);
+    check('ActiveCampaign: failed tag removed, paid_3 and completed added', t301.includes(`-instalment_failed_${NSMB}`) && t301.includes(`+instalment_paid_${NSMB}_3`) && t301.includes(`+instalment_completed_${NSMB}`) && t301.includes(`-instalment_active_${NSMB}`));
+    check('the agreement was ended at CiderPay', fake.planCalls.some((x) => x.action === 'end' && x.rpToken === 'RP' + ip1.pid) && Boolean(po.rp_closed_at));
+    n = await fake.notifyPlan(ip1.pid, 'completeRpPayment', { turnSeq: 2 });
+    eq('a charge after the plan was completed: held, NOT recorded', [await lastNotice(n), await count('shop_payments', 'order_id = $1', [po.id])], ['extra', 3]);
+
+    group('Instalments: the daily check, pause, paid by hand, stop');
+    let ip2 = await planOrder(303);
+    po = ip2.o = await orderOf('buyer303@example.com');
+    eq('a second plan, paid and running', [po.status, po.plan_status], ['paid', 'active']);
+    let late = await plansMod.checkLate(day(1));
+    eq('nothing late the day after', (await planRowsOf(po.id)).map((x) => x.status), ['paid', 'due', 'due']);
+    late = await plansMod.checkLate(day(36));
+    prows = await planRowsOf(po.id);
+    po = await orderOf('buyer303@example.com');
+    eq('a month and a few days later, no word from CiderPay: instalment 2 overdue, alert once', [prows[1].status, Boolean(prows[1].alerted_at), prows[2].status, po.plan_status], ['overdue', true, 'due', 'overdue']);
+    check('…with the ActiveCampaign tag', (await tagsOf(po.id)).includes(`+instalment_failed_${NSMB}`));
+    late = await plansMod.checkLate(day(36));
+    eq('the next morning: not flagged again', (await tagsOf(po.id)).filter((t) => t === `+instalment_failed_${NSMB}`).length, 1);
+    let aj = await admin('shop-instalment-paid', { order: po.id, number: 1, method: 'bank', received: todayKst });
+    check('the first payment can’t be recorded by hand', Boolean(aj.error));
+    aj = await admin('shop-instalment-paid', { order: po.id, number: 2, method: 'bank', received: todayKst, reference: '국민 김지연' });
+    po = await orderOf('buyer303@example.com');
+    prows = await planRowsOf(po.id);
+    const hand = await one(`SELECT * FROM shop_payments WHERE order_id = $1 AND instalment_no = 2`, [po.id]);
+    eq('instalment 2 paid by bank transfer: recorded, the plan running again', [aj.error || '', hand && hand.provider, hand && hand.provider_ref, prows[1].status, po.plan_status, po.paid_total], ['', 'manual', `manual-${po.id}-i2`, 'paid', 'active', 1860000]);
+    check('…with its tax line', (await count('shop_ledger', `payment_id = $1 AND kind = 'instalment'`, [hand.id])) === 1);
+    aj = await admin('shop-instalment-paid', { order: po.id, number: 2, method: 'bank', received: todayKst });
+    check('recording it again: refused', Boolean(aj.error) && (await count('shop_payments', 'order_id = $1', [po.id])) === 2);
+    aj = await admin('shop-plan-pause', { order: po.id });
+    po = await orderOf('buyer303@example.com');
+    eq('paused, at CiderPay too', [aj.error || '', po.plan_status, fake.planCalls.at(-1)], ['', 'paused', { action: 'pause', rpToken: po.rp_token }]);
+    await plansMod.checkLate(day(70));
+    eq('while paused, a passed date is not flagged', (await planRowsOf(po.id))[2].status, 'due');
+    aj = await admin('shop-plan-pause', { order: po.id });
+    check('pausing twice: refused', /paused/.test(aj.error || ''));
+    aj = await admin('shop-plan-resume', { order: po.id });
+    po = await orderOf('buyer303@example.com');
+    eq('resumed, at CiderPay too', [aj.error || '', po.plan_status, fake.planCalls.at(-1).action], ['', 'active', 'resume']);
+    await plansMod.checkLate(day(70));
+    eq('the next morning, the instalment whose date passed is flagged', (await planRowsOf(po.id))[2].status, 'overdue');
+    fake.modes.ciderpayPlan = 'refuse';
+    aj = await admin('shop-plan-stop', { order: po.id, reason: '고객 요청' });
+    po = await orderOf('buyer303@example.com');
+    check('CiderPay refuses to end it: nothing changes here', /CiderPay refused/.test(aj.error || '') && po.plan_status === 'overdue');
+    aj = await admin('shop-plan-stop', { order: po.id, reason: '고객 요청', force: true });
+    po = await orderOf('buyer303@example.com');
+    eq('stopped here anyway (after checking CiderPay): not confirmed by CiderPay', [aj.error || '', po.plan_status, po.rp_closed_at, aj.endedAtCiderpay], ['', 'stopped', null, false]);
+    eq('the unpaid instalment is cancelled', (await planRowsOf(po.id)).map((x) => x.status), ['paid', 'paid', 'cancelled']);
+    check('ActiveCampaign: cancelled_ tag', (await tagsOf(po.id)).includes(`+cancelled_${NSMB}`));
+    fake.modes.ciderpayPlan = 'ok';
+    await plansMod.checkLate(day(1));
+    po = await orderOf('buyer303@example.com');
+    check('the daily job ends it at CiderPay once CiderPay answers', Boolean(po.rp_closed_at));
+    n = await fake.notifyPlan(ip2.pid, 'completeRpPayment', { turnSeq: 2 });
+    eq('a charge after the plan was stopped: held, NOT recorded', [await lastNotice(n), await count('shop_payments', 'order_id = $1', [po.id])], ['extra', 2]);
+    aj = await admin('shop-plan-resume', { order: po.id });
+    check('a stopped plan can’t be resumed', Boolean(aj.error));
+
+    group('Instalments: refused, declined, and a full refund');
+    let ip3 = await planOrder(304, { agree: false });
+    await get(`/__fake/ciderpay/plan-do?id=${ip3.pid}&act=refuse`);
+    eq('the buyer refuses the agreement: the order is cancelled, nothing paid', [(await orderOf('buyer304@example.com')).status, await count('shop_payments', 'order_id = $1', [ip3.o.id])], ['cancelled', 0]);
+    let ip4 = await planOrder(305, { agree: false });
+    await get(`/__fake/ciderpay/plan-do?id=${ip4.pid}&act=declined`);
+    po = await orderOf('buyer305@example.com');
+    eq('the first charge declined: not paid, no alert tag', [po.status, po.plan_status, (await tagsOf(po.id)).length], ['awaiting_payment', null, 0]);
+    let ip5 = await planOrder(306, { agree: false });
+    await get(`/__fake/ciderpay/plan-do?id=${ip5.pid}&act=paidfirst`);
+    po = await orderOf('buyer306@example.com');
+    eq('payment notice before the agreement notice: both kept', [po.status, po.plan_status, po.rp_token], ['paid', 'active', 'RP' + ip5.pid]);
+    r = await refundApi('shop-refund', { order: po.id, amount: 930000, reason: '전액 환불' });
+    eq('a full refund…', [r.status, (await r.json()).status], [200, 'done']);
+    po = await orderOf('buyer306@example.com');
+    eq('…stops the plan, at CiderPay too', [po.status, po.plan_status, Boolean(po.rp_closed_at), (await planRowsOf(po.id)).map((x) => x.status)], ['refunded', 'stopped', true, ['paid', 'cancelled', 'cancelled']]);
+
+    group('Instalments: in the admin');
+    let pd = await adminGet('shop-order', { id: ip1.o.id });
+    eq('the order page has the plan', [keysSorted(pd.order.plan_terms), pd.order.rp_agreed, pd.order.rp_card, pd.instalments.length], [keysSorted(terms1), true, '1234', 3]);
+    let ps = await adminGet('shop-settings', {});
+    eq('Settings lists the plan fields for ActiveCampaign', ps.connections.plan_fields, ['INSTALMENT_NEXT_DATE', 'INSTALMENT_NEXT_AMOUNT', 'INSTALMENT_REMAINING']);
+    await admin('shop-settings-save', { checkout_texts: {}, notifications: { paid: true, refund: true, instalment_failed: true }, instalments: { enabled: false } });
+    r = await postJson('/api/shop?action=order', buyer(307, { slug: 'e2e-nsmb', plan: 'instalment' }), from());
+    eq('switched off again: plans refused at checkout', [r.status, (await r.json()).error], [409, 'unavailable']);
+    n = await fake.notifyPlan(ip2.pid, 'agreeRegularPayment');
+    eq('…while notices for running plans are still handled', n.status, 200);
+
     group('Ledger integrity');
     const sums = await one(`SELECT (SELECT COALESCE(sum(amount), 0)::int FROM shop_ledger WHERE currency = 'KRW') AS ledger, (SELECT COALESCE(sum(CASE WHEN kind = 'refund' THEN -amount ELSE amount END), 0)::int FROM shop_payments WHERE currency = 'KRW') AS payments, (SELECT COALESCE(sum(paid_total - refunded_total), 0)::int FROM shop_orders WHERE currency = 'KRW') AS orders`);
     eq('KRW: ledger = payments = orders’ paid totals', [sums.ledger === sums.payments, sums.payments === sums.orders], [true, true]);
@@ -1141,6 +1330,9 @@ async function main() {
     eq('no refund left half-done (sending)', await count('shop_refunds', `status = 'sending'`, []), 0);
     eq('every done refund has its payment', await count('shop_refunds', `status = 'done' AND refund_payment_id IS NULL`, []), 0);
     eq('no unpaid order has money on it', await count('shop_orders', `status IN ('created', 'awaiting_payment', 'expired', 'cancelled') AND paid_total <> 0`, []), 0);
+    eq('every paid instalment has its payment, of its amount', await count('shop_instalments i', `i.status = 'paid' AND NOT EXISTS (SELECT 1 FROM shop_payments p WHERE p.id = i.payment_id AND p.amount = i.amount AND p.instalment_no = i.number AND p.order_id = i.order_id)`, []), 0);
+    eq('every instalment payment is on its schedule', await count('shop_payments p', `p.instalment_no IS NOT NULL AND p.kind = 'payment' AND NOT EXISTS (SELECT 1 FROM shop_instalments i WHERE i.order_id = p.order_id AND i.number = p.instalment_no AND i.payment_id = p.id)`, []), 0);
+    eq('every paid instalment order is running, completed or stopped', await count('shop_orders', `plan = 'instalment' AND paid_at IS NOT NULL AND plan_status IS NULL`, []), 0);
   } catch (err) {
     check('the run finished without an exception', false, err.stack || err.message);
   } finally {

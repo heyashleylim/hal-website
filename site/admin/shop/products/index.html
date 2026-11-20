@@ -137,7 +137,9 @@
         var state = STATUS[p.status] + (p.status === 'open' && !p.sale.open ? ' <span class="badge badge--info">' + REASON[p.sale.reason] + '</span>' : '');
         var warn = p.warnings.map(function (w) { return '<br><span class="small is-error">' + Admin.esc(w) + '</span>'; }).join('');
         var offered = (p.addon_ids || []).map(find).filter(Boolean).map(function (a) { return Admin.esc(a.name); });
-        var where = p.addon_only ? '<span class="badge badge--info">Add-on only</span>' : '<a href="/checkout/' + Admin.esc(p.slug) + '" target="_blank" rel="noopener"><code>/checkout/' + Admin.esc(p.slug) + '</code></a>';
+        var where = p.addon_only ? '<span class="badge badge--info">Add-on only</span>' : '<a href="/checkout/' + Admin.esc(p.slug) + '" target="_blank" rel="noopener"><code>/checkout/' + Admin.esc(p.slug) + '</code></a>' +
+          // The instalment checkout (shown at checkout only while Shop → Settings sells instalment plans).
+          (p.instalment_count ? '<br><a href="/checkout/' + Admin.esc(p.slug) + '?plan=instalment" target="_blank" rel="noopener"><code class="small">?plan=instalment</code></a>' : '');
         return '<tr><td>' + Admin.esc(p.name) + '<br>' + where + (offered.length ? '<br><span class="small muted">Add-ons: ' + offered.join(', ') + '</span>' : '') + warn + '</td><td>' + state + '</td>' +
           '<td class="num">' + priceCell(p, 'KRW') + '</td><td class="num">' + priceCell(p, 'USD') + '</td>' +
           '<td>' + (p.purchase_tag ? '<code>' + Admin.esc(p.purchase_tag) + '</code>' : '<span class="muted">–</span>') + '</td>' +

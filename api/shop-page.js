@@ -1,6 +1,6 @@
 /*
  * The shop's pages (rewrites in vercel.json):
- *   GET /checkout/<product>   → ?view=checkout&slug=<product>   the checkout form
+ *   GET /checkout/<product>   → ?view=checkout&slug=<product>   the checkout form (?plan=instalment: the instalment plan)
  *   GET /checkout/complete    → ?view=complete&o=<order token>  where the buyer lands after the payment page
  *   GET /checkout/pay/<token> → ?view=pay&o=<order token>       the payment link of an order made in the admin
  *
@@ -15,6 +15,7 @@ const settings = require('./_lib/shop/settings.js');
 const page = require('./_lib/shop/page.js');
 const coupons = require('./_lib/shop/coupons.js');
 const manual = require('./_lib/shop/manual.js');
+const instalments = require('./_lib/shop/instalments.js');
 const config = require('./_lib/shop/config.js');
 const { sendHtml, redirect } = require('./_lib/shop/http.js');
 
@@ -26,10 +27,13 @@ async function checkout(req, res, url) {
   // A product sold only as an add-on has no checkout of its own.
   if (!product || product.status === 'draft' || product.addon_only) return sendHtml(res, 404, page.notFoundPage());
   const sale = pricing.saleState(product);
-  const offers = orders.offers(product, flow.providers());
+  const shopSettings = await settings.read();
+  const offers = orders.offers(product, flow.providers(), { instalments: shopSettings.instalments.enabled === true });
   if (!sale.open || !offers.length) return sendHtml(res, 200, page.closedPage({ product, reason: sale.reason || 'closed' }));
   const wanted = String(url.searchParams.get('currency') || '').toUpperCase();
   const currency = offers.some((o) => o.currency === wanted) ? wanted : offers[0].currency;
+  // ?plan=instalment: the instalment checkout, when this product has a plan on sale (else the usual one).
+  const plan = url.searchParams.get('plan') === 'instalment' && offers.some((o) => o.plan === 'instalment') ? 'instalment' : 'full';
   const problem = PROBLEMS.has(url.searchParams.get('problem')) ? url.searchParams.get('problem') : '';
   const addons = {};
   for (const cur of [...new Set(offers.map((o) => o.currency))]) addons[cur] = await orders.addonChoices(product, cur);
@@ -38,15 +42,15 @@ async function checkout(req, res, url) {
   const code = coupons.normalize(url.searchParams.get('coupon'));
   if (code) {
     try {
-      coupon = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], ipHash: config.ipHash(req) });
+      coupon = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], plan, ipHash: config.ipHash(req) });
     } catch (err) {
       if (!(err instanceof coupons.CouponError)) throw err;
       coupon = { code, error: err.code === 'too_many' ? 'coupon_unknown' : err.code };
     }
   }
   return sendHtml(res, 200, page.checkoutPage({
-    product, offers, currency, problem, addons, coupon,
-    settings: await settings.read(), query: Object.fromEntries(url.searchParams),
+    product, offers, currency, problem, addons, coupon, plan,
+    settings: shopSettings, query: Object.fromEntries(url.searchParams),
   }));
 }
 
@@ -78,7 +82,8 @@ async function complete(req, res, url) {
   const tries = Math.max(0, Math.min(99, parseInt(url.searchParams.get('n') || '0', 10) || 0));
   const receiptUrl = order.paid_at ? await flow.receiptUrl(order.id) : '';
   const items = order.paid_at ? await orders.items(order.id) : [];
-  return sendHtml(res, 200, page.completePage({ order, product, items, receiptUrl, tries, slow: tries >= SLOW_AFTER }));
+  const plan = order.paid_at && order.plan === 'instalment' ? await instalments.rowsOf(order.id) : [];
+  return sendHtml(res, 200, page.completePage({ order, product, items, receiptUrl, plan, tries, slow: tries >= SLOW_AFTER }));
 }
 
 // A payment link: the order as made in the admin, and a button to its payment page. Paid → the thank-you page.

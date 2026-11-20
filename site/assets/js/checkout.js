@@ -366,6 +366,8 @@
   function chosenAddons() { return ADDONS.filter(function (a) { var b = addonBox(a.id); return a[currency] && b && b.checked && !b.disabled; }); }
   function cartItems() { return [main().item].concat(chosenAddons().map(addonItem)); }
   function refreshOrder() {
+    // The instalment checkout: its numbers (today, then each month) come from the server; a coupon reloads the page.
+    if (data.plan === 'instalment') { couponNote(); data.value = unit(data.planTotal || 0); return; }
     var m = main(), chosen = chosenAddons(), off = discountNow() || 0;
     var total = m.amount - off + chosen.reduce(function (sum, a) { return sum + a[currency].amount; }, 0);
     // Prices in the current currency only; add-ons not sold in it are put away (and unticked).
@@ -461,6 +463,14 @@
     if (couponRemove) couponRemove.hidden = !data.coupon;
   }
   function setCoupon(c) {
+    // The instalment checkout splits the discount over every payment: the server shows the new amounts.
+    if (data.plan === 'instalment') {
+      var u = new URL(window.location.href);
+      if (c) u.searchParams.set('coupon', c.code); else u.searchParams.delete('coupon');
+      save();
+      window.location.assign(u.toString());
+      return;
+    }
     data.coupon = c;
     if (couponApplied) couponApplied.value = c ? c.code : '';
     if (couponInput) couponInput.value = c ? c.code : '';
@@ -475,7 +485,7 @@
     couponBusy = true;
     if (couponApply) { couponApply.textContent = T.applying || couponApply.textContent; couponApply.setAttribute('aria-disabled', 'true'); }
     function done() { couponBusy = false; if (couponApply) { couponApply.textContent = T.apply || couponApply.textContent; couponApply.removeAttribute('aria-disabled'); } }
-    return post('coupon', { slug: data.slug, code: code }).then(function (res) {
+    return post('coupon', { slug: data.slug, code: code, plan: data.plan }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (b) {
         done();
         if (res.ok && b && b.coupon) {

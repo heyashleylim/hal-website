@@ -14,7 +14,8 @@
  * - Amounts still come from pricing.quote(): the admin picks the product, option, add-ons and currency, and may
  *   set a special price for the product (never above its price). The difference is the order's discount.
  * - A product doesn't need to be on sale (a late joiner, a closed cohort). Draft products can't be sold.
- * - Pay in full only (instalment plans are phase 3).
+ * - Pay in full only (an instalment plan starts on CiderPay's agreement page; its later instalments can be recorded
+ *   by hand in instalments.settleByHand).
  * - A payment by hand is recorded once per order (provider_ref 'manual-<order id>'), with the same single
  *   statement as a provider's payment (orders.recordPayment).
  */
@@ -160,7 +161,7 @@ function paidDetails(input, now = new Date()) {
  */
 async function recordByHand(order, product, { method, at, reference = '', by = 'admin' }) {
   if (!orders.UNPAID.includes(order.status)) throw new ManualError('this order is already paid');
-  if (order.plan !== 'full') throw new ManualError('instalment orders can’t be recorded by hand yet');
+  if (order.plan !== 'full') throw new ManualError('an instalment plan’s first payment is made on CiderPay’s page: it can’t be recorded by hand');
   if (!(order.due_today > 0)) throw new ManualError('nothing to pay on this order');
   const flow = require('./flow.js');
   flow.guardDatabase();

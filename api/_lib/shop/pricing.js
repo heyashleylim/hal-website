@@ -219,24 +219,34 @@ function daysInMonth(year, month) { // month 1–12
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
+// The day of the month CiderPay charges a plan started on `start` ('YYYY-MM-DD'): that day, capped at 30, and
+// 28 for a plan started on 29 February (the rule of the WooCommerce plugin, sent as periodDateVal).
+function billingDay(start) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(start));
+  if (!m) throw new PricingError('bad_schedule', 'not a date (YYYY-MM-DD)');
+  const month = Number(m[2]), day = Number(m[3]);
+  return month === 2 && day === 29 ? 28 : Math.min(day, 30);
+}
+
 /*
  * Due dates of an instalment plan that starts on `start` ('YYYY-MM-DD', Seoul date) with `payments` charges:
- * the first is due that day, then one per month on the same day of the month. CiderPay bills on a fixed day
- * of the month, so the day is capped at 30 (as the WooCommerce plugin did), and at the month's last day in
- * shorter months (30 Jan → 28 or 29 Feb → 30 Mar).
+ * the first is due that day, then one per month on the billing day (billingDay, or `day`), and on the month's
+ * last day in shorter months (30 Jan → 28 or 29 Feb → 30 Mar).
  */
-function schedule(start, payments) {
+function schedule(start, payments, chargeDay = null) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(start));
   if (!m || !Number.isInteger(payments) || payments < 1) throw new PricingError('bad_schedule', 'schedule needs a start date (YYYY-MM-DD) and a number of payments');
   const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
   if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) throw new PricingError('bad_schedule', 'not a real date');
-  const billingDay = Math.min(day, 30);
+  // `day`: the billing day agreed with CiderPay when it differs from the start's (a plan paid after midnight).
+  const day0 = chargeDay == null ? billingDay(start) : chargeDay;
+  if (!Number.isInteger(day0) || day0 < 1 || day0 > 30) throw new PricingError('bad_schedule', 'the billing day must be 1–30');
   const dates = [`${m[1]}-${m[2]}-${m[3]}`];
   for (let i = 1; i < payments; i++) {
     const index = month - 1 + i;
     const y = year + Math.floor(index / 12);
     const mo = (index % 12) + 1;
-    dates.push(`${y}-${pad(mo)}-${pad(Math.min(billingDay, daysInMonth(y, mo)))}`);
+    dates.push(`${y}-${pad(mo)}-${pad(Math.min(day0, daysInMonth(y, mo)))}`);
   }
   return dates;
 }
@@ -253,4 +263,4 @@ function formatMoney(amount, currency) {
   return `${sign}₩${abs.toLocaleString('en-US')}`;
 }
 
-module.exports = { CURRENCIES, VAT_RATE, PricingError, vatSplit, vatRule, vatGroups, instalmentPlan, discountedPlan, saleState, priceOptions, optionOf, options, quote, addonChoices, priceIn, compareIn, schedule, formatMoney };
+module.exports = { CURRENCIES, VAT_RATE, PricingError, vatSplit, vatRule, vatGroups, instalmentPlan, discountedPlan, saleState, priceOptions, optionOf, options, quote, addonChoices, priceIn, compareIn, billingDay, schedule, formatMoney };

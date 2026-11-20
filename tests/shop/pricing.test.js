@@ -118,7 +118,11 @@ test('instalment dates: same day each month, capped at the 30th and at short mon
   assert.deepEqual(p.schedule('2026-11-10', 3), ['2026-11-10', '2026-12-10', '2027-01-10']);
   assert.deepEqual(p.schedule('2026-12-31', 4), ['2026-12-31', '2027-01-30', '2027-02-28', '2027-03-30']);
   assert.deepEqual(p.schedule('2028-01-30', 3), ['2028-01-30', '2028-02-29', '2028-03-30']); // leap year
-  assert.deepEqual(p.schedule('2028-02-29', 3), ['2028-02-29', '2028-03-29', '2028-04-29']);
+  // Started on 29 February: CiderPay charges on the 28th after that (the WooCommerce plugin's rule).
+  assert.deepEqual(p.schedule('2028-02-29', 3), ['2028-02-29', '2028-03-28', '2028-04-28']);
+  assert.equal(p.billingDay('2028-02-29'), 28);
+  assert.equal(p.billingDay('2026-12-31'), 30);
+  assert.equal(p.billingDay('2026-11-10'), 10);
   assert.deepEqual(p.schedule('2026-11-10', 1), ['2026-11-10']);
   assert.equal(p.schedule('2026-01-15', 25).at(-1), '2028-01-15');
   assert.throws(() => p.schedule('2026-02-30', 3), /not a real date/);
