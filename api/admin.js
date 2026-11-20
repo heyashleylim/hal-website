@@ -30,7 +30,9 @@ async function shopJob() {
   const refundsToCheck = await require('./_lib/shop/refunds.js').sweep();
   const instalments = await require('./_lib/shop/instalments.js').checkLate();
   const sent = await shopSync.process({ budgetMs: 60 * 1000 });
-  return { expired, requeued, refundsToCheck, instalments, sent };
+  // The monthly ledger copies (finished months without a file); a storage problem never stops the rest of the job.
+  const backup = await require('./_lib/shop/backup.js').run({ budgetMs: 20 * 1000 }).catch((err) => ({ error: err.message }));
+  return { expired, requeued, refundsToCheck, instalments, sent, backup };
 }
 
 const MODULES = [

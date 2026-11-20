@@ -277,8 +277,10 @@ links still go to WordPress until go-live (phase 5).
   `api/_lib/shop/reports.js` (pure, tested), actions `shop-report`, `shop-report-csv`, `shop-fx-set` in
   `api/_lib/admin/shop-reports.js`. Periods are Seoul dates. USD exchange rates are typed in the admin per Seoul day
   or per line (no rate service); only the ledger's `fx_rate`, `fx_source`, `amount_krw` may change. CSVs are UTF-8
-  with a BOM for Korean Excel, formula-like text cells prefixed with an apostrophe. Not built yet: the CiderPay
-  tax-doc check and the WooCommerce import.
+  with a BOM for Korean Excel, formula-like text cells prefixed with an apostrophe. Printable order and customer
+  statement at `/admin/shop/print/` (`?order=`, `?customer=`). Monthly ledger CSVs in the private Blob store
+  (`api/_lib/shop/backup.js`, `shop-ledger/YYYY-MM.csv`, previews under `preview/`), written by the daily job.
+  Not built yet: the CiderPay tax-doc check and the WooCommerce import.
 - **Instalment plans** (phase 3, `api/_lib/shop/instalments.js`, migration 018, plan section 14): KRW card only, through
   CiderPay's 정기 결제 (`ciderpay.requestPlan`: first payment at once, then monthly on the billing day, ending 7 days after
   the last date; `devID`/`devToken` headers = the member id and API token). **Sold only while Shop → Settings → "Sell

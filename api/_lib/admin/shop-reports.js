@@ -181,6 +181,17 @@ const actions = {
     return { customer, orders, lines, totals: ledger.totals(lines) };
   },
 
+  // The monthly copies of the ledger in the private Blob store (api/_lib/shop/backup.js), with download links.
+  async 'shop-backups'() {
+    return require('../shop/backup.js').list();
+  },
+
+  // Writes the monthly copies now, replacing the existing files (after exchange rates were typed, for example).
+  async 'shop-backup-run'() {
+    const r = await require('../shop/backup.js').run({ replace: true });
+    return { ...r, target: 'ledger backups', log: r };
+  },
+
   /*
    * The exchange rate of USD ledger lines (won per dollar, and where it came from): for one line, or for every
    * line of one Seoul day. Lines that already have a rate keep it unless `replace` is set. The won value is
@@ -218,4 +229,4 @@ const actions = {
   },
 };
 
-module.exports = { section: 'shop', actions, writes: ['shop-fx-set'], CSV, rateOf };
+module.exports = { section: 'shop', actions, writes: ['shop-fx-set', 'shop-backup-run'], CSV, rateOf, linesOf };

@@ -123,3 +123,26 @@ test('a SQL won value equals ledger.wonValue (same rounding, a refund like its s
     assert.equal(ledger.wonValue(cents, rate).amount_krw, sql);
   }
 });
+
+const backup = require('../../api/_lib/shop/backup.js');
+
+test('ledger backups: one file per finished Seoul month, previews apart', () => {
+  assert.deepEqual(backup.months(null, '2026-11-20T00:00:00Z'), []);
+  assert.deepEqual(backup.months('2026-11-02T00:00:00Z', '2026-11-20T00:00:00Z'), []); // November isn't over
+  assert.deepEqual(backup.months('2026-10-31T16:00:00Z', '2026-12-01T00:00:00Z'), ['2026-11']); // 1 Nov in Seoul; still 1 Dec there
+  assert.deepEqual(backup.months('2026-11-30T15:30:00Z', '2027-02-10T00:00:00Z'), ['2026-12', '2027-01']); // 1 Dec in Seoul
+  assert.deepEqual(backup.months('2026-10-05T00:00:00Z', '2027-01-01T00:00:00Z'), ['2026-10', '2026-11', '2026-12']);
+  assert.equal(backup.pathOf('2026-11', { VERCEL_ENV: 'production' }), 'shop-ledger/2026-11.csv');
+  assert.equal(backup.pathOf('2026-11', { VERCEL_ENV: 'preview' }), 'preview/shop-ledger/2026-11.csv');
+});
+
+test('ledger backups write nothing off Vercel', async () => {
+  const saved = process.env.VERCEL_ENV;
+  delete process.env.VERCEL_ENV;
+  try {
+    assert.match((await backup.run()).skipped, /not on Vercel/);
+    assert.match((await backup.list()).skipped, /not on Vercel/);
+  } finally {
+    if (saved !== undefined) process.env.VERCEL_ENV = saved;
+  }
+});

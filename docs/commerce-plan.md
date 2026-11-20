@@ -965,11 +965,23 @@ queries and actions in `api/_lib/admin/shop-reports.js`. No migration: the ledge
   refund date and reason. And the instalments still due. A text cell starting with `=`, `+`, `-` or `@` gets an
   apostrophe so nothing a customer typed runs as a formula.
 
+**Added the same day**
+
+- **Printable order** (`/admin/shop/print/?order=<id>`, "Print" on an order): seller details as in the site footer,
+  customer, items, discount, total, paid, refunded, instalments, every tax line with its provider reference, approval
+  number and receipt link, and refunds with their reasons. "Print / PDF" uses the browser's print window (save as PDF).
+- **Customer statement** (`/admin/shop/print/?customer=<email>`, "Customer statement" on an order): every order and
+  ledger line of one customer, with totals per currency. Action `shop-customer-statement`.
+- **Monthly ledger backups** (`api/_lib/shop/backup.js`): one CSV per finished Seoul month in the private Blob store
+  (`shop-ledger/YYYY-MM.csv`; previews `preview/shop-ledger/`), same columns as "Download ledger". The daily job writes
+  each month once it is over; "Back up now" on Reports rewrites them all (after typing exchange rates). Listed on
+  Reports with one-hour download links. Not written off Vercel (local server, tests). Neon's point-in-time restore stays
+  the main backup.
+
 **Not built yet in phase 4**
 
 - **CiderPay check** (`GET /oapi/pv/payment/tax-doc`): the answer's shape isn't in the docs we saved and CiderPay's
   documentation site is down (2026-11-20). Until then, compare the Sales totals with CiderPay's VAT figures by hand.
 - **WooCommerce import**: needs the WordPress exports (orders with instalment children and payment details,
   customers, coupons). Imported payments get the channel "Imported (WooCommerce)", already handled by the reports.
-- Per-customer statement and a printable order page; the monthly ledger export to Blob storage.
 - O1 (accountant): which exchange rate and date for USD sales, and whether they stay taxable at 10%.
