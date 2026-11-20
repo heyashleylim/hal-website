@@ -893,6 +893,16 @@ tested against the real CiderPay yet: **the switch stays off until Alex's test b
 
 **In the admin** (Shop → Orders → an instalment order → "Instalment plan"): terms, plan status, CiderPay agreement
 (card …1234, ended date), the schedule, and:
+- **Payment link** on an unpaid instalment (Alex, 2026-11-20, instead of a bank transfer): makes
+  `/checkout/pay/<order token>?i=<n>`, shown with "Copy link" and its last day (works **14 days**; "Renew link" starts
+  them again, same address). The customer sees which instalment ("3회 중 2회차"), its date and amount, and one button to
+  CiderPay's one-time card page for that amount. CiderPay's notice (var1 = `<order token>.<n>`, its own signature
+  binding the instalment and amount) records it exactly like a monthly charge: payment, tax line, instalment paid, plan
+  back to active, `instalment_failed_` removed, `instalment_paid_<product>_<n>`, Slack "received after all". If CiderPay's
+  own retry charges the same instalment later, that charge is held (not recorded) with an alert. The link stops working
+  once the instalment is paid (it opens the thank-you page), cancelled, or the plan stopped. Refundable like any
+  payment. Migration 019 (`shop_instalments.link_at`). Code: `instalments.makeLink / requestLinkPage /
+  fromLinkNotice`, `page.instalmentPayPage`, admin action `shop-instalment-link`.
 - **Record as paid** on an unpaid instalment: paid another way (bank transfer…), with the day received and a reference;
   its own payment (`manual-<order>-i<n>`) and tax line.
 - **Pause / Resume** (at CiderPay too). While paused, passed dates aren't flagged; after resuming, the next morning's
@@ -908,9 +918,7 @@ tested against the real CiderPay yet: **the switch stays off until Alex's test b
 - Instalments not with add-ons or pricing options (as before). The first payment can't be recorded by hand (there is
   no card agreement without CiderPay's page).
 - AC tag numbers are the instalment's number: `instalment_paid_<product>_2` is the first monthly payment.
-- "One-off payment link for a missed instalment" (section 3.2 step 4) is not built: send the customer a bank account,
-  then "Record as paid". Say if a link is wanted (a /checkout/pay page for the missed amount, paid by card).
-- New Korean strings (`copy.plan`, `copy.complete.planNext`): "일시불 / 분할 결제" are the NSMB page's words, the rest is
+- New Korean strings (`copy.plan`, `copy.complete.planNext`, `copy.payLink.instalment…`): "일시불 / 분할 결제" are the NSMB page's words, the rest is
   new copy for Ashley to review.
 
 **To test with Alex (a preview with its own database, real card, ₩1,000 amounts)**

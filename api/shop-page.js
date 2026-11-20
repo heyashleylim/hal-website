@@ -3,6 +3,7 @@
  *   GET /checkout/<product>   → ?view=checkout&slug=<product>   the checkout form (?plan=instalment: 분할 결제 preselected)
  *   GET /checkout/complete    → ?view=complete&o=<order token>  where the buyer lands after the payment page
  *   GET /checkout/pay/<token> → ?view=pay&o=<order token>       the payment link of an order made in the admin
+ *                                (&i=<n>: the payment link of one instalment of a plan)
  *
  * Server-rendered (api/_lib/shop/page.js). The thank-you page never marks an order paid because someone
  * opened it: only a provider's confirmation does. For PayPal, opening it is the moment we capture the payment
@@ -88,7 +89,9 @@ async function complete(req, res, url) {
 }
 
 // A payment link: the order as made in the admin, and a button to its payment page. Paid → the thank-you page.
+// ?i=<n>: the link for one instalment of a plan (instalments.makeLink).
 async function pay(req, res, url) {
+  if (url.searchParams.has('i')) return payInstalment(req, res, url);
   const order = await orders.byToken(tokenFrom(url));
   if (!order || order.origin !== 'manual') return sendHtml(res, 404, page.notFoundPage());
   const state = manual.linkState(order);
@@ -97,6 +100,23 @@ async function pay(req, res, url) {
   return sendHtml(res, 200, page.payPage({
     order, items: await orders.items(order.id), state, lastDay: manual.linkLastDay(order),
     problem: ['cancelled', 'declined', 'provider', 'not_configured', 'unavailable', 'server'].includes(problem) ? problem : '',
+    settings: await settings.read(),
+  }));
+}
+
+async function payInstalment(req, res, url) {
+  const order = await orders.byToken(tokenFrom(url));
+  const number = parseInt(url.searchParams.get('i'), 10);
+  if (!order || order.plan !== 'instalment' || !(number >= 2)) return sendHtml(res, 404, page.notFoundPage());
+  const rows = await instalments.rowsOf(order.id);
+  const row = rows.find((r) => r.number === number);
+  if (!row) return sendHtml(res, 404, page.notFoundPage());
+  const state = instalments.linkState(order, row);
+  if (state === 'paid') return redirect(res, 303, `/checkout/complete?o=${encodeURIComponent(order.token)}`);
+  const problem = String(url.searchParams.get('problem') || '');
+  return sendHtml(res, 200, page.instalmentPayPage({
+    order, row, count: rows.length, state, lastDay: instalments.linkLastDay(row),
+    problem: ['provider', 'not_configured', 'unavailable', 'server'].includes(problem) ? problem : '',
     settings: await settings.read(),
   }));
 }

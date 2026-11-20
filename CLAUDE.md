@@ -23,7 +23,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options, 016 refunds, 017 coupons, 018 instalment plans), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options, 016 refunds, 017 coupons, 018–019 instalment plans), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -286,7 +286,8 @@ links still go to WordPress until go-live (phase 5).
   instalments whose date was yesterday or before with no notice (same alert), and ends agreements of completed/stopped plans at
   CiderPay. A charge for an instalment already paid, or for a stopped/completed plan, is held (not recorded) with an
   alert. Admin order page: pause / resume / stop (at CiderPay; stop can be forced after checking its dashboard), record
-  an instalment paid another way. A full refund stops the plan. AC: `instalment_active_`, `instalment_paid_<product>_<n>`,
+  an instalment paid another way, or make a payment link for one instalment (`/checkout/pay/<token>?i=<n>`, 14 days;
+  paid by card on CiderPay's one-time page, var1 `<token>.<n>`, recorded by its notice like a charge; migration 019). A full refund stops the plan. AC: `instalment_active_`, `instalment_paid_<product>_<n>`,
   `instalment_completed_`, `instalment_failed_`, `cancelled_<product>`; fields `INSTALMENT_NEXT_DATE`,
   `INSTALMENT_NEXT_AMOUNT`, `INSTALMENT_REMAINING`. The refund window is 14 days.
 - **Refunds** (phase 3, `api/_lib/shop/refunds.js`, table `shop_refunds`, migration 016): on the admin order page, all or

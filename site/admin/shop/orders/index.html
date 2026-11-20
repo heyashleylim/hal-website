@@ -306,7 +306,10 @@
       var open = i.status === 'due' || i.status === 'failed' || i.status === 'overdue';
       return '<tr><td class="num">' + i.number + '</td><td class="num">' + Admin.kst(i.due_date + 'T00:00:00+09:00', false) + '</td><td class="num">' + Admin.money(i.amount, cur) + '</td>' +
         '<td>' + badge(i.status, INST[i.status]) + (i.error ? ' <span class="small is-error">' + Admin.esc(i.error) + '</span>' : '') + '</td>' +
-        '<td>' + (open && i.number > 1 && running ? '<button data-tip="This instalment was paid another way (bank transfer…): record it with its tax line" class="btn-ghost" type="button" data-settle="' + i.number + '">Record as paid</button>' : '') + '</td></tr>';
+        '<td>' + (open && i.number > 1 && running ? '<div class="admin-actions">' +
+          (cur === 'KRW' ? '<button data-tip="Make a link the customer can open to pay this instalment by card (works ' + 14 + ' days). Paid from it, it is recorded by itself" class="btn-ghost" type="button" data-inst-link="' + i.number + '">' + (i.link ? 'Renew link' : 'Payment link') + '</button>' : '') +
+          '<button data-tip="This instalment was paid another way (bank transfer…): record it with its tax line" class="btn-ghost" type="button" data-settle="' + i.number + '">Record as paid</button></div>' +
+          (i.link ? '<p class="small" style="margin-top:6px"><code class="wrap">' + Admin.esc(i.link.url) + '</code><br><span class="muted">Works until ' + Admin.esc(i.link.last_day) + '</span> <button data-tip="Copy this instalment’s payment link to send to the customer" class="btn-ghost" type="button" data-copy-link="' + Admin.esc(i.link.url) + '">Copy link</button></p>' : '') : '') + '</td></tr>';
     }), '');
     var actions = running ? '<div class="admin-actions" style="margin-top:12px">' +
       (st === 'paused'
@@ -338,6 +341,14 @@
       return;
     }
     if (ev.target.closest('[data-settle-close]') && sf) { sf.hidden = true; return; }
+    var il = ev.target.closest('[data-inst-link]');
+    if (il) {
+      il.disabled = true;
+      Admin.post('shop-instalment-link', { order: o.id, number: il.dataset.instLink })
+        .then(function () { return show(o.id); })
+        .catch(function (err) { il.disabled = false; alert(err.message); });
+      return;
+    }
     var b = ev.target.closest('[data-plan]');
     if (!b) return;
     var action = b.dataset.plan, out = document.getElementById('plan-out'), body = { order: o.id };

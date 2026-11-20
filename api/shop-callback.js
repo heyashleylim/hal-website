@@ -45,6 +45,14 @@ async function fromCiderpay(req, res, url, state) {
     return done(res, 'ignored');
   }
 
+  // A payment link for one instalment (var1 = "<order token>.<n>"): instalments.js records it like a charge.
+  const link = instalments.parseLinkToken(notice.token);
+  if (link) {
+    const outcome = await instalments.fromLinkNotice(link, notice, payload);
+    if (outcome === 'unknown_order') return sendJson(res, 404, { status: 'error', message: 'unknown order' });
+    return outcome === 'rejected' ? sendJson(res, 400, { status: 'error', message: 'rejected' }) : done(res, outcome);
+  }
+
   const order = await orders.byToken(notice.token);
   if (!order) {
     await orders.logCallback({ provider: 'ciderpay', outcome: 'rejected', reason: 'no order with this token', payload });

@@ -263,3 +263,48 @@ test('settings: selling instalment plans is off unless ticked', () => {
   assert.deepEqual(products.settingsInput({ instalments: { enabled: 'yes' } }).instalments, { enabled: false });
   assert.deepEqual(products.settingsInput({ instalments: { enabled: true } }).instalments, { enabled: true });
 });
+
+// ---------- a payment link for one instalment ----------
+test('instalment link: what CiderPay carries, and its own signature', () => {
+  assert.equal(plans.linkToken(order.token, 2), 'abcdefghijklmnopqrstuv.2');
+  assert.deepEqual(plans.parseLinkToken('abcdefghijklmnopqrstuv.2'), { token: order.token, number: 2 });
+  for (const bad of [order.token, 'abcdefghijklmnopqrstuv.', 'abcdefghijklmnopqrstuv.x', 'short.2', `${order.token}.2.3`, '']) assert.equal(plans.parseLinkToken(bad), null, bad);
+  const pay = plans.linkPayment(order, row(2, 'failed', '2026-12-10', 930000));
+  assert.deepEqual([pay.token, pay.number, pay.due_today, pay.currency], ['abcdefghijklmnopqrstuv.2', 100050, 930000, 'KRW']);
+  // Not the order's signature, nor another instalment's: a notice can't be replayed across them.
+  const sig = ciderpay.signature(pay, env);
+  assert.notEqual(sig, ciderpay.signature(order, env));
+  assert.notEqual(sig, ciderpay.signature(plans.linkPayment(order, row(3, 'due', '2027-01-10', 930000)), env));
+  const req = ciderpay.paymentRequest({ order: pay, productName: '내성만방 프로그램 (2/3)', billing }, env);
+  assert.deepEqual([req.price, req.var1, req.var2, req.goodName], [930000, 'abcdefghijklmnopqrstuv.2', sig, '내성만방 프로그램 (2/3) [100050]']);
+  assert.equal(req.returnurl, 'https://www.ashleylim.com/checkout/complete?o=abcdefghijklmnopqrstuv.2');
+});
+
+test('instalment link: works 14 days, only while the instalment is unpaid and the plan running', () => {
+  const now = new Date('2026-12-20T00:00:00Z');
+  const running = { ...order, plan_status: 'overdue' };
+  const r = { ...row(2, 'failed'), link_at: '2026-12-11T00:00:00Z' };
+  assert.equal(plans.LINK_DAYS, 14);
+  assert.equal(plans.linkState(running, r, now), null);
+  assert.equal(plans.linkState({ ...running, plan_status: 'paused' }, r, now), null);
+  assert.equal(plans.linkState(running, { ...r, status: 'paid' }, now), 'paid');
+  assert.equal(plans.linkState(running, { ...r, status: 'cancelled' }, now), 'ended');
+  assert.equal(plans.linkState({ ...running, plan_status: 'stopped' }, r, now), 'ended');
+  assert.equal(plans.linkState(running, { ...r, link_at: null }, now), 'ended');
+  assert.equal(plans.linkState(running, r, new Date('2026-12-25T00:00:00Z')), 'ended');
+  assert.equal(plans.linkState(running, undefined, now), 'ended');
+  assert.equal(plans.linkLastDay(r), '2026-12-25');
+});
+
+test('instalment link page: which instalment, its amount, one button', () => {
+  const o = { ...order, status: 'paid', plan_status: 'overdue', billing: { name: '김지연' } };
+  const html = page.instalmentPayPage({ order: o, row: row(2, 'failed', '2026-12-10'), count: 3, lastDay: '2026-12-25' });
+  assert.match(html, /김지연님, 아직 결제되지 않은 분할 결제가 있어요/);
+  assert.match(html, /3회 중 2회차/);
+  assert.match(html, /2026년 12월 10일/);
+  assert.match(html, /<input type="hidden" name="i" value="2">/);
+  assert.match(html, /₩930,000 결제하기 →/);
+  assert.match(html, /2026년 12월 25일/);
+  assert.doesNotMatch(html, /googletagmanager/); // the address is the order's key
+  assert.match(page.instalmentPayPage({ order: o, row: row(2, 'failed'), count: 3, state: 'ended' }), /사용할 수 없는 결제 링크예요/);
+});

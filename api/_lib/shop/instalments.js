@@ -15,7 +15,9 @@
  *   3. Every morning (checkLate): an instalment whose date has passed (yesterday or before) without any word from
  *      CiderPay is "overdue", with the same alert (Alex, 2026-11-20: know right away, not days later). This doesn't depend on CiderPay telling us anything.
  *   4. The last instalment received: the plan is "completed" and the agreement is ended at CiderPay (destroyMp).
- *   5. In the admin: pause / resume / stop the plan (at CiderPay too), or record an instalment paid another way.
+ *   5. In the admin: pause / resume / stop the plan (at CiderPay too), record an instalment paid another way, or make
+ *      a payment link for one instalment (/checkout/pay/<order token>?i=<n>, LINK_DAYS days): the customer pays it by
+ *      card on CiderPay's one-time page, and its notice records it like any charge (var1 = "<order token>.<n>").
  *      A full refund of the order stops the plan.
  *
  * Money really received is never dropped, and never recorded twice: a charge for an instalment already paid (or
@@ -132,7 +134,7 @@ const ofN = (number, rows) => `${number} of ${rows.length}`;
 // ---------- database ----------
 
 async function rowsOf(orderId) {
-  return db.query(`SELECT id, number, to_char(due_date, 'YYYY-MM-DD') AS due_date, amount, status, payment_id, error, alerted_at, note
+  return db.query(`SELECT id, number, to_char(due_date, 'YYYY-MM-DD') AS due_date, amount, status, payment_id, error, alerted_at, note, link_at
                      FROM shop_instalments WHERE order_id = $1 ORDER BY number`, [orderId]);
 }
 
@@ -479,7 +481,100 @@ async function settleByHand(orderId, number, { method, at, reference = '', by = 
   return (await refresh(orderId)).order;
 }
 
+// ---------- a payment link for one instalment (Alex, 2026-11-20) ----------
+
+const LINK_DAYS = 14;
+
+// What CiderPay carries for a link payment (var1): "<order token>.<instalment number>". A dot is never in a token.
+const linkToken = (token, number) => `${token}.${number}`;
+function parseLinkToken(value) {
+  const m = /^([A-Za-z0-9_-]{22})\.(\d{1,2})$/.exec(String(value || ''));
+  return m ? { token: m[1], number: Number(m[2]) } : null;
+}
+
+// The one-time payment of instalment `row`, shaped like an order for ciderpay.paymentRequest / noticeProblem: its
+// signature binds the order token, the instalment number, the order number and the amount.
+function linkPayment(order, row) {
+  return { token: linkToken(order.token, row.number), number: order.number, due_today: row.amount, currency: order.currency, plan: 'full' };
+}
+
+// Can instalment `row` be paid from its link now? → null, or why not: 'paid' | 'ended'.
+function linkState(order, row, now = new Date()) {
+  if (!row) return 'ended';
+  if (row.status === 'paid') return 'paid';
+  if (!OPEN.includes(row.status) || !RUNNING.includes(order.plan_status) || !row.link_at) return 'ended';
+  if (now.getTime() - new Date(row.link_at).getTime() >= LINK_DAYS * 24 * 60 * 60 * 1000) return 'ended';
+  return null;
+}
+
+// The last day a link works (Seoul date).
+function linkLastDay(row) {
+  if (!row || !row.link_at) return '';
+  return ledger.seoul(new Date(new Date(row.link_at).getTime() + LINK_DAYS * 24 * 60 * 60 * 1000)).date;
+}
+
+const linkUrl = (order, number) => `${config.payLinkUrl(order.token)}?i=${number}`;
+
+/*
+ * Admin: a payment link for instalment `number` (not paid, plan running), valid LINK_DAYS days from now. Making it
+ * again starts the days again (the address stays the same). → { url, last_day }
+ */
+async function makeLink(orderId, number, { by = 'admin' } = {}) {
+  const order = await planOrder(orderId);
+  if (!RUNNING.includes(order.plan_status)) throw new PlanError(`the plan is ${order.plan_status}`);
+  if (order.currency !== 'KRW') throw new PlanError('instalment links are paid by card in KRW');
+  if (!config.ciderpayConfigured()) throw new PlanError('CiderPay is not set up on this deployment');
+  const row = (await rowsOf(orderId)).find((r) => r.number === number);
+  if (!row) throw new PlanError(`no instalment ${number} on this order`);
+  if (number === 1 || !order.paid_at) throw new PlanError('the first payment is made at checkout');
+  if (!OPEN.includes(row.status)) throw new PlanError(`instalment ${number} is ${row.status}`);
+  const fresh = await db.one(`UPDATE shop_instalments SET link_at = now(), updated_at = now() WHERE id = $1 AND status IN ('due', 'failed', 'overdue') RETURNING link_at`, [row.id]);
+  if (!fresh) throw new PlanError(`instalment ${number} was just paid or cancelled`);
+  await orders.logCallback({ provider: 'shop', outcome: 'link', reason: `payment link for instalment ${number} made by ${by}`, orderId });
+  return { url: linkUrl(order, number), last_day: linkLastDay({ link_at: fresh.link_at }) };
+}
+
+/*
+ * The customer pressed the link's button: CiderPay's one-time payment page for that instalment's amount.
+ * → the page's address. Throws PlanError (state) or ciderpay.PayError.
+ */
+async function requestLinkPage(order, number) {
+  const rows = await rowsOf(order.id);
+  const row = rows.find((r) => r.number === number);
+  const state = linkState(order, row);
+  if (state) throw new PlanError(state);
+  const pay = linkPayment(order, row);
+  const page = await ciderpay.requestPayment({ order: pay, productName: `${orders.orderName(order)} (${number}/${rows.length})`, billing: order.billing || {} });
+  return page.payUrl;
+}
+
+/*
+ * CiderPay's "paid" or "cancelled" notice for a link payment (var1 = "<token>.<n>"). → the same outcomes as a charge:
+ * 'paid' | 'duplicate' | 'extra' | 'rejected' | 'unknown_order', or the refund module's for a cancellation.
+ */
+async function fromLinkNotice(link, notice, payload) {
+  const order = await orders.byToken(link.token);
+  const row = order && order.plan === 'instalment' ? (await rowsOf(order.id)).find((r) => r.number === link.number) : null;
+  if (!order || !row) {
+    await orders.logCallback({ provider: 'ciderpay', outcome: 'rejected', reason: `instalment link: no order or instalment for ${link.token}.${link.number}`, orderId: order ? order.id : null, payload });
+    return 'unknown_order';
+  }
+  const problem = ciderpay.noticeProblem(notice, linkPayment(order, row));
+  if (problem) {
+    await orders.logCallback({ provider: 'ciderpay', outcome: 'rejected', reason: `instalment ${link.number} link: ${problem}`, orderId: order.id, payload });
+    await notify.attention('a CiderPay notice was refused', [`Order ${order.number} (${orders.orderName(order)}), instalment ${link.number} payment link`, problem, 'Nothing was recorded as paid.']).catch(() => {});
+    return 'rejected';
+  }
+  require('./flow.js').guardDatabase();
+  if (notice.kind === 'cancelled') return require('./refunds.js').fromCiderpay(order, notice, payload);
+  return confirmInstalment(order, link.number, {
+    provider: 'ciderpay', currency: 'KRW', amount: notice.amount, ref: notice.orderNo, approvalNo: notice.approvalNo,
+    refundToken: notice.refundToken, method: notice.method, receiptUrl: notice.receiptUrl, raw: payload,
+  });
+}
+
 module.exports = {
+  LINK_DAYS, linkToken, parseLinkToken, linkPayment, linkState, linkLastDay, linkUrl, makeLink, requestLinkPage, fromLinkNotice,
   GRACE_DAYS, PlanError, planStatus, lateRows, nextOpen, planFields, planOps, numberFor, addDays,
   rowsOf, refresh, fromCiderpay, confirmInstalment, started, failed, checkLate, endAtCiderpay, pause, resume, stop, settleByHand,
 };

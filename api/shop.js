@@ -10,7 +10,7 @@
  *                 option and currency the page shows) or { error: 'coupon', fields: { coupon: <reason> } }.
  *                 Without JavaScript the button opens the checkout again with ?coupon=… (api/shop-page.js applies it).
  *                 The order itself carries the code applied (`coupon`), checked again with the buyer's email.
- *   POST pay      { o } from a payment link (/checkout/pay/<token>, an order made in the admin) → 303 to the
+ *   POST pay      { o, i? } from a payment link (/checkout/pay/<token>, an order made in the admin) → 303 to the
  *                 provider's payment page, or back to the link with ?problem=… . The order's amounts are fixed.
  *   GET  status   ?o=<order token> → { status: 'paid' | 'pending' | 'ended' | 'refunded' | 'unknown' }
  *                 (the thank-you page asks until the provider's confirmation has arrived)
@@ -26,6 +26,7 @@ const pricing = require('./_lib/shop/pricing.js');
 const page = require('./_lib/shop/page.js');
 const coupons = require('./_lib/shop/coupons.js');
 const manual = require('./_lib/shop/manual.js');
+const instalments = require('./_lib/shop/instalments.js');
 const { readBody, sendJson, sendHtml, redirect, sameOrigin } = require('./_lib/shop/http.js');
 const { CheckoutError } = orders;
 
@@ -115,6 +116,25 @@ async function coupon(req, res) {
   }
 }
 
+// The button of an instalment's payment link: CiderPay's one-time page for that instalment, or the link again with
+// what went wrong (a link no longer valid simply shows its "ended" page).
+async function payInstalment(res, data) {
+  const order = await orders.byToken(String(data.o || ''));
+  const number = parseInt(data.i, 10);
+  if (!order || order.plan !== 'instalment' || !(number >= 2)) return sendHtml(res, 404, page.notFoundPage());
+  const back = (problem) => redirect(res, 303, `/checkout/pay/${encodeURIComponent(order.token)}?i=${number}${problem ? `&problem=${problem}` : ''}`);
+  try {
+    flow.guardDatabase();
+    return redirect(res, 303, await instalments.requestLinkPage(order, number));
+  } catch (err) {
+    if (err instanceof instalments.PlanError) return back('');
+    if (err instanceof CheckoutError) return back(err.code === 'not_configured' ? 'not_configured' : 'server');
+    if (err && err.code && ['not_configured', 'unavailable', 'provider'].includes(err.code)) return back(err.code);
+    console.error('shop: instalment link', err);
+    return back('server');
+  }
+}
+
 // The add-ons the checkout offers, per currency it is sold in (the page switches between them with the payment method).
 async function addonsByCurrency(product, offers) {
   const out = {};
@@ -125,6 +145,7 @@ async function addonsByCurrency(product, offers) {
 // The button of a payment link. Always answers with a redirect: the payment page, or the link with what went wrong.
 async function payLink(req, res) {
   const { data } = await readBody(req);
+  if (data.i != null && data.i !== '') return payInstalment(res, data);
   const order = await orders.byToken(String(data.o || ''));
   if (!order || order.origin !== 'manual') return sendHtml(res, 404, page.notFoundPage());
   const back = (problem) => redirect(res, 303, `/checkout/pay/${encodeURIComponent(order.token)}${problem ? `?problem=${problem}` : ''}`);

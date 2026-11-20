@@ -40,6 +40,14 @@ const actions = {
     };
   },
 
+  // A payment link for one instalment: the customer pays it by card; CiderPay's notice records it.
+  async 'shop-instalment-link'(input, { admin }) {
+    const number = int(input.number, { min: 2, max: 30, label: 'instalment' });
+    const order = id(input.order, 'order');
+    const link = await asUserError(() => instalments.makeLink(order, number, { by: admin }));
+    return { link, target: `order ${order}`, log: { order, instalment: number, last_day: link.last_day } };
+  },
+
   // An instalment paid another way (bank transfer…): recorded by hand with the day the money came in.
   async 'shop-instalment-paid'(input, { admin }) {
     const number = int(input.number, { min: 2, max: 30, label: 'instalment' });

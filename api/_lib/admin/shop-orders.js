@@ -69,7 +69,7 @@ const actions = {
       db.query(`SELECT position, kind, product_id, name, amount, vat_rule FROM shop_order_items WHERE order_id = $1 ORDER BY position`, [id]),
       db.query(`SELECT id, provider, kind, currency, amount, fee, instalment_no, provider_ref, approval_no, method, receipt_url, at
                   FROM shop_payments WHERE order_id = $1 ORDER BY at, id`, [id]),
-      db.query(`SELECT number, to_char(due_date, 'YYYY-MM-DD') AS due_date, amount, status, error, note, payment_id FROM shop_instalments WHERE order_id = $1 ORDER BY number`, [id]),
+      db.query(`SELECT number, to_char(due_date, 'YYYY-MM-DD') AS due_date, amount, status, error, note, payment_id, link_at FROM shop_instalments WHERE order_id = $1 ORDER BY number`, [id]),
       db.query(`SELECT at, kind, method, currency, amount, supply, vat, vat_rule, fee, fx_rate, amount_krw, note FROM shop_ledger WHERE order_id = $1 ORDER BY at, id`, [id]),
       db.query(`SELECT op, payload, status, attempts, last_error, created_at, done_at FROM shop_outbox WHERE order_id = $1 ORDER BY id`, [id]),
       db.query(`SELECT at, provider, outcome, reason FROM shop_callbacks WHERE order_id = $1 ORDER BY at, id`, [id]),
@@ -84,6 +84,12 @@ const actions = {
     const full = await db.one('SELECT origin, provider, status, paid_at, created_at, token FROM shop_orders WHERE id = $1', [id]);
     const manualLink = require('./shop-manual.js').linkOf(full);
     const link = manualLink ? { url: manualLink, last_day: require('../shop/manual.js').linkLastDay(full) } : null;
+    // An instalment's payment link while it works (instalments.makeLink).
+    const plans = require('../shop/instalments.js');
+    for (const i of instalments) {
+      i.link = !plans.linkState({ ...order, token: full.token }, i) ? { url: plans.linkUrl(full, i.number), last_day: plans.linkLastDay(i) } : null;
+      delete i.link_at;
+    }
     return { order, items, payments, instalments, ledger: lines, outbox, notices, refunds: refundRows, refundable, link, unpaid: ['created', 'awaiting_payment', 'expired', 'cancelled'].includes(order.status) };
   },
 

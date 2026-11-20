@@ -728,6 +728,54 @@ function payPage({ order, items = [], state = null, lastDay = '', problem = '', 
   });
 }
 
+/*
+ * The payment link of one instalment of a plan (/checkout/pay/<token>?i=<n>): which instalment, its amount, and one
+ * button to CiderPay's card page for that amount. No tags: the address is the order's key.
+ *   row    the instalment (instalments.rowsOf); count = how many payments the plan has
+ *   state  null (can be paid) | 'ended'
+ */
+function instalmentPayPage({ order, row, count, state = null, lastDay = '', problem = '', settings = {} }) {
+  const c = copy.payLink;
+  if (state) {
+    return layout({
+      title: c.endedTitle, tags: false,
+      body: `<section class="co-card co-card--center">
+  <h1 class="co-title">${esc(c.endedTitle)}</h1>
+  <p>${esc(c.instalmentEndedLead)}</p>
+  <p class="co-quiet">${esc(c.order)} ${esc(order.number)}</p>
+</section>`,
+    });
+  }
+  const money = (n) => pricing.formatMoney(n, order.currency);
+  const name = (order.billing || {}).name || '';
+  const until = lastDay ? kstDate(`${lastDay}T12:00:00+09:00`) : '';
+  return layout({
+    title: c.instalmentTitle, tags: false,
+    body: `<section class="co-card co-card--center co-paylink">
+  <h1 class="co-title">${esc(c.instalmentTitle)}</h1>
+  ${name ? `<p class="co-lead">${esc(c.instalmentLead(name))}</p>` : ''}
+  ${problem && copy.problems[problem] ? `<p class="co-problem" role="alert">${esc(copy.problems[problem])}</p>` : ''}
+  <dl class="co-facts">
+    <div><dt>${esc(c.order)}</dt><dd>${esc(order.number)}</dd></div>
+    <div><dt>${esc(c.product)}</dt><dd>${esc(orderName(order))}</dd></div>
+    <div><dt>${esc(c.turn)}</dt><dd>${esc(c.turnOf(row.number, count))}</dd></div>
+    <div><dt>${esc(c.due)}</dt><dd>${esc(kstDate(`${row.due_date}T12:00:00+09:00`))}</dd></div>
+    <div><dt>${esc(c.amount)}</dt><dd><strong>${esc(money(row.amount))}</strong></dd></div>
+    <div><dt>${esc(c.method)}</dt><dd>${esc(copy.methods.card)}</dd></div>
+  </dl>
+  <p class="co-quiet">${esc(copy.methods.cardNote)}</p>
+  <form method="post" action="/api/shop?action=pay" class="co-paylink__form">
+    <input type="hidden" name="o" value="${esc(order.token)}">
+    <input type="hidden" name="i" value="${esc(row.number)}">
+    <button type="submit" class="btn co-pay">${esc(copy.pay(money(row.amount)))}</button>
+  </form>
+  <p class="co-consent">${consentHtml(((settings && settings.checkout_texts) || {}).consent)}</p>
+  ${until ? `<p class="co-quiet">${esc(c.until(until))}</p>` : ''}
+  <p class="co-quiet">${esc(copy.closed.contact)}</p>
+</section>`,
+  });
+}
+
 const orderName = (order) => (order.price_option && order.price_option.label ? `${order.product_name} · ${order.price_option.label}` : order.product_name);
 
-module.exports = { payPage, checkoutPage, closedPage, notFoundPage, errorPage, completePage, consentHtml, esc, json, siteChrome, GTM_ID };
+module.exports = { payPage, instalmentPayPage, checkoutPage, closedPage, notFoundPage, errorPage, completePage, consentHtml, esc, json, siteChrome, GTM_ID };

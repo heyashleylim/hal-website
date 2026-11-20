@@ -211,6 +211,13 @@ const copy = {
     amount: '결제 금액',
     method: '결제 방법',
     until: (date) => `이 결제 링크는 ${date}까지 사용할 수 있어요.`,
+    // One instalment of a plan, paid from a link (Alex, 2026-11-20). New copy, to review.
+    instalmentTitle: '분할 결제 안내',
+    instalmentLead: (name) => `${name}님, 아직 결제되지 않은 분할 결제가 있어요. 아래 버튼으로 카드 결제를 진행해 주세요.`,
+    turn: '회차',
+    turnOf: (number, count) => `${count}회 중 ${number}회차`,
+    due: '결제 예정일',
+    instalmentEndedLead: `이 결제 링크는 더 이상 사용할 수 없어요. ${SUPPORT_EMAIL}으로 알려 주시면 확인해 드릴게요.`,
     endedTitle: '사용할 수 없는 결제 링크예요',
     endedLead: `기간이 지났거나 취소된 주문이에요. ${SUPPORT_EMAIL}으로 알려 주시면 새 링크를 보내 드릴게요.`,
   },
