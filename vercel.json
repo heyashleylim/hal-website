@@ -124,6 +124,7 @@
     }
   ],
   "redirects": [
+    { "source": "/waitlist", "destination": "/nsmb/waitlist", "permanent": false },
     {
       "source": "/",
       "has": [
