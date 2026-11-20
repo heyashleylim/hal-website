@@ -157,6 +157,30 @@ const actions = {
     return { filename: `ledger-${p.key.replace(/\.\./, '_to_')}.csv`, csv: reports.csv(CSV.lines, lines), count: lines.length };
   },
 
+  // Everything one customer bought and paid: their orders and every ledger line, with totals per currency.
+  // Useful for a receipt request or a dispute. Found by email (or the customer's id).
+  async 'shop-customer-statement'(input) {
+    const byId = input.customer ? int(input.customer, { min: 1, max: 2147483647, label: 'customer' }) : null;
+    const email = byId ? '' : text(input.email, { max: 254, required: true, label: 'email' }).toLowerCase();
+    const customer = await db.one(
+      `SELECT id, email, name, phone, country, postcode, address1, address2, created_at FROM shop_customers WHERE ($1::int IS NOT NULL AND id = $1) OR ($1::int IS NULL AND email = $2)`,
+      [byId, email]);
+    if (!customer) throw userError('no customer with this email', 404);
+    const [orders, lines] = await Promise.all([
+      db.query(
+        `SELECT id, number, product_name, price_option->>'label' AS option, currency, plan, plan_status, subtotal, discount, total,
+                paid_total, refunded_total, status, origin, coupon_code, created_at, paid_at
+           FROM shop_orders WHERE customer_id = $1 ORDER BY created_at, id`, [customer.id]),
+      db.query(
+        `SELECT l.id, l.at, l.kind, l.provider, l.method, l.currency, l.amount, l.supply, l.vat, l.vat_rule, l.fee,
+                l.fx_rate::float8 AS fx_rate, l.amount_krw, l.order_id, o.number, o.product_name,
+                p.provider_ref, p.approval_no, p.receipt_url, p.instalment_no
+           FROM shop_ledger l JOIN shop_orders o ON o.id = l.order_id LEFT JOIN shop_payments p ON p.id = l.payment_id
+          WHERE o.customer_id = $1 ORDER BY l.at, l.id`, [customer.id]),
+    ]);
+    return { customer, orders, lines, totals: ledger.totals(lines) };
+  },
+
   /*
    * The exchange rate of USD ledger lines (won per dollar, and where it came from): for one line, or for every
    * line of one Seoul day. Lines that already have a rate keep it unless `replace` is set. The won value is

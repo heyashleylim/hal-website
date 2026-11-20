@@ -70,7 +70,7 @@ const actions = {
       db.query(`SELECT id, provider, kind, currency, amount, fee, instalment_no, provider_ref, approval_no, method, receipt_url, at
                   FROM shop_payments WHERE order_id = $1 ORDER BY at, id`, [id]),
       db.query(`SELECT number, to_char(due_date, 'YYYY-MM-DD') AS due_date, amount, status, error, note, payment_id, link_at FROM shop_instalments WHERE order_id = $1 ORDER BY number`, [id]),
-      db.query(`SELECT at, kind, method, currency, amount, supply, vat, vat_rule, fee, fx_rate, amount_krw, note FROM shop_ledger WHERE order_id = $1 ORDER BY at, id`, [id]),
+      db.query(`SELECT at, payment_id, kind, method, currency, amount, supply, vat, vat_rule, fee, fx_rate, amount_krw, note FROM shop_ledger WHERE order_id = $1 ORDER BY at, id`, [id]),
       db.query(`SELECT op, payload, status, attempts, last_error, created_at, done_at FROM shop_outbox WHERE order_id = $1 ORDER BY id`, [id]),
       db.query(`SELECT at, provider, outcome, reason FROM shop_callbacks WHERE order_id = $1 ORDER BY at, id`, [id]),
       db.query(`SELECT id, payment_id, provider, currency, amount, reason, by, origin, status, provider_ref, error, created_at, done_at, notice_at FROM shop_refunds WHERE order_id = $1 ORDER BY id`, [id]),

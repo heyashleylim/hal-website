@@ -1419,6 +1419,17 @@ async function main() {
     eq('the report now counts those lines in won', rep.summary.won.missing_rate, yUsd.missing - dayLines);
     check('the change is in the activity log', (await count('admin_log', `action = 'shop-fx-set'`, [])) >= 3);
 
+    group('Customer statement and printable order');
+    const stmtEmail = (await one(`SELECT c.email FROM shop_customers c JOIN shop_orders o ON o.customer_id = c.id JOIN shop_ledger l ON l.order_id = o.id GROUP BY c.email ORDER BY count(*) DESC LIMIT 1`)).email;
+    const stmt = await adminGet('shop-customer-statement', { email: stmtEmail.toUpperCase() });
+    const stmtSql = await one(`SELECT count(DISTINCT o.id)::int AS orders, count(l.id)::int AS lines, COALESCE(sum(l.amount) FILTER (WHERE l.currency = 'KRW'), 0)::int AS krw FROM shop_customers c JOIN shop_orders o ON o.customer_id = c.id LEFT JOIN shop_ledger l ON l.order_id = o.id WHERE c.email = $1`, [stmtEmail]);
+    eq('the statement has every order and ledger line of that customer (email in any case)', [stmt.orders.length, stmt.lines.length, stmt.totals.KRW ? stmt.totals.KRW.net.amount : 0], [stmtSql.orders, stmtSql.lines, stmtSql.krw]);
+    check('an unknown email: not found', /no customer/.test((await adminGet('shop-customer-statement', { email: 'nobody@example.com' })).error || ''));
+    const printed = await adminGet('shop-order', { id: stmt.orders[0].id });
+    check('each tax line names its payment, so the printed order shows its references', printed.ledger.every((l) => l.payment_id == null || printed.payments.some((p) => p.id === l.payment_id)));
+    r = await get('/admin/shop/print/?order=1');
+    check('the print page is served', r.status === 200 && (await r.text()).includes('708-81-01999'));
+
     group('Ledger integrity');
     const sums = await one(`SELECT (SELECT COALESCE(sum(amount), 0)::int FROM shop_ledger WHERE currency = 'KRW') AS ledger, (SELECT COALESCE(sum(CASE WHEN kind = 'refund' THEN -amount ELSE amount END), 0)::int FROM shop_payments WHERE currency = 'KRW') AS payments, (SELECT COALESCE(sum(paid_total - refunded_total), 0)::int FROM shop_orders WHERE currency = 'KRW') AS orders`);
     eq('KRW: ledger = payments = orders’ paid totals', [sums.ledger === sums.payments, sums.payments === sums.orders], [true, true]);

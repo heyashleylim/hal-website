@@ -74,7 +74,11 @@
   <section class="admin-card" id="detail" hidden aria-labelledby="detail-title">
     <div class="admin-head">
       <h2 id="detail-title">Order</h2>
-      <button data-tip="Close this order" class="btn-ghost" type="button" id="close-detail">Close</button>
+      <div class="admin-actions">
+        <a data-tip="A printable page of this order (customer, amounts, VAT, payment references): print it or save it as a PDF" class="btn-ghost" id="print-order" href="/admin/shop/print/">Print</a>
+        <a data-tip="Every order and payment of this customer on one printable page" class="btn-ghost" id="print-customer" href="/admin/shop/print/">Customer statement</a>
+        <button data-tip="Close this order" class="btn-ghost" type="button" id="close-detail">Close</button>
+      </div>
     </div>
     <div id="detail-body" aria-live="polite"></div>
   </section>
@@ -519,6 +523,8 @@
       var o = r.order, cur = o.currency;
       current = o;
       document.getElementById('detail-title').textContent = 'Order #' + o.number;
+      document.getElementById('print-order').href = '/admin/shop/print/?order=' + o.id;
+      document.getElementById('print-customer').href = '/admin/shop/print/?customer=' + encodeURIComponent(o.email);
       var address = [o.postcode, o.address1, o.address2, o.country].filter(Boolean).join(' ');
       body.innerHTML =
         '<dl class="facts">' +
