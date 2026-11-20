@@ -355,8 +355,22 @@
   }
   // The coupon applied (data.coupon = { code, off: { optionKey: { KRW, USD } } }), as the server worked it out.
   // null when this option/currency can't take it (the order would be refused): the page says so.
+  // 일시불 or 분할 결제: the plan only exists in won (card); PayPal always pays in full.
+  function planChosen() {
+    if (!data.instalments || currency !== 'KRW') return 'full';
+    var r = form.querySelector('input[name="plan"]:checked');
+    return r ? r.value : 'full';
+  }
+  // Same rule as pricing.discountedPlan: the discount comes off the plan's total, every payment goes down in proportion.
+  function planAmounts(off) {
+    var P = data.instalments, total = P.total - off;
+    if (!off) return { total: P.total, first: P.first, monthly: P.monthly, count: P.count };
+    var monthly = Math.round(P.monthly * total / P.total);
+    return { total: total, first: total - monthly * P.count, monthly: monthly, count: P.count };
+  }
   function discountNow() {
     if (!data.coupon) return 0;
+    if (planChosen() === 'instalment') return data.coupon.planOff == null ? null : data.coupon.planOff;
     var row = data.coupon.off && data.coupon.off[option().key];
     var off = row ? row[currency] : null;
     return off == null ? null : off;
@@ -366,9 +380,15 @@
   function chosenAddons() { return ADDONS.filter(function (a) { var b = addonBox(a.id); return a[currency] && b && b.checked && !b.disabled; }); }
   function cartItems() { return [main().item].concat(chosenAddons().map(addonItem)); }
   function refreshOrder() {
-    // The instalment checkout: its numbers (today, then each month) come from the server; a coupon reloads the page.
-    if (data.plan === 'instalment') { couponNote(); data.value = unit(data.planTotal || 0); return; }
+    var plan = planChosen(), P = plan === 'instalment' ? planAmounts(discountNow() || 0) : null;
+    // A plan takes no add-ons: their block is put away and unticked while 분할 결제 is chosen.
+    var addonsBox = form.querySelector('.co-addons');
+    if (addonsBox) addonsBox.hidden = Boolean(P);
+    if (P) ADDONS.forEach(function (a) { var b = addonBox(a.id); if (b) b.checked = false; });
+    Array.prototype.forEach.call(form.querySelectorAll('[data-plan-row], [data-plan-only]'), function (x) { x.hidden = !P; });
+    if (input('shown_plan')) input('shown_plan').value = plan;
     var m = main(), chosen = chosenAddons(), off = discountNow() || 0;
+    if (P) m.amount = data.instalments.total;
     var total = m.amount - off + chosen.reduce(function (sum, a) { return sum + a[currency].amount; }, 0);
     // Prices in the current currency only; add-ons not sold in it are put away (and unticked).
     Array.prototype.forEach.call(form.querySelectorAll('[data-cur]'), function (x) { x.hidden = x.getAttribute('data-cur') !== currency; });
@@ -393,7 +413,18 @@
     if (amountEl) amountEl.textContent = money(m.amount);
     if (totalEl) totalEl.textContent = money(total);
     if (vatEl) { vatEl.textContent = vat > 0 ? String(data.vatTemplate || '').replace('{price}', money(vat)) : ''; vatEl.hidden = !(vat > 0); }
-    data.payLabel = String(data.payTemplate || data.payLabel).replace('{price}', money(total));
+    // The plan's choice card and its order lines (today, then each month), with any coupon spread over them.
+    if (data.instalments) {
+      var A = planAmounts(data.coupon && data.coupon.planOff != null ? data.coupon.planOff : 0), PT = data.planTexts || {};
+      var fullOff = data.coupon && data.coupon.off && data.coupon.off[''] && data.coupon.off[''].KRW != null ? data.coupon.off[''].KRW : 0;
+      var setText = function (sel, text) { var el = form.querySelector(sel); if (el) el.textContent = text; };
+      setText('[data-plan-full]', money((OPTIONS[0] || {}).KRW - fullOff, 'KRW'));
+      setText('[data-plan-first]', String(PT.today || '').replace('{price}', money(A.first, 'KRW')));
+      setText('[data-plan-note]', String(PT.note || '').replace('{day}', data.instalments.day).replace('{monthly}', money(A.monthly, 'KRW')).replace('{count}', A.count).replace('{total}', money(A.total, 'KRW')));
+      setText('[data-plan-today]', money(A.first, 'KRW'));
+      setText('[data-plan-monthly]', String(PT.each || '').replace('{price}', money(A.monthly, 'KRW')));
+    }
+    data.payLabel = String(data.payTemplate || data.payLabel).replace('{price}', money(P ? P.first : total));
     if (!busy) button.textContent = data.payLabel;
     button.classList.toggle('co-pay--paypal', currency === 'USD');
     form.setAttribute('data-currency', currency);
@@ -426,6 +457,9 @@
       window.dataLayer.push({ ecommerce: null });
       window.dataLayer.push({ event: 'select_item', ecommerce: { currency: currency, items: [main().item] } });
     });
+  });
+  Array.prototype.forEach.call(form.querySelectorAll('input[name="plan"]'), function (r) {
+    r.addEventListener('change', function () { refreshOrder(); });
   });
   // The payment method sets the currency: card = won, PayPal = dollars.
   Array.prototype.forEach.call(form.querySelectorAll('input[name="currency"]'), function (r) {
@@ -463,14 +497,6 @@
     if (couponRemove) couponRemove.hidden = !data.coupon;
   }
   function setCoupon(c) {
-    // The instalment checkout splits the discount over every payment: the server shows the new amounts.
-    if (data.plan === 'instalment') {
-      var u = new URL(window.location.href);
-      if (c) u.searchParams.set('coupon', c.code); else u.searchParams.delete('coupon');
-      save();
-      window.location.assign(u.toString());
-      return;
-    }
     data.coupon = c;
     if (couponApplied) couponApplied.value = c ? c.code : '';
     if (couponInput) couponInput.value = c ? c.code : '';
@@ -485,11 +511,11 @@
     couponBusy = true;
     if (couponApply) { couponApply.textContent = T.applying || couponApply.textContent; couponApply.setAttribute('aria-disabled', 'true'); }
     function done() { couponBusy = false; if (couponApply) { couponApply.textContent = T.apply || couponApply.textContent; couponApply.removeAttribute('aria-disabled'); } }
-    return post('coupon', { slug: data.slug, code: code, plan: data.plan }).then(function (res) {
+    return post('coupon', { slug: data.slug, code: code }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (b) {
         done();
         if (res.ok && b && b.coupon) {
-          setCoupon({ code: b.coupon.code, off: b.coupon.off });
+          setCoupon({ code: b.coupon.code, off: b.coupon.off, planOff: b.coupon.planOff == null ? null : b.coupon.planOff });
           window.dataLayer.push({ event: 'coupon_applied', coupon: b.coupon.code });
           return true;
         }
@@ -555,6 +581,8 @@
       if (!f.name || f.disabled || ((f.type === 'radio' || f.type === 'checkbox') && !f.checked)) return;
       body[f.name] = f.value;
     });
+    // The plan radios stay checked while PayPal hides them: what counts is the plan shown.
+    if (data.instalments) body.plan = planChosen();
     window.dataLayer.push({ ecommerce: null });
     window.dataLayer.push({ event: 'add_payment_info', ecommerce: { currency: currency, value: data.value, coupon: data.coupon ? data.coupon.code : undefined, payment_type: currency === 'USD' ? 'paypal' : 'card', items: cartItems() } });
 

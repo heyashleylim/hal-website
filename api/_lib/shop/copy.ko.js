@@ -87,14 +87,14 @@ const copy = {
     notHere: '지금 선택하신 옵션이나 결제 방법에는 이 쿠폰이 적용되지 않아요.',
   },
 
-  // Instalment plans (분할 결제, KRW card only). "일시불 / 분할 결제" are the words of the NSMB page; the rest is
-  // new copy (2026-11-20), to review.
+  // Instalment plans (분할 결제, KRW card only), chosen in the payment step. "일시불 / 분할 결제" are the words of the
+  // NSMB page; the rest is new copy (2026-11-20), to review.
   plan: {
-    offerTitle: '분할 결제도 가능해요',
-    offerLine: (first, monthly, count) => `오늘 ${first}, 이후 매월 ${monthly}씩 ${count}회`,
-    offerLink: '분할 결제로 신청하기 →',
-    fullLink: '일시불로 결제하기',
-    chosen: '분할 결제',
+    title: '결제 방식',
+    full: '일시불',
+    instalment: '분할 결제',
+    todayPrice: (amount) => `오늘 ${amount}`,
+    choiceNote: (day, monthly, count, total) => `이후 매월 ${day}일 ${monthly}씩 ${count}회 · 총 ${total}`,
     note: '다음 화면에서 카드를 등록하면 첫 결제가 바로 진행되고, 이후 매월 같은 날 자동으로 결제돼요.',
     today: '오늘 결제',
     monthly: (day, count) => `이후 매월 ${day}일 · ${count}회`,
@@ -138,6 +138,8 @@ const copy = {
     addon_unavailable: '선택하신 추가 상품은 지금 함께 구매할 수 없어요. 주문 내용을 확인하고 다시 시도해 주세요.',
     option_unavailable: '선택하신 옵션은 지금 구매할 수 없어요. 페이지를 새로 고친 뒤 옵션을 다시 선택해 주세요.',
     currency_changed: '결제 방법에 맞춰 금액을 다시 보여 드려요. 주문 내용을 확인하신 뒤 다시 눌러 주세요.',
+    plan_changed: '결제 방식에 맞춰 금액을 다시 보여 드려요. 주문 내용을 확인하신 뒤 다시 눌러 주세요.',
+    plan_card_only: '분할 결제는 신용/체크카드로만 할 수 있어요. 결제 방법을 확인해 주세요.',
     coupon: '쿠폰을 확인해 주세요.',
     coupon_applied: '쿠폰이 적용된 금액을 보여 드려요. 주문 내용을 확인하신 뒤 다시 눌러 주세요.',
     too_many: '짧은 시간에 요청이 너무 많았어요. 잠시 후 다시 시도해 주세요.',

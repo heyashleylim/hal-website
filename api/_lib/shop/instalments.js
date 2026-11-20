@@ -12,8 +12,8 @@
  *                              with its tax line, the instalment marked paid, ActiveCampaign and Slack told
  *        errorRpPayment        a charge failed: the instalment is "failed", the plan "overdue", Slack at once,
  *                              ActiveCampaign tag instalment_failed_<product> (the customer's email starts from it)
- *   3. Every morning (checkLate): an instalment whose date has passed by GRACE_DAYS without any word from CiderPay is
- *      "overdue", with the same alert. This doesn't depend on CiderPay telling us anything.
+ *   3. Every morning (checkLate): an instalment whose date has passed (yesterday or before) without any word from
+ *      CiderPay is "overdue", with the same alert (Alex, 2026-11-20: know right away, not days later). This doesn't depend on CiderPay telling us anything.
  *   4. The last instalment received: the plan is "completed" and the agreement is ended at CiderPay (destroyMp).
  *   5. In the admin: pause / resume / stop the plan (at CiderPay too), or record an instalment paid another way.
  *      A full refund of the order stops the plan.
@@ -31,7 +31,9 @@ const settings = require('./settings.js');
 const config = require('./config.js');
 const ciderpay = require('./pay/ciderpay.js');
 
-const GRACE_DAYS = 2;       // a charge can come late in the day, and its notice later still
+// Days after an instalment's date before silence counts as a miss: 0 = flagged the next morning (the daily job,
+// 09:10 Seoul time). A charge CiderPay reports as failed is flagged the moment its notice arrives.
+const GRACE_DAYS = 0;
 const OPEN = ['due', 'failed', 'overdue'];
 const RUNNING = ['active', 'overdue', 'paused'];
 
@@ -328,7 +330,7 @@ async function failed(order, number, message, payload = {}, { late = false } = {
     await step('Slack', () => notify.attention(late ? 'an instalment is late (no payment from CiderPay)' : 'an instalment payment failed', [
       `${b.name || customer.name || ''} <${customer.email}> — ${orders.orderName(order)} [order ${order.number}]`,
       `Instalment ${ofN(number, state.rows)}: ${pricing.formatMoney(row.amount, order.currency)}, due ${row.due_date}`,
-      late ? `No payment notice ${GRACE_DAYS} days after the date.` : `CiderPay: ${message}`,
+      late ? 'CiderPay sent no payment notice on the due date.' : `CiderPay: ${message}`,
       adminLink(order)]));
   }
   await step('ActiveCampaign send', () => sync.process({ orderId: order.id, budgetMs: 4000 }));
@@ -336,7 +338,7 @@ async function failed(order, number, message, payload = {}, { late = false } = {
 }
 
 /*
- * Daily job: instalments of running plans whose date passed GRACE_DAYS ago with no word from CiderPay become
+ * Daily job: instalments of running plans whose date has passed with no word from CiderPay become
  * overdue (alert once); completed or stopped plans whose agreement is still open at CiderPay are ended again.
  * → { late, ended }
  */

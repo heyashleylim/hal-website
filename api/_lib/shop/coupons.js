@@ -203,8 +203,8 @@ async function find(code, ipHash) {
 /*
  * The checkout page applies a code (before the buyer's email is known): → { code, label, off, planOff } where `off`
  * is offTable() and `planOff` the discount on the product's instalment plan (its total, KRW), or null when the
- * code can't lower it. Throws CouponError when the code can't be used on this product at all (on the instalment
- * checkout, `plan` = 'instalment': when it can't be used on the plan).
+ * code can't lower it. Throws CouponError when the code can't be used on this product at all (`plan` = 'both' on a
+ * checkout that offers the plan too: when it lowers neither).
  */
 async function forPage({ code, product, currencies, plan = 'full', ipHash = null, now = new Date() }) {
   const row = await find(code, ipHash);
@@ -212,12 +212,11 @@ async function forPage({ code, product, currencies, plan = 'full', ipHash = null
   if (why) throw new CouponError(why);
   const off = offTable(row.campaign, product, currencies);
   const planOff = planDiscount(row.campaign, product);
-  if (plan === 'instalment') {
-    if (planOff == null) throw new CouponError(row.campaign.kind === 'amount' && row.campaign.amount_krw == null ? 'coupon_currency' : 'coupon_product');
-  } else {
-    const cells = Object.values(off).flatMap((x) => Object.values(x));
-    if (!cells.some((n) => n != null)) throw new CouponError(row.campaign.kind === 'amount' ? 'coupon_currency' : 'coupon_product');
-  }
+  // `plan`: 'full', 'instalment', or 'both' (a checkout offering 일시불 and 분할 결제): refused only when it lowers nothing shown.
+  const cells = Object.values(off).flatMap((x) => Object.values(x));
+  const onFull = cells.some((n) => n != null);
+  const usable = plan === 'instalment' ? planOff != null : plan === 'both' ? onFull || planOff != null : onFull;
+  if (!usable) throw new CouponError(row.campaign.kind === 'amount' && (plan !== 'instalment' || row.campaign.amount_krw == null) ? 'coupon_currency' : 'coupon_product');
   return { code: row.code, label: describe(row.campaign), off, planOff };
 }
 

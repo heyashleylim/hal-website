@@ -1,6 +1,6 @@
 /*
  * The shop's pages (rewrites in vercel.json):
- *   GET /checkout/<product>   → ?view=checkout&slug=<product>   the checkout form (?plan=instalment: the instalment plan)
+ *   GET /checkout/<product>   → ?view=checkout&slug=<product>   the checkout form (?plan=instalment: 분할 결제 preselected)
  *   GET /checkout/complete    → ?view=complete&o=<order token>  where the buyer lands after the payment page
  *   GET /checkout/pay/<token> → ?view=pay&o=<order token>       the payment link of an order made in the admin
  *
@@ -32,8 +32,9 @@ async function checkout(req, res, url) {
   if (!sale.open || !offers.length) return sendHtml(res, 200, page.closedPage({ product, reason: sale.reason || 'closed' }));
   const wanted = String(url.searchParams.get('currency') || '').toUpperCase();
   const currency = offers.some((o) => o.currency === wanted) ? wanted : offers[0].currency;
-  // ?plan=instalment: the instalment checkout, when this product has a plan on sale (else the usual one).
-  const plan = url.searchParams.get('plan') === 'instalment' && offers.some((o) => o.plan === 'instalment') ? 'instalment' : 'full';
+  // ?plan=instalment opens the checkout with 분할 결제 already chosen (when this product has a plan on sale).
+  const hasPlan = offers.some((o) => o.plan === 'instalment');
+  const plan = url.searchParams.get('plan') === 'instalment' && hasPlan ? 'instalment' : 'full';
   const problem = PROBLEMS.has(url.searchParams.get('problem')) ? url.searchParams.get('problem') : '';
   const addons = {};
   for (const cur of [...new Set(offers.map((o) => o.currency))]) addons[cur] = await orders.addonChoices(product, cur);
@@ -42,7 +43,7 @@ async function checkout(req, res, url) {
   const code = coupons.normalize(url.searchParams.get('coupon'));
   if (code) {
     try {
-      coupon = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], plan, ipHash: config.ipHash(req) });
+      coupon = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], plan: hasPlan ? 'both' : 'full', ipHash: config.ipHash(req) });
     } catch (err) {
       if (!(err instanceof coupons.CouponError)) throw err;
       coupon = { code, error: err.code === 'too_many' ? 'coupon_unknown' : err.code };

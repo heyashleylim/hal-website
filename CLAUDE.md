@@ -276,13 +276,14 @@ links still go to WordPress until go-live (phase 5).
 - **Instalment plans** (phase 3, `api/_lib/shop/instalments.js`, migration 018, plan section 14): KRW card only, through
   CiderPay's 정기 결제 (`ciderpay.requestPlan`: first payment at once, then monthly on the billing day, ending 7 days after
   the last date; `devID`/`devToken` headers = the member id and API token). **Sold only while Shop → Settings → "Sell
-  instalment plans" is ticked** (off until a real plan has been tested): then a product with a plan has a second checkout,
-  `/checkout/<product>?plan=instalment` (card only, no add-ons or options; "today / each month" in the order), linked
-  from the usual one. The order carries its terms (`plan_terms`) and schedule (`shop_instalments`, dated again from the
+  instalment plans" is ticked** (off until a real plan has been tested): then the checkout of a product with a plan offers
+  "결제 방식": 일시불 or 분할 결제, under the card only, in one page (Alex, 2026-11-20); `checkout.js` switches the order
+  in place (today / each month, no add-ons, coupon spread like `pricing.discountedPlan`); `?plan=instalment` preselects
+  it; without JavaScript `plan_changed` / `plan_card_only` post back once. The order carries its terms (`plan_terms`) and schedule (`shop_instalments`, dated again from the
   first payment). Notices (`cmd`): agree (keeps `rp_token`), reject (cancels the unpaid order), completeRpPayment
   (`turnSeq` 0 = instalment 1, through `flow.confirm`; later ones recorded with their tax line by `confirmInstalment`),
-  errorRpPayment (instalment failed, plan overdue, Slack + AC `instalment_failed_<product>` once). The daily job flags
-  instalments 2 days past their date with no notice (same alert), and ends agreements of completed/stopped plans at
+  errorRpPayment (instalment failed, plan overdue, Slack + AC `instalment_failed_<product>` at once). The daily job flags
+  instalments whose date was yesterday or before with no notice (same alert), and ends agreements of completed/stopped plans at
   CiderPay. A charge for an instalment already paid, or for a stopped/completed plan, is held (not recorded) with an
   alert. Admin order page: pause / resume / stop (at CiderPay; stop can be forced after checking its dashboard), record
   an instalment paid another way. A full refund stops the plan. AC: `instalment_active_`, `instalment_paid_<product>_<n>`,

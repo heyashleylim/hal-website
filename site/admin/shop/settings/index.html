@@ -33,7 +33,7 @@
       <label class="admin-form__wide">PayPal instalments note <span class="hint">shown on the PayPal option for USD buyers; must not promise instalments, PayPal decides</span><textarea name="paypal_instalments" rows="2" maxlength="500"></textarea></label>
 
       <p class="admin-h3">Instalment plans</p>
-      <label class="check-ac"><input type="checkbox" name="instalments_enabled"> Sell instalment plans at checkout <span class="hint">(products with a plan get a second checkout link, ending in <code>?plan=instalment</code>; card in KRW only. Leave off until a real ₩1,000 plan has been tested on a preview: docs/commerce-plan.md section 14)</span></label>
+      <label class="check-ac"><input type="checkbox" name="instalments_enabled"> Sell instalment plans at checkout <span class="hint">(the checkout of a product with a plan offers 일시불 or 분할 결제 under the card; <code>?plan=instalment</code> opens it with 분할 결제 chosen. Leave off until a real ₩1,000 plan has been tested on a preview: docs/commerce-plan.md section 14)</span></label>
 
       <p class="admin-h3">Slack alerts</p>
       <label class="check-ac"><input type="checkbox" name="paid"> A payment is received</label>

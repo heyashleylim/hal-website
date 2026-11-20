@@ -50,12 +50,12 @@ test('plan state follows the schedule; stopped and paused stay until changed', (
   assert.equal(plans.planStatus([row(1, 'paid'), row(2, 'cancelled'), row(3, 'cancelled')], 'stopped'), 'stopped');
 });
 
-test('an instalment is late GRACE_DAYS after its date, and only while still due', () => {
-  assert.equal(plans.GRACE_DAYS, 2);
+test('an instalment is late the day after its date, and only while still due', () => {
+  assert.equal(plans.GRACE_DAYS, 0);
   const rows = [row(1, 'paid', '2026-11-10'), row(2, 'due', '2026-12-10'), row(3, 'due', '2027-01-10')];
-  assert.deepEqual(plans.lateRows(rows, '2026-12-12').map((r) => r.number), []);
-  assert.deepEqual(plans.lateRows(rows, '2026-12-13').map((r) => r.number), [2]);
-  assert.deepEqual(plans.lateRows(rows, '2027-01-13').map((r) => r.number), [2, 3]);
+  assert.deepEqual(plans.lateRows(rows, '2026-12-10').map((r) => r.number), []); // its own day: CiderPay may still charge
+  assert.deepEqual(plans.lateRows(rows, '2026-12-11').map((r) => r.number), [2]);
+  assert.deepEqual(plans.lateRows(rows, '2027-01-11').map((r) => r.number), [2, 3]);
   assert.deepEqual(plans.lateRows([row(2, 'failed', '2026-12-10')], '2027-01-13'), []); // already flagged
   assert.equal(plans.addDays('2026-12-30', 3), '2027-01-02');
 });
@@ -196,44 +196,53 @@ test('CiderPay plan notices: believed only with our token and signature (or the 
 const instOffers = orders.offers(product, undefined, { instalments: true });
 const dataOf = (html) => JSON.parse(/<script type="application\/json" id="co-data">([\s\S]*?)<\/script>/.exec(html)[1]);
 
-test('the instalment checkout: card only, today and each month, a link back to paying in full', () => {
-  const html = page.checkoutPage({ product, offers: instOffers, currency: 'KRW', plan: 'instalment', query: { utm_source: 'ig' } });
-  assert.match(html, /<input type="hidden" name="plan" value="instalment">/);
-  assert.doesNotMatch(html, /co-method-paypal/);
-  assert.match(html, /신용\/체크카드 · 분할 결제/);
-  assert.match(html, /오늘 결제<\/dt><dd>₩930,000/);
-  assert.match(html, /이후 매월 \d+일 · 2회<\/dt><dd>₩930,000씩/);
-  assert.match(html, /data-total>₩2,790,000</);
-  assert.match(html, /₩930,000 결제하기 →/);
-  assert.match(html, /href="\/checkout\/nsmb\?utm_source=ig">일시불로 결제하기/);
-  assert.match(html, /<input type="hidden" name="plan" value="instalment"><\/form>|name="plan" value="instalment">\s*<input type="hidden" name="utm_source"/);
-  const d = dataOf(html);
-  assert.equal(d.plan, 'instalment');
-  assert.equal(d.planTotal, 2790000);
-  assert.deepEqual(d.addons, []);
+test('one checkout: 일시불 or 분할 결제 under the card, the plan’s lines ready but hidden', () => {
+  const html = page.checkoutPage({ product, offers: instOffers, currency: 'KRW' });
+  assert.match(html, /<fieldset class="co-plans" data-cur="KRW">/);
+  assert.match(html, /id="co-plan-full" value="full" checked>/);
+  assert.match(html, /id="co-plan-instalment" value="instalment">/);
+  assert.match(html, /일시불<\/span>\s*<span class="co-choice__price"><strong data-plan-full>₩2,690,000/);
+  assert.match(html, /<strong data-plan-first>오늘 ₩930,000<\/strong>/);
+  assert.match(html, /이후 매월 \d+일 ₩930,000씩 2회 · 총 ₩2,790,000/);
+  assert.match(html, /data-plan-row hidden><dt>오늘 결제/);
+  assert.doesNotMatch(html, /<input type="hidden" name="plan"/); // the radios carry it
+  assert.match(html, /<input type="hidden" name="shown_plan" value="full">/);
+  assert.match(html, /co-method-paypal/);
+  assert.match(html, /₩2,690,000 결제하기 →/);
+  assert.deepEqual(dataOf(html).instalments, { first: 930000, monthly: 930000, count: 2, payments: 3, total: 2790000, day: dataOf(html).instalments.day, vatRule: 'taxable' });
+  // Opened with PayPal: the plan choice is there but hidden (won only).
+  assert.match(page.checkoutPage({ product, offers: instOffers, currency: 'USD' }), /<fieldset class="co-plans" data-cur="KRW" hidden>/);
+  // Plans not sold: no choice at all.
+  const off = page.checkoutPage({ product, offers: orders.offers(product), currency: 'KRW' });
+  assert.doesNotMatch(off, /co-plans|data-plan-row/);
+  assert.match(off, /<input type="hidden" name="plan" value="full">/);
 });
 
-test('the pay-in-full checkout offers the plan under the card (only when plans are sold)', () => {
-  const html = page.checkoutPage({ product, offers: instOffers, currency: 'KRW' });
-  assert.match(html, /분할 결제도 가능해요/);
-  assert.match(html, /오늘 ₩930,000, 이후 매월 ₩930,000씩 2회/);
-  assert.match(html, /href="\/checkout\/nsmb\?plan=instalment">분할 결제로 신청하기 →/);
-  assert.match(html, /class="co-plan-offer" data-cur="KRW">/);
-  assert.match(page.checkoutPage({ product, offers: instOffers, currency: 'USD' }), /class="co-plan-offer" data-cur="KRW" hidden>/);
-  assert.doesNotMatch(page.checkoutPage({ product, offers: orders.offers(product), currency: 'KRW' }), /co-plan-offer/);
+test('one checkout opened with 분할 결제 chosen (?plan=instalment, or after a failed submit)', () => {
+  const html = page.checkoutPage({ product, offers: instOffers, currency: 'KRW', plan: 'instalment' });
+  assert.match(html, /id="co-plan-instalment" value="instalment" checked>/);
+  assert.match(html, /<input type="hidden" name="shown_plan" value="instalment">/);
+  assert.match(html, /data-plan-row><dt>오늘 결제<\/dt><dd data-plan-today>₩930,000/);
+  assert.match(html, /₩930,000씩/);
+  assert.match(html, /data-total>₩2,790,000</);
+  assert.match(html, /₩930,000 결제하기 →/);
+  assert.match(html, /co-method-paypal/); // PayPal stays offered (paying in full)
   // ?plan=instalment while plans aren't sold: the usual checkout.
   assert.match(page.checkoutPage({ product, offers: orders.offers(product), currency: 'KRW', plan: 'instalment' }), /name="plan" value="full"/);
 });
 
-test('the instalment checkout with a coupon: the discount spread over every payment', () => {
+test('one checkout with a coupon: the plan’s payments go down in proportion, the full price too', () => {
   const p = { ...product, instalment_first: 500000, instalment_monthly: 300000, instalment_count: 3 };
-  const html = page.checkoutPage({ product: p, offers: orders.offers(p, undefined, { instalments: true }), currency: 'KRW', plan: 'instalment', coupon: { code: 'SAVE', off: { '': { KRW: 1, USD: 1 } }, planOff: 100000 } });
-  assert.match(html, /오늘 결제<\/dt><dd>₩464,287/);
+  const offs = orders.offers(p, undefined, { instalments: true });
+  const coupon = { code: 'SAVE', off: { '': { KRW: 269000, USD: 22990 } }, planOff: 100000 };
+  const html = page.checkoutPage({ product: p, offers: offs, currency: 'KRW', plan: 'instalment', coupon });
+  assert.match(html, /오늘 결제<\/dt><dd data-plan-today>₩464,287/);
   assert.match(html, /₩278,571씩/);
   assert.match(html, /data-total>₩1,300,000</);
-  assert.deepEqual(dataOf(html).coupon, { code: 'SAVE', off: { '': { KRW: 100000 } } });
-  // A code that can't lower the plan: shown as not applying, nothing taken off.
-  const no = page.checkoutPage({ product: p, offers: orders.offers(p, undefined, { instalments: true }), currency: 'KRW', plan: 'instalment', coupon: { code: 'SAVE', off: {}, planOff: null } });
+  assert.match(html, /data-plan-full>₩2,421,000</);
+  assert.deepEqual(dataOf(html).coupon, coupon);
+  // A code that can't lower the plan: shown as not applying to it, nothing taken off.
+  const no = page.checkoutPage({ product: p, offers: offs, currency: 'KRW', plan: 'instalment', coupon: { ...coupon, planOff: null } });
   assert.match(no, /data-total>₩1,400,000</);
 });
 

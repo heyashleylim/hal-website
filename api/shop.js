@@ -29,7 +29,7 @@ const manual = require('./_lib/shop/manual.js');
 const { readBody, sendJson, sendHtml, redirect, sameOrigin } = require('./_lib/shop/http.js');
 const { CheckoutError } = orders;
 
-const STATUS = { invalid: 422, coupon: 422, closed: 409, unavailable: 409, addon_unavailable: 409, option_unavailable: 409, currency_changed: 409, too_many: 429, provider: 502, not_configured: 503, server: 500 };
+const STATUS = { invalid: 422, coupon: 422, closed: 409, unavailable: 409, addon_unavailable: 409, option_unavailable: 409, currency_changed: 409, plan_changed: 409, plan_card_only: 409, too_many: 429, provider: 502, not_configured: 503, server: 500 };
 
 async function order(req, res) {
   const wantsJson = /json/i.test(String(req.headers['content-type'] || ''));
@@ -46,10 +46,11 @@ async function order(req, res) {
     const offers = orders.offers(product, flow.providers(), { instalments: shopSettings.instalments.enabled === true });
     const sale = pricing.saleState(product);
     if (!sale.open || !offers.some((o) => o.currency === currency)) return sendHtml(res, status === 422 ? 409 : status, page.closedPage({ product, reason: sale.reason || 'closed' }));
-    const plan = String(data.plan || '') === 'instalment' && offers.some((o) => o.plan === 'instalment') ? 'instalment' : 'full';
+    const hasPlan = offers.some((o) => o.plan === 'instalment');
+    const plan = code !== 'plan_card_only' && String(data.plan || '') === 'instalment' && hasPlan ? 'instalment' : 'full';
     const addons = await addonsByCurrency(product, offers);
     const typed = coupons.normalize(data.coupon);
-    const coupon = fields && fields.coupon ? { code: typed, error: fields.coupon } : await pageCoupon(product, offers, typed, config.ipHash(req), plan);
+    const coupon = fields && fields.coupon ? { code: typed, error: fields.coupon } : await pageCoupon(product, offers, typed, config.ipHash(req), hasPlan ? 'both' : 'full');
     const errors = fields && fields.coupon ? Object.fromEntries(Object.entries(fields).filter(([k]) => k !== 'coupon')) : fields;
     return sendHtml(res, status, page.checkoutPage({ product, offers, currency, addons, values: data, errors, problem: code, settings: shopSettings, query: data, coupon, plan }));
   };
@@ -64,10 +65,16 @@ async function order(req, res) {
   // method (card ↔ PayPal, so another currency) first sees the page again in that currency, then pays.
   const shown = String(data.shown_currency || '').toUpperCase();
   if (!wantsJson && (shown === 'KRW' || shown === 'USD') && shown !== currency) return fail('currency_changed');
+  // The plan is paid by card in won only. Without JavaScript the order shown follows the plan picked when the page
+  // was made: another plan picked since → the page again with its amounts (today, then each month), then pay.
+  const plan = String(data.plan || 'full');
+  if (plan === 'instalment' && currency === 'USD') return fail('plan_card_only');
+  const shownPlan = String(data.shown_plan || '');
+  if (!wantsJson && (shownPlan === 'full' || shownPlan === 'instalment') && shownPlan !== plan) return fail('plan_changed');
 
   try {
     const started = await flow.start({
-      product, currency, plan: String(data.plan || 'full'), input: data, source: data, ipHash: config.ipHash(req),
+      product, currency, plan, input: data, source: data, ipHash: config.ipHash(req),
     });
     return wantsJson ? sendJson(res, 200, { redirect: started.redirect }) : redirect(res, 303, started.redirect);
   } catch (err) {
@@ -97,7 +104,7 @@ async function coupon(req, res) {
   if (!pricing.saleState(product).open || !offers.length) return sendJson(res, 409, { error: 'closed' });
   const code = coupons.normalize(data.code);
   if (!code) return sendJson(res, 422, { error: 'coupon', fields: { coupon: 'coupon_unknown' } });
-  const plan = String(data.plan || '') === 'instalment' && offers.some((o) => o.plan === 'instalment') ? 'instalment' : 'full';
+  const plan = offers.some((o) => o.plan === 'instalment') ? 'both' : 'full';
   try {
     const found = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], plan, ipHash: config.ipHash(req) });
     return sendJson(res, 200, { coupon: found });

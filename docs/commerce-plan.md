@@ -838,7 +838,7 @@ Refund both (the first through CiderPay, the second "Record a refund made by han
 Code: `api/_lib/shop/instalments.js` (the plan's life), `ciderpay.requestPlan / planAction / planNoticeProblem`
 (CiderPay's 정기 결제), `orders.planTerms / planRows` and `recordPayment` (the schedule), `api/_lib/admin/shop-plans.js`
 (actions `shop-plan-pause`, `shop-plan-resume`, `shop-plan-stop`, `shop-instalment-paid`), the instalment checkout in
-`page.checkoutPage({ plan: 'instalment' })`. Migration 018 (`plan_terms`, `rp_card`, `rp_closed_at` on orders;
+`page.checkoutPage` (the plan choice in the payment step) and `checkout.js`. Migration 018 (`plan_terms`, `rp_card`, `rp_closed_at` on orders;
 `alerted_at`, `note` on instalments; one payment per instalment). Tests: `tests/shop/instalments.test.js`, e2e groups
 "Instalments: …".
 
@@ -854,12 +854,15 @@ tested against the real CiderPay yet: **the switch stays off until Alex's test b
 1. **Switch**: Shop → Settings → "Sell instalment plans" (off by default, per database: a preview can be switched on
    alone). While off, nothing about plans shows on the checkout and an instalment order is refused; notices for plans
    already running are still handled.
-2. **Checkout**: a product with a plan (first payment, monthly payment, number of monthly payments, KRW) gets a second
-   checkout, `/checkout/<product>?plan=instalment` (the Products page shows the link). The usual checkout shows a box
-   under the card method: "분할 결제도 가능해요 — 오늘 ₩930,000, 이후 매월 ₩930,000씩 2회 → 분할 결제로 신청하기". The
-   instalment checkout takes the card only (no PayPal, no add-ons, no pricing options), shows "오늘 결제" and "이후 매월
-   N일 · n회" in the order, and links back to paying in full. A coupon comes off the plan's total and every payment goes
-   down in proportion (section 12); applying one reloads the page with the new amounts.
+2. **Checkout, one page** (Alex, 2026-11-20): for a product with a plan (first payment, monthly payment, number of
+   monthly payments, KRW), the payment step shows "결제 방식" under the card: **일시불** (the price) or **분할 결제**
+   ("오늘 ₩930,000 — 이후 매월 20일 ₩930,000씩 2회 · 총 ₩2,790,000"). Choosing 분할 결제 switches the order in place:
+   "오늘 결제" and "이후 매월 N일 · n회" lines, the total of the plan, the button "₩930,000 결제하기 →"; the add-ons are
+   put away (not with a plan). PayPal hides the choice and pays in full. A coupon comes off the plan's total and every
+   payment goes down in proportion (section 12), on the page at once. `?plan=instalment` opens the page with 분할 결제
+   already chosen (for a button on a sales page). Without JavaScript: the page shows the amounts of the plan it was made
+   with; another choice posts back once with its amounts (`plan_changed`), and 분할 결제 with PayPal says the plan is card
+   only (`plan_card_only`).
 3. **The order** stores its terms (`plan_terms` = first, monthly, count, billing day) and its schedule
    (`shop_instalments`: 1 = paid at checkout, then one per month). The billing day is the day of the order, capped at 30
    (28 for an order on 29 February), as the plugin sent it; the dates are set again from the day the first payment is
@@ -877,8 +880,11 @@ tested against the real CiderPay yet: **the switch stays off until Alex's test b
      `instalment_failed_<product>` so an AC automation can email the customer. Once per instalment.
    - Each notice must carry our token and signature (`var1`/`var2`, sent with every plan request), or, if CiderPay
      leaves them out of a charge notice, the plan's own token learned from a checked agreement notice.
-5. **Silent failures**: every morning, an instalment of a running plan whose date passed **2 days** ago with no notice
-   becomes `overdue`, with the same alert and tag.
+5. **Silent failures**: a charge CiderPay reports as failed is alerted the moment its notice arrives (4). When CiderPay
+   says nothing at all, the daily job (09:10 Seoul time) flags any instalment of a running plan whose date was
+   **yesterday or before** as `overdue`, with the same alert and tag (Alex, 2026-11-20: know right away, not 2 days
+   later). Its own day is left alone, because CiderPay charges during that day. Once on Vercel Pro the job can run
+   hourly.
 6. **Paid after all** (CiderPay retries, or the admin records a bank transfer): `instalment_failed_` removed, the plan
    back to `active`, Slack "Instalment received after all".
 7. **Money that shouldn't have come** (a second charge for an instalment already paid, a charge for a stopped or
@@ -899,14 +905,11 @@ tested against the real CiderPay yet: **the switch stays off until Alex's test b
 
 **Decisions taken while building (change them if Ashley wants otherwise)**
 
-- A separate checkout address per plan (like WooCommerce's variants) rather than a switch inside one page: amounts,
-  coupon and add-ons differ too much to switch in place, and it works without JavaScript. Typed details carry over
-  between the two pages.
 - Instalments not with add-ons or pricing options (as before). The first payment can't be recorded by hand (there is
   no card agreement without CiderPay's page).
 - AC tag numbers are the instalment's number: `instalment_paid_<product>_2` is the first monthly payment.
 - "One-off payment link for a missed instalment" (section 3.2 step 4) is not built: send the customer a bank account,
-  then "Record as paid". Say if a link is wanted.
+  then "Record as paid". Say if a link is wanted (a /checkout/pay page for the missed amount, paid by card).
 - New Korean strings (`copy.plan`, `copy.complete.planNext`): "일시불 / 분할 결제" are the NSMB page's words, the rest is
   new copy for Ashley to review.
 
@@ -914,7 +917,7 @@ tested against the real CiderPay yet: **the switch stays off until Alex's test b
 
 1. Product: a test product at ₩3,000 with a plan of ₩1,000 first + ₩1,000 × 2 monthly. Settings → tick "Sell
    instalment plans" (on that preview only).
-2. Open `/checkout/<product>?plan=instalment`, pay ₩1,000 on CiderPay's page. Check: order paid, plan active, card
+2. Open `/checkout/<product>`, choose 분할 결제, pay ₩1,000 on CiderPay's page. Check: order paid, plan active, card
    …digits shown, schedule dated today / next month / the month after, Slack "instalment 1 of 3", AC tags.
 3. In CiderPay's dashboard, check the plan exists with the right day and end date. Then Admin → Pause, Resume (check
    CiderPay shows each), and finally Stop (CiderPay shows it ended). Refund the ₩1,000.
