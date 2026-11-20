@@ -35,6 +35,7 @@ window.Admin = (function () {
         ['/admin/shop/products', 'Products'],
         ['/admin/shop/coupons', 'Coupons'],
       ] },
+      { title: 'Records', items: [['/admin/shop/reports', 'Reports']] },
       { title: 'Setup', items: [['/admin/shop/settings', 'Settings']] },
     ] },
     { key: 'emails', label: 'Emails', icon: 'emails', home: '/admin/emails', groups: [

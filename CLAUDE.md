@@ -232,7 +232,7 @@ links still go to WordPress until go-live (phase 5).
   server by `api/_lib/shop/page.js`, in Korean (`copy.ko.js` holds every customer-facing string), `noindex`, with GTM.
   `/checkout`, `/checkout/order-received/*` and `/checkout/order-pay/*` still redirect to WordPress; a product can't use
   those addresses or `complete`.
-- Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `coupons/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
+- Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `coupons/`, `reports/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
   actions prefixed `shop-`.
 - Money is a whole number in the smallest unit (won; cents for USD), VAT included. **Every amount is computed on the
   server by `api/_lib/shop/pricing.js`** (pure, unit-tested); the browser never sends an amount. Change price rules there
@@ -273,6 +273,12 @@ links still go to WordPress until go-live (phase 5).
   (`option_unavailable` otherwise). The order keeps `{ key, label, tag }` in `shop_orders.price_option`, its main item
   is named "product · option", and the option's tag is added in AC with the product's. Not with instalment plans yet:
   they join the same picker in phase 3.
+- **Reports** (phase 4, plan section 15): `/admin/shop/reports`, read from `shop_ledger` only. Rules in
+  `api/_lib/shop/reports.js` (pure, tested), actions `shop-report`, `shop-report-csv`, `shop-fx-set` in
+  `api/_lib/admin/shop-reports.js`. Periods are Seoul dates. USD exchange rates are typed in the admin per Seoul day
+  or per line (no rate service); only the ledger's `fx_rate`, `fx_source`, `amount_krw` may change. CSVs are UTF-8
+  with a BOM for Korean Excel, formula-like text cells prefixed with an apostrophe. Not built yet: the CiderPay
+  tax-doc check and the WooCommerce import.
 - **Instalment plans** (phase 3, `api/_lib/shop/instalments.js`, migration 018, plan section 14): KRW card only, through
   CiderPay's 정기 결제 (`ciderpay.requestPlan`: first payment at once, then monthly on the billing day, ending 7 days after
   the last date; `devID`/`devToken` headers = the member id and API token). **Sold only while Shop → Settings → "Sell

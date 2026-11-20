@@ -1371,6 +1371,54 @@ async function main() {
     n = await fake.notifyPlan(ip2.pid, 'agreeRegularPayment');
     eq('…while notices for running plans are still handled', n.status, 200);
 
+    group('Reports');
+    const yearKey = (await one(`SELECT to_char(now() AT TIME ZONE 'Asia/Seoul', 'YYYY') AS y`)).y;
+    const yr = await one(`SELECT ($1 || '-01-01T00:00:00+09:00')::timestamptz AS a, (($1::int + 1) || '-01-01T00:00:00+09:00')::timestamptz AS b`, [yearKey]);
+    let rep = await adminGet('shop-report', { period: yearKey });
+    const yKrw = await one(`SELECT count(*)::int AS n, COALESCE(sum(amount), 0)::int AS amount, COALESCE(sum(supply), 0)::int AS supply, COALESCE(sum(vat), 0)::int AS vat FROM shop_ledger WHERE currency = 'KRW' AND at >= $1 AND at < $2`, [yr.a, yr.b]);
+    eq('the year’s KRW totals are the ledger’s', [rep.summary.totals.KRW.net.count, rep.summary.totals.KRW.net.amount, rep.summary.totals.KRW.net.supply, rep.summary.totals.KRW.net.vat], [yKrw.n, yKrw.amount, yKrw.supply, yKrw.vat]);
+    const yUsd = await one(`SELECT COALESCE(sum(amount), 0)::int AS amount, count(*) FILTER (WHERE amount_krw IS NULL)::int AS missing FROM shop_ledger WHERE currency = 'USD' AND at >= $1 AND at < $2`, [yr.a, yr.b]);
+    eq('USD: same total, and every line without a rate is counted as missing', [rep.summary.totals.USD.net.amount, rep.summary.won.missing_rate, rep.foreign.length], [yUsd.amount, yUsd.missing, await count('shop_ledger', `currency = 'USD' AND at >= $1 AND at < $2`, [yr.a, yr.b])]);
+    eq('channels and VAT rules each add up to the total', [rep.summary.byChannel.filter((g) => g.currency === 'KRW').reduce((t, g) => t + g.net.amount, 0), rep.summary.byRule.filter((g) => g.currency === 'KRW').reduce((t, g) => t + g.net.amount, 0)], [yKrw.amount, yKrw.amount]);
+    eq('products add up to the total', rep.products.filter((p) => p.currency === 'KRW').reduce((t, p) => t + p.net.amount, 0), yKrw.amount);
+    eq('every refund line is listed, with its original payment date', [rep.refunds.length, rep.refunds.every((x) => x.refund_of_at)], [await count('shop_ledger', `amount < 0 AND at >= $1 AND at < $2`, [yr.a, yr.b]), true]);
+    const owedSql = await one(`SELECT COALESCE(sum(i.amount), 0)::int AS amount FROM shop_instalments i JOIN shop_orders o ON o.id = i.order_id WHERE o.currency = 'KRW' AND i.status IN ('due', 'failed', 'overdue') AND o.plan_status IN ('active', 'overdue', 'paused')`);
+    eq('instalments still due = the running plans’ unpaid instalments', rep.outstanding.totals.KRW ? rep.outstanding.totals.KRW.amount : 0, owedSql.amount);
+    check('discounted orders are listed per coupon campaign', rep.coupons.some((c) => c.key && c.discount > 0));
+    check('a nonsense period is refused', Boolean((await adminGet('shop-report', { period: '2026-13' })).error));
+    const empty = await adminGet('shop-report', { period: '2001' });
+    eq('a period with nothing in it: empty, no error', [empty.summary.count, Object.keys(empty.summary.totals).length, empty.refunds.length], [0, 0, 0]);
+    let csvOut = await adminGet('shop-report-csv', { file: 'lines', period: yearKey });
+    const csvRows = csvOut.csv.split('\r\n').filter(Boolean);
+    eq('ledger CSV: Excel byte-order mark, a header and one row per line', [csvOut.csv.charCodeAt(0), csvRows.length - 1], [0xFEFF, yKrw.n + (await count('shop_ledger', `currency = 'USD' AND at >= $1 AND at < $2`, [yr.a, yr.b]))]);
+    csvOut = await adminGet('shop-report-csv', { file: 'outstanding' });
+    check('instalments-due CSV downloads', /^instalments-due-\d{4}-\d{2}-\d{2}\.csv$/.test(csvOut.filename) && csvOut.csv.startsWith('﻿Order,'));
+
+    group('Reports: exchange rates');
+    const usdLine = await one(`SELECT id, (at AT TIME ZONE 'Asia/Seoul')::date::text AS day FROM shop_ledger WHERE currency = 'USD' AND fx_rate IS NULL ORDER BY id LIMIT 1`);
+    const dayLines = await count('shop_ledger', `currency = 'USD' AND fx_rate IS NULL AND (at AT TIME ZONE 'Asia/Seoul')::date = $1::date`, [usdLine.day]);
+    let fx = await admin('shop-fx-set', { date: usdLine.day, rate: '1386.5', source: '매매기준율' });
+    eq('a day’s rate fills every USD line of that day without one', fx.updated, dayLines);
+    const wrong = await count('shop_ledger', `currency = 'USD' AND (at AT TIME ZONE 'Asia/Seoul')::date = $1::date AND (fx_rate <> 1386.5 OR amount_krw <> (sign(amount) * round(abs(amount)::numeric * 1386.5 / 100))::int OR fx_source NOT LIKE '매매기준율 (%')`, [usdLine.day]);
+    eq('…with the won value rounded like the ledger’s rule, refunds negative, and who set it', wrong, 0);
+    fx = await admin('shop-fx-set', { date: usdLine.day, rate: '1400', source: 'other' });
+    eq('again for the same day: lines that have a rate keep it', fx.updated, 0);
+    fx = await admin('shop-fx-set', { line: usdLine.id, rate: '1390', source: 'corrected' });
+    check('one line that has a rate: refused without “Replace”', /already has a rate/.test(fx.error || ''));
+    fx = await admin('shop-fx-set', { line: usdLine.id, rate: '1390', source: 'corrected', replace: true });
+    const fixed = await one('SELECT fx_rate::float8 AS r, amount, amount_krw FROM shop_ledger WHERE id = $1', [usdLine.id]);
+    eq('…replaced with it', [fx.updated, fixed.r, fixed.amount_krw], [1, 1390, Math.sign(fixed.amount) * Math.round(Math.abs(fixed.amount) * 1390 / 100)]);
+    const krwLine = await one(`SELECT id FROM shop_ledger WHERE currency = 'KRW' LIMIT 1`);
+    check('a KRW line has no exchange rate', /only USD/.test((await admin('shop-fx-set', { line: krwLine.id, rate: '1390', source: 'x' })).error || ''));
+    check('a rate that is not a number is refused', /rate/.test((await admin('shop-fx-set', { date: usdLine.day, rate: '1,3a', source: 'x' })).error || ''));
+    check('a rate needs its source', /source/i.test((await admin('shop-fx-set', { date: usdLine.day, rate: '1390' })).error || ''));
+    let blocked = false;
+    try { await sql(`UPDATE shop_ledger SET amount = amount + 1 WHERE id = $1`, [usdLine.id]); } catch (e) { blocked = /permanent/.test(e.message); }
+    check('the ledger still refuses any other change', blocked);
+    rep = await adminGet('shop-report', { period: yearKey });
+    eq('the report now counts those lines in won', rep.summary.won.missing_rate, yUsd.missing - dayLines);
+    check('the change is in the activity log', (await count('admin_log', `action = 'shop-fx-set'`, [])) >= 3);
+
     group('Ledger integrity');
     const sums = await one(`SELECT (SELECT COALESCE(sum(amount), 0)::int FROM shop_ledger WHERE currency = 'KRW') AS ledger, (SELECT COALESCE(sum(CASE WHEN kind = 'refund' THEN -amount ELSE amount END), 0)::int FROM shop_payments WHERE currency = 'KRW') AS payments, (SELECT COALESCE(sum(paid_total - refunded_total), 0)::int FROM shop_orders WHERE currency = 'KRW') AS orders`);
     eq('KRW: ledger = payments = orders’ paid totals', [sums.ledger === sums.payments, sums.payments === sums.orders], [true, true]);

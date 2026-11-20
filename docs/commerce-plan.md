@@ -23,7 +23,7 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 | **1. Foundations** ✅ 2026-11-10 | Migration `005`, pricing + ledger modules with tests, Shop admin: Products, Orders (read), Settings. | A product can be created in the admin and quoted by the API. |
 | **2. Checkout, pay in full** (built 2026-11-11, section 10) | Checkout page, Kakao search, CiderPay pay-in-full, PayPal, notices, thank-you page, Slack, AC sync for purchases, dataLayer. | A real ₩1,000 payment and a sandbox $ payment go through on a preview, end to end. **Still to do: Alex's tests in section 10.** |
 | **3. Instalments, refunds, coupons** (refunds, coupons and manual orders built 2026-11-19, sections 11–13; instalment plans built 2026-11-20, section 14, switched off until tested) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
-| **4. Tax & reports + import** | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
+| **4. Tax & reports + import** (reports built 2026-11-20, section 15; CiderPay check and import still to do) | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
 | **5. Go live** | Section 6, steps 3–6. Vercel Pro. | No payment link points to WordPress. |
 | **6. Referrals + `/my`** | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
 | **7. Bare domain, retire WordPress** | Section 6, steps 7–8. | Hosting cancelled. |
@@ -932,3 +932,44 @@ tested against the real CiderPay yet: **the switch stays off until Alex's test b
 4. Optionally leave a second plan running a month to see the second charge arrive (`turnSeq` 1) and be recorded.
 5. Only then: tick the switch in production.
 
+
+---
+
+## 15. Phase 4 as built: reports (2026-11-20)
+
+`/admin/shop/reports` (Shop → Records → Reports). Everything is read from the tax ledger (`shop_ledger`), so the
+figures are the ones the business files. Rules in `api/_lib/shop/reports.js` (pure, `tests/shop/reports.test.js`);
+queries and actions in `api/_lib/admin/shop-reports.js`. No migration: the ledger already had the exchange-rate columns.
+
+- **Period**: month, quarter, half-year (부가세 1기 / 2기), year, or any two dates (both included), all on Seoul dates.
+  The address keeps it (`?period=2026-Q4`, `2026-H2`, `2026-11`, `2026`, `2026-11-01..2026-11-15`).
+- **Sales**: per currency, Received (승인) / Refunded (취소) / Net (합계) with count, amount, supply and VAT, the
+  layout of CiderPay's VAT document; then the same per payment channel (Card (CiderPay), PayPal, Recorded by hand,
+  Imported) and per VAT rule (과세 / 영세); provider fees and what was received after them; and the whole period in
+  won (USD lines at their exchange rate). While a USD line has no rate, the won total says how many are left out.
+- **Exchange rates**: a USD sale is declared in won at the rate of its day. No rate is fetched automatically (no new
+  outside service). The page lists the Seoul days whose USD lines have no rate; one rate + its source ("매매기준율",
+  as the accountant says) fills every line of that day without one. Each line can be corrected on its own ("Change",
+  replaces). The won value is recomputed exactly like `ledger.wonValue` (rounded to the won, a refund like its sale).
+  The ledger's trigger still refuses any other change. Every change is in the activity log with who made it.
+- **Foreign sales (USD, PayPal)**: per line, amount, PayPal fee, received, country, VAT rule, rate, won value.
+- **By product**: each order under its product (add-ons count with it), received / refunded / net.
+- **Refunds**: each refund line with the date of the payment it gave back and the reason typed in the admin.
+- **Coupons and discounts**: orders paid in the period with a discount, per campaign (special prices typed on a
+  manual order show as "without a coupon").
+- **Instalments still due (today)**: per currency, what running plans (active, late, paused) still owe, late ones
+  apart, with the list.
+- **CSV for Excel** (UTF-8 with a byte-order mark, so Korean opens correctly): "Download ledger" = one row per ledger
+  line of the period, with order, customer, product, channel, method, amounts in won / dollars (cents as decimals),
+  supply, VAT, VAT rule, fee, rate, won value, instalment, coupon, provider reference, approval number, receipt link,
+  refund date and reason. And the instalments still due. A text cell starting with `=`, `+`, `-` or `@` gets an
+  apostrophe so nothing a customer typed runs as a formula.
+
+**Not built yet in phase 4**
+
+- **CiderPay check** (`GET /oapi/pv/payment/tax-doc`): the answer's shape isn't in the docs we saved and CiderPay's
+  documentation site is down (2026-11-20). Until then, compare the Sales totals with CiderPay's VAT figures by hand.
+- **WooCommerce import**: needs the WordPress exports (orders with instalment children and payment details,
+  customers, coupons). Imported payments get the channel "Imported (WooCommerce)", already handled by the reports.
+- Per-customer statement and a printable order page; the monthly ledger export to Blob storage.
+- O1 (accountant): which exchange rate and date for USD sales, and whether they stay taxable at 10%.
