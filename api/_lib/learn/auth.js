@@ -5,7 +5,8 @@
  *
  * - Who may sign in (Alex, 2026-11-15): purchasers, i.e. emails whose ActiveCampaign contact has a tag starting with
  *   "purchased" (purchased_eft, purchased_nsmb_…), plus students enrolled in a cohort in the admin (enrolled by the
- *   purchase webhook, or added by hand on purpose). A purchaser not yet in the database gets a student row (no
+ *   purchase webhook, or added by hand on purpose), plus customers of this site's shop with a paid order (for "내 주문"
+ *   /my, which shares this sign-in: 2026-11-21). A purchaser not yet in the database gets a student row (no
  *   programs). A revoked student (refund) never gets a code. Anyone else sees the same "check your email" page.
  * - Codes: valid 10 minutes, used once, 5 wrong tries end them, at most 5 sent per student per hour. Only an HMAC
  *   of the code is stored (PODCAST_SECRET).
@@ -68,13 +69,19 @@ async function allowedStudent(email) {
        FROM students s WHERE lower(s.email) = $1`, [email]);
   if (row && row.status !== 'active') return null;
   if (row && row.enrolled) return row;
-  const bought = await lookupPurchases(email);
-  if (!bought || !bought.tags.length) return null;
+  // A buyer in this shop (an order that was paid) may sign in to see it at /my, before ActiveCampaign has their tag.
+  const shopBuyer = await require('../shop/my.js').hasOrders(email);
+  const bought = shopBuyer ? null : await lookupPurchases(email);
+  if (!shopBuyer && (!bought || !bought.tags.length)) return null;
   if (row) return row;
+  const name = shopBuyer
+    ? ((await db.one('SELECT name FROM shop_customers WHERE lower(email) = $1', [email])) || {}).name || ''
+    : bought.contact.firstName || '';
   const created = await db.one(
-    `INSERT INTO students (email, name, token, ac_contact_id, notes) VALUES ($1, $2, $3, $4, 'Created at first sign-in to the student area (purchaser)')
+    `INSERT INTO students (email, name, token, ac_contact_id, notes) VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (lower(email)) DO UPDATE SET updated_at = now() RETURNING id, email, name, status`,
-    [email, bought.contact.firstName || '', auth.newToken(), bought.contact.id || null]);
+    [email, name, auth.newToken(), shopBuyer ? null : bought.contact.id || null,
+      shopBuyer ? 'Created at first sign-in (shop customer, /my)' : 'Created at first sign-in to the student area (purchaser)']);
   return created.status === 'active' ? created : null;
 }
 

@@ -269,7 +269,7 @@ function installCard({ first = false } = {}) {
 
 function signOut() {
   return `<section class="pod__card pod__card--quiet learn__account">
-  <p><a href="/learn/help">이용 안내</a> · 문의: <a href="mailto:${SUPPORT}">${SUPPORT}</a></p>
+  <p><a href="/my">내 주문 · 영수증</a> · <a href="/learn/help">이용 안내</a> · 문의: <a href="mailto:${SUPPORT}">${SUPPORT}</a></p>
   <form method="post" action="/learn/logout"><button class="learn__link" type="submit">로그아웃</button></form>
 </section>`;
 }

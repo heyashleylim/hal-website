@@ -1,0 +1,22 @@
+/* "내 주문" (/my, api/_lib/shop/my-page.js). Builds on pages/podcast.css and pages/learn.css. Tokens only. */
+.my__muted{color:var(--muted);font-weight:400;font-size:14px}
+.my__order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.my__order-head .pod__h2{margin-bottom:0}
+.my__badge{flex:none;padding:4px 10px;border-radius:var(--r-pill);background:var(--proof-bg);color:var(--proof-fg);font:600 13px/1.4 var(--font-body)}
+.my__badge--refunded,.my__badge--partially_refunded,.my__badge--refund_requested,.my__badge--cancelled{background:var(--bg-alt);color:var(--ink-2)}
+.my__next{margin:0 0 4px;font-size:16px}
+.my__next span{color:var(--ink-2);margin-right:6px}
+.my__scroll{overflow-x:auto;margin-top:8px}
+.my__table{width:100%;border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums}
+.my__table caption{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.my__table th{padding:8px 6px;border-bottom:1px solid var(--line);font:600 13px/1.4 var(--font-body);color:var(--ink-2);text-align:left}
+.my__table td{padding:12px 6px;border-bottom:1px solid var(--line-soft);vertical-align:top;word-break:keep-all}
+.my__table .num{text-align:right;white-space:nowrap}
+.my__table th:first-child,.my__table td:first-child{padding-left:0}
+.my__table th:last-child,.my__table td:last-child{padding-right:0}
+.my__table a{display:inline-flex;align-items:center;min-height:44px;margin:-12px 0}
+.my__row--missed td{background:var(--bg-blush);font-weight:600}
+.my__missed{border-color:var(--accent)}
+.my__missed-list{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:18px}
+.my__missed-item p{margin-bottom:10px}
+.my__missed-item .btn{min-height:52px}

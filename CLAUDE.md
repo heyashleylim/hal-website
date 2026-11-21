@@ -205,7 +205,8 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch. 
   per hour per network, `learn_requests`), then an HttpOnly cookie `hal_learn` for 30 days from the last visit (Alex,
   2026-11-15). Only hashes are stored (`learn_codes`, `learn_sessions`). `/learn/start/<token>` also signs in.
   **Who gets a code** (Alex, 2026-11-15): purchasers (an ActiveCampaign tag starting with `purchased`, looked up only for
-  emails not enrolled here; a purchaser without a row gets one) and students enrolled in a cohort. Revoked students never.
+  emails not enrolled here; a purchaser without a row gets one), students enrolled in a cohort, and shop customers with a
+  paid order (for `/my`, 2026-11-21). Revoked students never.
   The page never says whether an email qualifies. A revoked student is signed out at once.
 - First sign-in ever → `/learn?welcome=1`: a card explaining how to save the student area on the home screen (phones and
   tablets only; `site/learn.webmanifest`, icons in `assets/img/app/`). `/learn/help` = the help page (no sign-in needed).
@@ -280,6 +281,11 @@ links still go to WordPress until go-live (phase 5).
   with a BOM for Korean Excel, formula-like text cells prefixed with an apostrophe. Printable order and customer
   statement at `/admin/shop/print/` (`?order=`, `?customer=`). Monthly ledger CSVs in the private Blob store
   (`api/_lib/shop/backup.js`, `shop-ledger/YYYY-MM.csv`, previews under `preview/`), written by the daily job.
+- **"내 주문" `/my`** (plan section 16): the customer's own orders, payments, CiderPay receipts and instalment plan, and
+  a "결제하기" button for a missed instalment (it makes that instalment's payment link, like the admin's). Same sign-in
+  and cookie as `/learn` (one login for both; shop buyers with a paid order get a code too). Routes in `api/learn.js`
+  (`/my`, `POST /my/pay`; rewrites in `vercel.json`), data in `api/_lib/shop/my.js`, page `api/_lib/shop/my-page.js`
+  + `pages/my.css`, strings in `copy.ko.js` (`my`). Private: noindex, no GTM / analytics, in robots.txt.
   Not built yet: the CiderPay tax-doc check and the WooCommerce import.
 - **Instalment plans** (phase 3, `api/_lib/shop/instalments.js`, migration 018, plan section 14): KRW card only, through
   CiderPay's 정기 결제 (`ciderpay.requestPlan`: first payment at once, then monthly on the billing day, ending 7 days after

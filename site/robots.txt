@@ -6,5 +6,6 @@ Disallow: /podcast/
 Disallow: /f/
 Disallow: /a/
 Disallow: /learn
+Disallow: /my
 
 Sitemap: https://www.ashleylim.com/sitemap.xml

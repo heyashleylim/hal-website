@@ -121,10 +121,40 @@
           "value": "same-origin"
         }
       ]
+    },
+    {
+      "source": "/my",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        }
+      ]
+    },
+    {
+      "source": "/my/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        }
+      ]
     }
   ],
   "redirects": [
-    { "source": "/waitlist", "destination": "/nsmb/waitlist", "permanent": false },
+    {
+      "source": "/waitlist",
+      "destination": "/nsmb/waitlist",
+      "permanent": false
+    },
     {
       "source": "/",
       "has": [
@@ -262,6 +292,14 @@
     {
       "source": "/learn/:path*",
       "destination": "/api/learn?path=:path*"
+    },
+    {
+      "source": "/my",
+      "destination": "/api/learn?path=my"
+    },
+    {
+      "source": "/my/:path*",
+      "destination": "/api/learn?path=my/:path*"
     },
     {
       "source": "/f/:token([A-Za-z0-9_-]+)/:show([a-z0-9-]+)",

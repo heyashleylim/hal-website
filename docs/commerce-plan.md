@@ -25,7 +25,7 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 | **3. Instalments, refunds, coupons** (refunds, coupons and manual orders built 2026-11-19, sections 11–13; instalment plans built 2026-11-20, section 14, switched off until tested) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
 | **4. Tax & reports + import** (reports built 2026-11-20, section 15; CiderPay check and import still to do) | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
 | **5. Go live** | Section 6, steps 3–6. Vercel Pro. | No payment link points to WordPress. |
-| **6. Referrals + `/my`** | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
+| **6. Referrals + `/my`** (`/my` built 2026-11-21, section 16) | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
 | **7. Bare domain, retire WordPress** | Section 6, steps 7–8. | Hosting cancelled. |
 
 ---
@@ -985,3 +985,36 @@ queries and actions in `api/_lib/admin/shop-reports.js`. No migration: the ledge
 - **WooCommerce import**: needs the WordPress exports (orders with instalment children and payment details,
   customers, coupons). Imported payments get the channel "Imported (WooCommerce)", already handled by the reports.
 - O1 (accountant): which exchange rate and date for USD sales, and whether they stay taxable at 10%.
+
+---
+
+## 16. "내 주문" `/my` as built (2026-11-21)
+
+Code: `api/_lib/shop/my.js` (what a customer sees: `view`, `missed` pure; `forEmail`, `payLink`), `api/_lib/shop/my-page.js`
+(the page), `site/assets/css/pages/my.css`, routes in `api/learn.js`, strings in `copy.ko.js` (`my`). Tests:
+`tests/shop/my.test.js`, e2e group "Customer page /my".
+
+**Sign-in: the student area's, not a new one.** Section 3.9 planned an emailed link valid 15 minutes. The student area
+(`/learn`) already signs people in with a 6-digit code by email and a 30-day cookie (Alex, 2026-11-15), so `/my` uses
+exactly that: one sign-in for both pages, the same cookie, the same limits. A shop customer with a paid order now gets a
+code too, even before ActiveCampaign has their `purchased_` tag (a student row is made for them, with no programs, named
+from the order). `/my` signed out → `/learn/login?next=/my` → back to `/my` (without the "save to home screen" card).
+The student area's account card links to "내 주문 · 영수증"; `/my` links back to "내 강의실".
+
+**What it shows** (only the orders of the signed-in email; never anyone else's):
+- every order that was paid at some point (unpaid, expired or cancelled checkouts aren't listed), newest first: product
+  (and option), status (결제 완료 / 환불 진행 중 / 일부 환불 / 환불 완료), order number, date, 일시불 or 분할 결제 n회,
+  discount and coupon, total, paid, refunded, add-ons when there are some;
+- payments and refunds with dates and amounts, and CiderPay's card receipt link (PayPal emails its own receipt);
+- an instalment plan: its status, the next charge (date, amount, card's last 4 digits), the schedule, what is left.
+
+**A missed instalment** (failed at CiderPay, or flagged by the morning check), on a plan still running (not paused or
+stopped), in won: a card at the top with "₩930,000 결제하기". The button makes (or renews for 14 days) that instalment's
+payment link, exactly like the admin's "Payment link", and opens it: CiderPay's one-time card page, recorded like any
+instalment (section 14). The activity log says the customer made it. An instalment not due yet can't be paid early here.
+
+**Not in this step:** coupons owned by the customer and the referral block (phase 6, with referrals); a link to `/my` in
+ActiveCampaign emails (`MY_ORDERS_LINK`: the one-tap `/learn/start/<token>` link could take `?next=/my`, later); a
+customer whose student row is revoked (refunded program) can't sign in, so can't see `/my` either.
+
+New Korean strings (`copy.my`) are new copy for Ashley to review.

@@ -139,6 +139,7 @@ async function start({ port = Number(process.env.PORT || 8793), quiet = false } 
       else if ((m = /^\/checkout\/pay\/([A-Za-z0-9_-]+)$/.exec(u.pathname))) req.url = `/api/shop-page?view=pay&o=${m[1]}&${u.searchParams}`;
       else if ((m = /^\/checkout\/([a-z0-9-]+)$/.exec(u.pathname))) req.url = `/api/shop-page?view=checkout&slug=${m[1]}&${u.searchParams}`;
       else if ((m = /^\/learn(?:\/(.*))?$/.exec(u.pathname))) req.url = `/api/learn?path=${encodeURIComponent(m[1] || '')}&${u.searchParams}`;
+      else if ((m = /^\/my(\/.*)?$/.exec(u.pathname))) req.url = `/api/learn?path=${encodeURIComponent('my' + (m[1] || '').replace(/\/$/, ''))}&${u.searchParams}`;
       const route = new URL(req.url, base).pathname;
       if (handlers[route]) {
         if (route === '/api/admin') req.headers.cookie = cookie;
