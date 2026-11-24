@@ -205,7 +205,17 @@ function productInput(input) {
     addon_note: text(c.addon_note, { max: 300, label: 'Add-on note' }),
   };
 
-  return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content, addon_ids, addon_only, compare_krw, compare_usd, price_options };
+  // The referrer's reward for this product (Shop → Referrals): none, a percentage of the money received, or a fixed
+  // amount per order in each currency.
+  const reward_kind = input.reward_kind === 'percent' || input.reward_kind === 'amount' ? input.reward_kind : null;
+  let reward_percent = null, reward_krw = null, reward_usd = null;
+  if (reward_kind === 'percent') reward_percent = int(input.reward_percent, { min: 1, max: 50, label: 'Referral reward (%)' });
+  if (reward_kind === 'amount') {
+    reward_krw = won(input.reward_krw, 'Referral reward (KRW)');
+    reward_usd = cents(input.reward_usd, 'Referral reward (USD)');
+    if (reward_krw == null && reward_usd == null) throw userError('Give the referral reward in won, in dollars, or both (or choose no reward)');
+  }
+  return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content, addon_ids, addon_only, compare_krw, compare_usd, price_options, reward_kind, reward_percent, reward_krw, reward_usd };
 }
 
 // Every way the product can be bought, priced: [{ currency, plan, option, total, dueToday, vat, payments, label }]
@@ -246,7 +256,7 @@ function shape(row, now, all = []) {
   return { ...row, sale: pricing.saleState(row, now), options: priced(row), warnings: warnings(row, all) };
 }
 
-const COLUMNS = ['name', 'slug', 'status', 'sale_starts_at', 'sale_ends_at', 'price_krw', 'price_usd', 'instalment_first', 'instalment_monthly', 'instalment_count', 'usd_vat', 'purchase_tag', 'extra_tags', 'legacy_ids', 'content', 'addon_ids', 'addon_only', 'compare_krw', 'compare_usd', 'price_options'];
+const COLUMNS = ['name', 'slug', 'status', 'sale_starts_at', 'sale_ends_at', 'price_krw', 'price_usd', 'instalment_first', 'instalment_monthly', 'instalment_count', 'usd_vat', 'purchase_tag', 'extra_tags', 'legacy_ids', 'content', 'addon_ids', 'addon_only', 'compare_krw', 'compare_usd', 'price_options', 'reward_kind', 'reward_percent', 'reward_krw', 'reward_usd'];
 const CAST = { extra_tags: '::text[]', legacy_ids: '::int[]', addon_ids: '::int[]', addon_only: '::boolean', content: '::jsonb', price_options: '::jsonb', sale_starts_at: '::timestamptz', sale_ends_at: '::timestamptz' };
 const JSON_COLUMNS = new Set(['content', 'price_options']);
 

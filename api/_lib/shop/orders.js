@@ -68,7 +68,7 @@ function requestedAddons(input) {
  * The order and its items are written by one statement.
  * Throws CheckoutError('closed' | 'unavailable' | 'too_many').
  */
-async function createOrder({ product, currency, plan, option = null, billing, addons = [], coupon = null, source = {}, ipHash = null, instalments = false, now = new Date() }) {
+async function createOrder({ product, currency, plan, option = null, billing, addons = [], coupon = null, referral = null, source = {}, ipHash = null, instalments = false, now = new Date() }) {
   if (!pricing.saleState(product, now).open) throw new CheckoutError('closed');
   if (!offers(product, undefined, { instalments }).some((o) => o.currency === currency && o.plan === plan)) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
   // A product with pricing options is only sold with one of them named: never a default the buyer didn't see.
@@ -93,7 +93,7 @@ async function createOrder({ product, currency, plan, option = null, billing, ad
     if (recent.n >= RATE_LIMIT.perNetwork) throw new CheckoutError('too_many');
   }
 
-  return insertOrder({ product, offer, billing, source, ipHash, coupon, now });
+  return insertOrder({ product, offer, billing, source, ipHash, coupon, referral, now });
 }
 
 /*
@@ -119,7 +119,7 @@ function planRows(terms, start) {
  * pricing.quote() with its `provider` (null for an order paid outside the site).
  * Used by the checkout (createOrder) and by orders made in the admin (manual.js: origin 'manual', a note).
  */
-async function insertOrder({ product, offer, billing, source = {}, ipHash = null, coupon = null, origin = 'site', note = '', now = new Date() }) {
+async function insertOrder({ product, offer, billing, source = {}, ipHash = null, coupon = null, referral = null, origin = 'site', note = '', now = new Date() }) {
   // The customer row is created from this form, but an existing customer's details are only replaced once a
   // payment is confirmed (afterPaid): typing someone else's email must not rewrite their record.
   const customer = await db.one(
@@ -134,8 +134,8 @@ async function insertOrder({ product, offer, billing, source = {}, ipHash = null
   const plan = planRows(terms, start);
   const order = await db.one(
     `WITH o AS (
-       INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash, price_option, coupon_id, coupon_code, origin, note, plan_terms)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14, $20::jsonb, $21, $22, $23, $24, $25::jsonb) RETURNING *),
+       INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash, price_option, coupon_id, coupon_code, origin, note, plan_terms, referrer_id, referral_reward)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14, $20::jsonb, $21, $22, $23, $24, $25::jsonb, $29, $30::jsonb) RETURNING *),
      i AS (
        INSERT INTO shop_order_items (order_id, position, kind, product_id, name, amount, vat_rule)
        SELECT o.id, x.position - 1, x.kind, x.product_id, x.name, x.amount, x.vat_rule
@@ -150,7 +150,8 @@ async function insertOrder({ product, offer, billing, source = {}, ipHash = null
       offer.provider, JSON.stringify(billing), JSON.stringify(source), ipHash,
       it.map((x) => x.kind), it.map((x) => x.product_id), it.map((x) => x.name), it.map((x) => x.amount), it.map((x) => x.vatRule),
       offer.option ? JSON.stringify(offer.option) : null, coupon ? coupon.coupon.id : null, coupon ? coupon.coupon.code : null, origin, String(note || '').slice(0, 1000),
-      terms ? JSON.stringify(terms) : null, plan.map((x) => x.number), plan.map((x) => x.due_date), plan.map((x) => x.amount)],
+      terms ? JSON.stringify(terms) : null, plan.map((x) => x.number), plan.map((x) => x.due_date), plan.map((x) => x.amount),
+      referral ? referral.referrerId : null, referral && referral.rule ? JSON.stringify(referral.rule) : null],
   );
   if (!order || order.item_count !== it.length || order.plan_count !== plan.length) throw new Error('the order, its items and its schedule were not saved together');
   delete order.item_count;

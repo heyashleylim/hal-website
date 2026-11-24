@@ -170,7 +170,7 @@ async function saveProgress(req, res, student, data) {
 // "내 주문": the orders of the signed-in email.
 async function myOrders(req, res, student, params) {
   const data = await my.forEmail(student.email);
-  return sendHtml(res, 200, myPage.myPage({ student, orders: data.orders, missed: data.missed, problem: params.get('m') === 'pay' ? 'pay' : '' }));
+  return sendHtml(res, 200, myPage.myPage({ student, orders: data.orders, missed: data.missed, referral: data.referral, problem: params.get('m') === 'pay' ? 'pay' : '' }));
 }
 
 // "지금 결제하기" on a missed instalment: its payment link (made or renewed), or back to /my with a message.

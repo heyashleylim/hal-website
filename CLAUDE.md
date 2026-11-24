@@ -233,7 +233,7 @@ links still go to WordPress until go-live (phase 5).
   server by `api/_lib/shop/page.js`, in Korean (`copy.ko.js` holds every customer-facing string), `noindex`, with GTM.
   `/checkout`, `/checkout/order-received/*` and `/checkout/order-pay/*` still redirect to WordPress; a product can't use
   those addresses or `complete`.
-- Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `coupons/`, `reports/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
+- Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `coupons/`, `referrals/`, `reports/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
   actions prefixed `shop-`.
 - Money is a whole number in the smallest unit (won; cents for USD), VAT included. **Every amount is computed on the
   server by `api/_lib/shop/pricing.js`** (pure, unit-tested); the browser never sends an amount. Change price rules there
@@ -286,6 +286,12 @@ links still go to WordPress until go-live (phase 5).
   and cookie as `/learn` (one login for both; shop buyers with a paid order get a code too). Routes in `api/learn.js`
   (`/my`, `POST /my/pay`; rewrites in `vercel.json`), data in `api/_lib/shop/my.js`, page `api/_lib/shop/my-page.js`
   + `pages/my.css`, strings in `copy.ko.js` (`my`). Private: noindex, no GTM / analytics, in robots.txt.
+- **Referrals** (plan section 17): `/r/<code>[/<product>]` remembers a referral code 30 days (cookie `hal_ref`); the
+  checkout applies it like a coupon. The friend's discount is the coupon campaign marked `referral` (key `referral`);
+  each customer's code is a coupon tied to them (`shop_coupons.referrer_id`). Rewards per product (`reward_*` on
+  `shop_products`), one per payment in `shop_rewards`: pending 14 days, then approved by the daily job; refunds lower
+  or cancel them. Rules in `api/_lib/shop/referrals.js` (tested), admin `/admin/shop/referrals`. **Rewards are not paid
+  out yet** (cash or credit waits for the accountant, O2).
   Not built yet: the CiderPay tax-doc check and the WooCommerce import.
 - **Instalment plans** (phase 3, `api/_lib/shop/instalments.js`, migration 018, plan section 14): KRW card only, through
   CiderPay's 정기 결제 (`ciderpay.requestPlan`: first payment at once, then monthly on the billing day, ending 7 days after

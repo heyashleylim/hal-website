@@ -34,6 +34,7 @@ window.Admin = (function () {
         ['/admin/shop/orders', 'Orders'],
         ['/admin/shop/products', 'Products'],
         ['/admin/shop/coupons', 'Coupons'],
+        ['/admin/shop/referrals', 'Referrals'],
       ] },
       { title: 'Records', items: [['/admin/shop/reports', 'Reports']] },
       { title: 'Setup', items: [['/admin/shop/settings', 'Settings']] },

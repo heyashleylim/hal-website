@@ -62,6 +62,12 @@
         <div><button data-tip="Create a new product to offer as an add-on (its name, prices and tag). This form comes back afterwards with it ticked" class="btn-ghost" type="button" id="new-addon">New add-on</button></div>
       </fieldset>
 
+      <p class="admin-h3" data-offer>Referral reward <span class="hint">what the person who referred the buyer earns (Shop → Referrals); not paid out yet</span></p>
+      <label data-offer>Reward <select name="reward_kind"><option value="">No reward</option><option value="percent">A percentage of the money received</option><option value="amount">A fixed amount per order</option></select></label>
+      <label data-offer>Percentage <span class="hint">1–50, of each payment received</span><input name="reward_percent" inputmode="numeric" placeholder="10"></label>
+      <label data-offer>Fixed amount (₩) <input name="reward_krw" inputmode="numeric" placeholder="50000"></label>
+      <label data-offer>Fixed amount ($) <input name="reward_usd" inputmode="decimal" placeholder="40"></label>
+
       <p class="admin-h3">When this product is itself an add-on <span class="hint">only used when another product offers it</span></p>
       <p class="admin-form__wide muted small">The add-on card shows this product’s <b>Name</b> and <b>Prices</b> (at the top of this form) and its <b>Summary</b> (below), plus the fields here.</p>
       <label class="check-ac admin-form__wide"><input type="checkbox" name="addon_only"><span>Sold only as an add-on</span><span class="hint">no checkout page of its own; it must still be Open to be offered</span></label>
@@ -186,6 +192,8 @@
       instalment_count: p.instalment_count == null ? '' : p.instalment_count,
       purchase_tag: p.purchase_tag, extra_tags: (p.extra_tags || []).join(', '), legacy_ids: (p.legacy_ids || []).join(', '),
       compare_krw: p.compare_krw == null ? '' : p.compare_krw, compare_usd: dollars(p.compare_usd),
+      reward_kind: p.reward_kind || '', reward_percent: p.reward_percent == null ? '' : p.reward_percent,
+      reward_krw: p.reward_krw == null ? '' : p.reward_krw, reward_usd: dollars(p.reward_usd),
       addon_details: c.addon_details || '', addon_note: c.addon_note || '',
       summary: c.summary || '', included_title: c.included_title || '', image: c.image || '', thanks: c.thanks || '', page: c.page || '', guarantee: c.guarantee || '',
       testimonials: (c.testimonials || []).map(function (r) { return r.text + (r.name ? '\n— ' + r.name : ''); }).join('\n\n'),
@@ -316,6 +324,7 @@
       purchase_tag: f.purchase_tag.value, extra_tags: f.extra_tags.value, legacy_ids: f.legacy_ids.value,
       addon_ids: Array.prototype.filter.call(form.querySelectorAll('input[name=addon_ids]'), function (x) { return x.checked; }).map(function (x) { return x.value; }),
       addon_only: f.addon_only.checked, compare_krw: f.compare_krw.value.replace(/[,\s₩]/g, ''), compare_usd: f.compare_usd.value.replace(/[\s$]/g, ''),
+      reward_kind: f.reward_kind.value, reward_percent: f.reward_percent.value, reward_krw: f.reward_krw.value.replace(/[,\s₩]/g, ''), reward_usd: f.reward_usd.value.replace(/[\s$]/g, ''),
       price_options: rows(optionBox, function (row) {
         return { key: row.getAttribute('data-key') || '', label: val(row, 'label'), note: val(row, 'note'), tag: val(row, 'tag'),
           price_krw: val(row, 'price_krw').replace(/[,\s₩]/g, ''), price_usd: val(row, 'price_usd').replace(/[\s$]/g, ''),

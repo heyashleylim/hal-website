@@ -324,6 +324,14 @@
     {
       "source": "/checkout/:slug([a-z0-9-]+)",
       "destination": "/api/shop-page?view=checkout&slug=:slug"
+    },
+    {
+      "source": "/r/:code([A-Za-z0-9_-]+)",
+      "destination": "/api/shop-page?view=ref&code=:code"
+    },
+    {
+      "source": "/r/:code([A-Za-z0-9_-]+)/:slug([a-z0-9-]+)",
+      "destination": "/api/shop-page?view=ref&code=:code&slug=:slug"
     }
   ]
 }

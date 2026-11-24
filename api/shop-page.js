@@ -4,6 +4,8 @@
  *   GET /checkout/complete    → ?view=complete&o=<order token>  where the buyer lands after the payment page
  *   GET /checkout/pay/<token> → ?view=pay&o=<order token>       the payment link of an order made in the admin
  *                                (&i=<n>: the payment link of one instalment of a plan)
+ *   GET /r/<code>[/<product>] → ?view=ref&code=…&slug=…    a referral link: remembers the code (30 days), then the
+ *                                program's page (or its checkout, or the home page)
  *
  * Server-rendered (api/_lib/shop/page.js). The thank-you page never marks an order paid because someone
  * opened it: only a provider's confirmation does. For PayPal, opening it is the moment we capture the payment
@@ -18,6 +20,7 @@ const coupons = require('./_lib/shop/coupons.js');
 const manual = require('./_lib/shop/manual.js');
 const instalments = require('./_lib/shop/instalments.js');
 const config = require('./_lib/shop/config.js');
+const referrals = require('./_lib/shop/referrals.js');
 const { sendHtml, redirect } = require('./_lib/shop/http.js');
 
 const PROBLEMS = new Set(['cancelled', 'declined', 'provider', 'server']);
@@ -39,15 +42,18 @@ async function checkout(req, res, url) {
   const problem = PROBLEMS.has(url.searchParams.get('problem')) ? url.searchParams.get('problem') : '';
   const addons = {};
   for (const cur of [...new Set(offers.map((o) => o.currency))]) addons[cur] = await orders.addonChoices(product, cur);
-  // A code in the link (?coupon=…, as ActiveCampaign emails send it) is applied without typing.
+  // A code in the link (?coupon=…, as ActiveCampaign emails send it) is applied without typing. Without one, the
+  // referral code this browser remembers from a /r/<code> link is applied the same way, but quietly: when it can't be
+  // used on this product, the page simply shows no discount.
   let coupon = null;
-  const code = coupons.normalize(url.searchParams.get('coupon'));
+  const typed = coupons.normalize(url.searchParams.get('coupon'));
+  const code = typed || referrals.codeFromRequest(req);
   if (code) {
     try {
-      coupon = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], plan: hasPlan ? 'both' : 'full', ipHash: config.ipHash(req) });
+      coupon = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], plan: hasPlan ? 'both' : 'full', ipHash: typed ? config.ipHash(req) : null });
     } catch (err) {
       if (!(err instanceof coupons.CouponError)) throw err;
-      coupon = { code, error: err.code === 'too_many' ? 'coupon_unknown' : err.code };
+      coupon = typed ? { code, error: err.code === 'too_many' ? 'coupon_unknown' : err.code } : null;
     }
   }
   return sendHtml(res, 200, page.checkoutPage({
@@ -121,6 +127,22 @@ async function payInstalment(req, res, url) {
   }));
 }
 
+// A referral link: count the visit, remember the code for 30 days, then the program's page. An unknown, paused or
+// banned code just opens the page (or the home page) without remembering anything.
+async function ref(req, res, url) {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  res.setHeader('Cache-Control', 'no-store');
+  const slug = String(url.searchParams.get('slug') || '');
+  const product = /^[a-z0-9-]{1,60}$/.test(slug) ? await orders.productBySlug(slug) : null;
+  const shown = product && product.status !== 'draft' && !product.addon_only ? product : null;
+  const referrer = await referrals.byCode(url.searchParams.get('code'));
+  if (referrer) {
+    await referrals.click(referrer.id).catch((err) => console.error('referral click', err.message));
+    res.setHeader('Set-Cookie', referrals.cookieHeader(referrer.code));
+  }
+  return redirect(res, 302, referrals.landing(shown));
+}
+
 module.exports = async function handler(req, res) {
   const url = new URL(req.url, 'http://local');
   const view = url.searchParams.get('view');
@@ -134,6 +156,7 @@ module.exports = async function handler(req, res) {
   try {
     if (view === 'complete') return await complete(req, res, url);
     if (view === 'pay') return await pay(req, res, url);
+    if (view === 'ref') return await ref(req, res, url);
     return await checkout(req, res, url);
   } catch (err) {
     console.error('shop-page', err);

@@ -7,5 +7,6 @@ Disallow: /f/
 Disallow: /a/
 Disallow: /learn
 Disallow: /my
+Disallow: /r/
 
 Sitemap: https://www.ashleylim.com/sitemap.xml

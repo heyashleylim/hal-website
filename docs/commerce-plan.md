@@ -25,7 +25,7 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 | **3. Instalments, refunds, coupons** (refunds, coupons and manual orders built 2026-11-19, sections 11–13; instalment plans built 2026-11-20, section 14, switched off until tested) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
 | **4. Tax & reports + import** (reports built 2026-11-20, section 15; CiderPay check and import still to do) | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
 | **5. Go live** | Section 6, steps 3–6. Vercel Pro. | No payment link points to WordPress. |
-| **6. Referrals + `/my`** (`/my` built 2026-11-21, section 16) | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
+| **6. Referrals + `/my`** (`/my` built 2026-11-21, section 16; referral links, discount and rewards built 2026-11-21, section 17; payouts wait for O2) | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
 | **7. Bare domain, retire WordPress** | Section 6, steps 7–8. | Hosting cancelled. |
 
 ---
@@ -1018,3 +1018,58 @@ ActiveCampaign emails (`MY_ORDERS_LINK`: the one-tap `/learn/start/<token>` link
 customer whose student row is revoked (refunded program) can't sign in, so can't see `/my` either.
 
 New Korean strings (`copy.my`) are new copy for Ashley to review.
+
+---
+
+## 17. Phase 6 as built: referral links, the friend's discount and rewards (2026-11-21)
+
+Code: `api/_lib/shop/referrals.js` (rules, pure + database), `api/_lib/admin/shop-referrals.js` and
+`/admin/shop/referrals` (Shop → Manage → Referrals), the reward fields on Products, `/r/<code>` in `api/shop-page.js`,
+the referral block of `/my`. Migration 020. Tests: `tests/shop/referrals.test.js`, e2e groups "Referrals: …".
+
+**How it works**
+
+1. **The program** = the friend's discount, saved on the Referrals page: a coupon campaign of its own (tag key
+   `referral`, `shop_coupon_campaigns.referral`): percentage or fixed amount, products, dates, uses per friend
+   (default 1). Until it is saved, nobody gets a code. Paused = no referral code works.
+2. **Codes**: every customer with a paid order gets one (e.g. `K7MD-Q2XP`) at their next payment, when they open
+   `/my`, or with "Make codes" in the admin. It is a shared coupon code tied to them (`shop_coupons.referrer_id`), and
+   its link `https://www.ashleylim.com/r/<code>` goes to ActiveCampaign as `REFERRAL_LINK`.
+3. **The link**: `/r/<code>` (or `/r/<code>/<product>`, which opens that program's page) counts the visit per day and
+   remembers the code for 30 days in a first-party cookie (`hal_ref`). The checkout then applies it like a coupon
+   typed by the buyer. Last link opened wins. Where the program doesn't apply (another product), the page shows no
+   discount and no error. The code can also be typed in the coupon field.
+4. **The order**: the code's discount (one code per order: a referral or a coupon, never both); the order keeps its
+   referrer and the reward rule of the moment (`shop_orders.referrer_id`, `referral_reward`). Refused: the referrer's
+   own email or phone ("본인의 추천 코드는 사용할 수 없어요."), a paused or banned referrer's code, a second use by the
+   same friend. A friend's paid order adds `coupon_used_referral` in ActiveCampaign.
+5. **The reward**, set per product (Products → Referral reward): a percentage of the money received, or a fixed
+   amount per order (per currency). One reward per payment (`shop_rewards`): an instalment order earns as its
+   payments come in. **Pending** for 14 days after the payment, then **approved** by the daily job (not while a
+   refund is being asked for). A refund lowers the order's rewards in proportion to the money kept (newest first,
+   pending before approved); a full refund cancels them.
+6. **`/my`**: "친구 추천": the link (copy button), the code, visits, referred orders, pending and approved rewards.
+7. **Admin**: the friend's discount, each product's reward, totals by status, referrers (visits, orders, pending,
+   approved; pause / ban / reactivate), every reward with its order, "Make codes", "Update rewards now".
+
+**Not built yet (waits for O2, the accountant)**: paying approved rewards out, as a bank transfer (withholding tax,
+identification, the ₩50,000 threshold) or as credit spent at checkout (how it is shown for VAT). Approved rewards just
+add up until then. Also not built: per-referrer custom rates, ready-to-send KakaoTalk / Instagram messages (copy for
+Ashley), alerts on unusual patterns, rewards in the tax reports.
+
+**Decisions taken while building (change them if Ashley wants otherwise)**
+
+- One friend's discount for the whole program (one campaign), not one per product; rewards are per product.
+- The reward is on what the friend actually paid (after the friend's discount, add-ons included).
+- A refund after a reward was approved lowers the approved reward too (nothing is paid out yet, so nothing is lost).
+- Opening your own link and buying is refused at the order, not on the page (the page doesn't know who you are yet).
+- The program pages' buy buttons still go to WordPress until go-live (phase 5): until then a referral link only
+  leads to a discount when the friend reaches a checkout on this site (e.g. `/r/<code>/<product>` for a product whose
+  page links to `/checkout/<product>`).
+
+New Korean strings (`copy.my.ref…`, `errors.coupon_own`) are new copy for Ashley to review.
+
+**To test with Alex**: on a preview with the ₩1,000 test product, set a reward (10%) and the friend's discount
+(e.g. ₩100 off that product), sign in to `/my` with a customer email to see the link, open it in another browser,
+pay with another email and phone, then check the order (₩900, referrer shown), the reward in Referrals (₩90, pending),
+and refund the order (the reward is cancelled at the next update).

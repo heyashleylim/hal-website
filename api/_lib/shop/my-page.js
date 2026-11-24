@@ -90,6 +90,34 @@ function orderCard(o) {
   return html + '\n</section>';
 }
 
+// The referral block: the link (with a copy button when JavaScript runs), the code, and the numbers so far.
+function referralCard(r) {
+  if (!r) return '';
+  const sums = (status) => Object.entries(r.rewards || {}).map(([cur, x]) => (x[status] ? pricing.formatMoney(x[status], cur) : '')).filter(Boolean).join(' · ') || pricing.formatMoney(0, 'KRW');
+  return `<section class="pod__card my__ref" aria-labelledby="ref-title">
+  <h2 class="pod__h2" id="ref-title">${c.refTitle}</h2>
+  <p>${c.refLead}</p>
+  <label class="pod__label" for="ref-link">${c.refLink}</label>
+  <div class="pod__copy">
+    <input class="pod__input" id="ref-link" type="text" value="${esc(r.link)}" readonly>
+    <button class="pod__copy-btn" type="button" data-copy="ref-link" data-done="${esc(c.refCopied)}" hidden>${c.refCopy}</button>
+  </div>
+  <p class="pod__note">${c.refCode}: <strong>${esc(r.code)}</strong> · ${c.refOwn}</p>
+  ${facts([[c.refVisits, String(r.clicks)], [c.refOrders, String(r.orders)], [c.refPending, sums('pending')], [c.refApproved, sums('approved')]])}
+  <p class="pod__note">${c.refPayout}</p>
+</section>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+  var input = document.getElementById(b.getAttribute('data-copy'));
+  if (!input || !navigator.clipboard) return;
+  b.hidden = false;
+  b.addEventListener('click', function () {
+    navigator.clipboard.writeText(input.value).then(function () { var t = b.textContent; b.textContent = b.getAttribute('data-done'); setTimeout(function () { b.textContent = t; }, 2000); });
+  });
+});
+</script>`;
+}
+
 // The account card at the bottom: help, the student area, sign out.
 function account() {
   return `<section class="pod__card pod__card--quiet learn__account">
@@ -100,7 +128,7 @@ function account() {
 }
 
 // /my → the whole page. data: { student (signed in), orders: [my.view], missed: [my.missed], problem? }
-function myPage({ student, orders, missed, problem = '' }) {
+function myPage({ student, orders, missed, referral = null, problem = '' }) {
   const note = problem === 'pay' ? `<p class="learn__msg learn__msg--error" role="alert">${esc(c.payGone)}</p>` : '';
   return layout({
     title: `${c.title} · 애슐리 림`,
@@ -112,6 +140,7 @@ function myPage({ student, orders, missed, problem = '' }) {
 </section>
 ${missedCard(missed)}
 ${orders.map(orderCard).join('\n')}
+${referralCard(referral)}
 ${account()}`,
   }).replace('<link rel="stylesheet" href="/assets/css/pages/learn.css">', '<link rel="stylesheet" href="/assets/css/pages/learn.css">\n<link rel="stylesheet" href="/assets/css/pages/my.css">');
 }

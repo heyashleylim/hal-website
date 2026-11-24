@@ -129,6 +129,7 @@ const actions = {
   // A shared code: typed by the admin, or made up.
   async 'shop-coupon-code-add'(input) {
     const campaign = await getCampaign(int(input.campaign_id, { min: 1, max: 2147483647, label: 'campaign' }));
+    if (campaign.referral) throw userError('The referral program’s codes are made for each customer automatically (Shop → Referrals)');
     const typed = coupons.normalize(input.code);
     const code = typed || coupons.newCode();
     if (!coupons.isCode(code)) throw userError('A code is 3–40 letters, digits, - or _ (no spaces or Korean), e.g. SUMMER10');
@@ -146,6 +147,7 @@ const actions = {
   // Personal codes for a list of emails, or for every ActiveCampaign contact with a tag (from the Contacts copy).
   async 'shop-coupon-issue'(input) {
     const campaign = await getCampaign(int(input.campaign_id, { min: 1, max: 2147483647, label: 'campaign' }));
+    if (campaign.referral) throw userError('The referral program’s codes are made for each customer automatically (Shop → Referrals)');
     const tag = text(input.tag, { max: 200, label: 'Tag' });
     let emails;
     if (tag) {

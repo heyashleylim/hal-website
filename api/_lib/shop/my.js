@@ -102,9 +102,9 @@ async function hasOrders(email) {
 // Everything /my shows for this email. → { customer, orders: [view], missed }
 async function forEmail(email) {
   const customer = await customerOf(email);
-  if (!customer) return { customer: null, orders: [], missed: [] };
+  if (!customer) return { customer: null, orders: [], missed: [], referral: null };
   const list = await db.query(`SELECT o.* FROM shop_orders o WHERE o.customer_id = $1 AND ${SHOWN} ORDER BY coalesce(o.paid_at, o.created_at) DESC, o.id DESC LIMIT 100`, [customer.id]);
-  if (!list.length) return { customer, orders: [], missed: [] };
+  if (!list.length) return { customer, orders: [], missed: [], referral: null };
   const ids = list.map((o) => o.id);
   const by = async (sql) => {
     const rows = await db.query(sql, [ids]);
@@ -125,7 +125,18 @@ async function forEmail(email) {
     order, items: items.get(order.id) || [], payments: payments.get(order.id) || [],
     instalments: instalments.get(order.id) || [], refunds: refunds.get(order.id) || [],
   }));
-  return { customer, orders, missed: missed(orders) };
+  return { customer, orders, missed: missed(orders), referral: await referralOf(customer) };
+}
+
+// The customer's referral block: their link and numbers, while the program is running (the code is made the first
+// time, for a customer who paid before the program started). null when there is no program or it is paused.
+async function referralOf(customer) {
+  const referrals = require('./referrals.js');
+  const program = await referrals.program();
+  if (!program || program.status !== 'active') return null;
+  const mine = await referrals.ensureReferrer(customer.id);
+  if (!mine || mine.referrer.status !== 'active') return null;
+  return { code: mine.code, link: mine.link, ...(await referrals.statsOf(mine.referrer.id)) };
 }
 
 /*

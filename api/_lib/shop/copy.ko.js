@@ -126,6 +126,8 @@ const copy = {
     coupon_not_yours: '이 쿠폰은 쿠폰을 받으신 이메일 주소로만 사용할 수 있어요.',
     coupon_used_up: '사용이 모두 끝난 쿠폰이에요.',
     coupon_already_used: '이미 사용하신 쿠폰이에요.',
+    // Referral codes (2026-11-21, new copy to review)
+    coupon_own: '본인의 추천 코드는 사용할 수 없어요.',
   },
   emailTypo: (suggestion) => `혹시 ${suggestion} 아닌가요?`,
   emailTypoUse: '이 주소로 바꾸기',
@@ -261,6 +263,19 @@ const copy = {
     when: '날짜',
     help: `주문이나 환불에 대해 궁금한 점은 ${SUPPORT_EMAIL}으로 알려 주세요.`,
     toLearn: '내 강의실',
+    // The referral block (2026-11-21). New copy, to review.
+    refTitle: '친구 추천',
+    refLead: '아래 링크로 친구가 결제하면 친구는 할인을 받고, 추천해 주신 분께는 보상이 적립돼요. 보상은 환불 기간(14일)이 지나면 확정돼요.',
+    refLink: '내 추천 링크',
+    refCode: '추천 코드',
+    refCopy: '복사',
+    refCopied: '복사했어요',
+    refVisits: '링크 방문',
+    refOrders: '추천으로 결제',
+    refPending: '확정 대기 중인 보상',
+    refApproved: '확정된 보상',
+    refPayout: '확정된 보상을 받는 방법은 따로 안내해 드릴게요.',
+    refOwn: '본인의 추천 링크로는 할인을 받을 수 없어요.',
     toMy: '내 주문 · 영수증',
   },
 

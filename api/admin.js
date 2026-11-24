@@ -29,10 +29,12 @@ async function shopJob() {
   const requeued = await require('./_lib/shop/flow.js').repairSync();
   const refundsToCheck = await require('./_lib/shop/refunds.js').sweep();
   const instalments = await require('./_lib/shop/instalments.js').checkLate();
+  // Referral rewards: new payments and refunds of referred orders, then the ones past the refund window approved.
+  const referrals = await require('./_lib/shop/referrals.js').sweep().catch((err) => ({ error: err.message }));
   const sent = await shopSync.process({ budgetMs: 60 * 1000 });
   // The monthly ledger copies (finished months without a file); a storage problem never stops the rest of the job.
   const backup = await require('./_lib/shop/backup.js').run({ budgetMs: 20 * 1000 }).catch((err) => ({ error: err.message }));
-  return { expired, requeued, refundsToCheck, instalments, sent, backup };
+  return { expired, requeued, refundsToCheck, instalments, referrals, sent, backup };
 }
 
 const MODULES = [
@@ -48,6 +50,7 @@ const MODULES = [
   require('./_lib/admin/shop-manual.js'),
   require('./_lib/admin/shop-plans.js'),
   require('./_lib/admin/shop-reports.js'),
+  require('./_lib/admin/shop-referrals.js'),
   require('./_lib/admin/emails.js'),
   require('./_lib/admin/contacts.js'),
   require('./_lib/admin/program-students.js'),

@@ -15,6 +15,7 @@ const ciderpay = require('./pay/ciderpay.js');
 const paypal = require('./pay/paypal.js');
 const config = require('./config.js');
 const coupons = require('./coupons.js');
+const referrals = require('./referrals.js');
 const ledger = require('./ledger.js');
 const { CheckoutError } = orders;
 
@@ -79,7 +80,17 @@ async function start({ product, currency, plan, input, source, ipHash }) {
       throw new CheckoutError('coupon', err.message, { coupon: err.code });
     }
   }
-  const order = await orders.createOrder({ product, currency, plan, option: hasOptions ? option : null, billing, addons, coupon, source: validate.sourceInput(source), ipHash, instalments });
+  // A referral code: who referred this order (never the buyer themself) and the reward rule kept on the order.
+  let referral = null;
+  if (coupon) {
+    try {
+      referral = await referrals.attribute(coupon.coupon, { product, currency, billing });
+    } catch (err) {
+      if (!(err instanceof coupons.CouponError)) throw err;
+      throw new CheckoutError('coupon', err.message, { coupon: err.code });
+    }
+  }
+  const order = await orders.createOrder({ product, currency, plan, option: hasOptions ? option : null, billing, addons, coupon, referral, source: validate.sourceInput(source), ipHash, instalments });
   try {
     return { order, redirect: await requestPage(order, product, { addonCount: addons.length }) };
   } catch (err) {
@@ -181,6 +192,8 @@ async function afterPaid(order, product, payment = {}, { sendNow = false, slack 
   const step = async (name, fn) => { try { await fn(); } catch (err) { console.error(`shop: order ${order.number}: ${name} failed`, err); } };
   await step('customer update', () => orders.refreshCustomer(order));
   await step('ActiveCampaign queue', () => sync.queuePurchase(order, product, payment));
+  // The buyer's own referral code (when the program is set up), and the referrer's reward for a referred order.
+  await step('referral', () => referrals.afterPayment(order));
   if (order.plan === 'instalment') await step('instalment plan started', () => require('./instalments.js').started(order, product));
   if (slack) await step('Slack', async () => notify.paid(order, payment.method, await settings.read(), undefined, await orders.items(order.id)));
   await step('double payment check', async () => {
