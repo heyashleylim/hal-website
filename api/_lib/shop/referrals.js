@@ -19,6 +19,7 @@ const db = require('../db.js');
 const config = require('./config.js');
 const coupons = require('./coupons.js');
 const sync = require('./sync.js');
+const pricing = require('./pricing.js');
 
 const WINDOW_DAYS = 14;          // the refund window: a reward is approved once it has passed
 const COOKIE = 'hal_ref';
@@ -111,6 +112,34 @@ function isSelf(referrer, buyer) {
 
 const linkOf = (code, env = process.env) => `${config.publicBase(env)}/r/${encodeURIComponent(code)}`;
 
+// ---------- ActiveCampaign (plan 3.4; pure) ----------
+// A tag added again re-starts an automation only if it was removed first: events that repeat (a second friend's
+// purchase, another reward approved) remove their tag, then add it.
+const again = (tag, key) => [
+  { op: 'tag_remove', payload: { tag }, dedupe: `${key}:remove:${tag}` },
+  { op: 'tag_add', payload: { tag }, dedupe: `${key}:add:${tag}` },
+];
+
+// A new referrer: their link and code, then the tag `referrer`.
+function referrerOps(referrer, env = process.env) {
+  return [
+    { op: 'fields', payload: { fields: { REFERRAL_LINK: linkOf(referrer.code, env), REFERRAL_CODE: referrer.code } }, dedupe: `referrer${referrer.id}:link` },
+    { op: 'tag_add', payload: { tag: 'referrer' }, dedupe: `referrer${referrer.id}:tag` },
+  ];
+}
+
+// A friend paid: `referral_sale` on the referrer (once per order).
+const saleOps = (order) => again('referral_sale', `o${order.id}:referrer`);
+
+// A reward approved: REFERRAL_BALANCE (every approved reward, per currency), then `referral_reward_approved`.
+function approvedOps(rewardId, balance) {
+  const text = Object.entries(balance || {}).filter(([, n]) => n > 0).map(([cur, n]) => pricing.formatMoney(n, cur)).join(' + ');
+  return [
+    { op: 'fields', payload: { fields: { REFERRAL_BALANCE: text || pricing.formatMoney(0, 'KRW') } }, dedupe: `reward${rewardId}:balance` },
+    ...again('referral_reward_approved', `reward${rewardId}`),
+  ];
+}
+
 // Where /r/<code>[/<slug>] sends the friend: the program's page, else its checkout, else the home page (pure).
 function landing(product) {
   if (!product) return '/';
@@ -160,7 +189,7 @@ async function ensureReferrer(customerId) {
       row = await ofCustomer(customerId);
     }
     if (!row.code) throw new Error('could not make a referral code');
-    await sync.enqueue({ customerId, op: 'fields', payload: { fields: { REFERRAL_LINK: linkOf(row.code) } }, dedupe: `referrer${row.id}:link` });
+    for (const x of referrerOps(row)) await sync.enqueue({ customerId, ...x });
   }
   return { referrer: row, code: row.code, link: linkOf(row.code) };
 }
@@ -222,7 +251,13 @@ async function approveDue(now = new Date()) {
   const rows = await db.query(
     `UPDATE shop_rewards w SET status = 'approved', approved_at = $1, updated_at = now()
        FROM shop_orders o WHERE o.id = w.order_id AND w.status = 'pending' AND w.approve_after <= $1 AND w.amount > 0
-        AND o.status NOT IN ('refund_requested') RETURNING w.id`, [now]);
+        AND o.status NOT IN ('refund_requested') RETURNING w.id, w.referrer_id`, [now]);
+  // ActiveCampaign: the referrer's balance and the tag, so an automation can tell them.
+  for (const w of rows) {
+    const ref = await db.one('SELECT customer_id FROM shop_referrers WHERE id = $1', [w.referrer_id]);
+    const sums = await db.query(`SELECT currency, sum(amount)::bigint AS n FROM shop_rewards WHERE referrer_id = $1 AND status = 'approved' GROUP BY currency`, [w.referrer_id]);
+    for (const x of approvedOps(w.id, Object.fromEntries(sums.map((s) => [s.currency, Number(s.n)])))) await sync.enqueue({ customerId: ref.customer_id, ...x });
+  }
   return rows.length;
 }
 
@@ -243,7 +278,10 @@ async function sweep({ now = new Date() } = {}) {
 // After a payment: the buyer gets their own code (when the program is set up), and a referred order its reward.
 async function afterPayment(order) {
   await ensureReferrer(order.customer_id);
-  if (order.referrer_id) await reconcile(order.id);
+  if (!order.referrer_id) return;
+  await reconcile(order.id);
+  const ref = await db.one('SELECT customer_id FROM shop_referrers WHERE id = $1', [order.referrer_id]);
+  if (ref) for (const x of saleOps(order)) await sync.enqueue({ customerId: ref.customer_id, orderId: order.id, ...x });
 }
 
 // A referrer's numbers (for /my and the admin): clicks, orders, rewards by status and currency.
@@ -262,6 +300,6 @@ async function statsOf(referrerId) {
 
 module.exports = {
   WINDOW_DAYS, COOKIE, COOKIE_DAYS,
-  ruleOf, orderReward, paymentReward, reconcilePlan, isSelf, linkOf, landing, cookieHeader, codeFromRequest,
+  ruleOf, orderReward, paymentReward, reconcilePlan, isSelf, linkOf, landing, cookieHeader, codeFromRequest, referrerOps, saleOps, approvedOps,
   program, ofCustomer, ensureReferrer, byCode, click, attribute, reconcile, approveDue, sweep, afterPayment, statsOf,
 };

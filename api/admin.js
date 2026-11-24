@@ -31,10 +31,12 @@ async function shopJob() {
   const instalments = await require('./_lib/shop/instalments.js').checkLate();
   // Referral rewards: new payments and refunds of referred orders, then the ones past the refund window approved.
   const referrals = await require('./_lib/shop/referrals.js').sweep().catch((err) => ({ error: err.message }));
+  // Abandoned checkouts → checkout_abandoned_<product> in ActiveCampaign (only when switched on in Settings).
+  const abandoned = await require('./_lib/shop/abandoned.js').run().catch((err) => ({ error: err.message }));
   const sent = await shopSync.process({ budgetMs: 60 * 1000 });
   // The monthly ledger copies (finished months without a file); a storage problem never stops the rest of the job.
   const backup = await require('./_lib/shop/backup.js').run({ budgetMs: 20 * 1000 }).catch((err) => ({ error: err.message }));
-  return { expired, requeued, refundsToCheck, instalments, referrals, sent, backup };
+  return { expired, requeued, refundsToCheck, instalments, referrals, abandoned, sent, backup };
 }
 
 const MODULES = [

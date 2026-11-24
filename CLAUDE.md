@@ -292,6 +292,11 @@ links still go to WordPress until go-live (phase 5).
   `shop_products`), one per payment in `shop_rewards`: pending 14 days, then approved by the daily job; refunds lower
   or cancel them. Rules in `api/_lib/shop/referrals.js` (tested), admin `/admin/shop/referrals`. **Rewards are not paid
   out yet** (cash or credit waits for the accountant, O2).
+- **ActiveCampaign tags and fields** (plan 3.4, section 19): with every paid order `sync.customerOps` also writes
+  `ORDER_PAID_TOTAL`, `MY_ORDERS_LINK`, `CUSTOMER_TOTAL_SPENT`, `CUSTOMER_ORDER_COUNT` (and `referred_customer`); referral
+  tags `referrer`, `referral_sale`, `referral_reward_approved` (repeatable events: removed then added) and fields
+  `REFERRAL_CODE`, `REFERRAL_BALANCE`. Abandoned checkouts (`api/_lib/shop/abandoned.js`, daily job):
+  `checkout_abandoned_<product>` + `CHECKOUT_LINK`, **off by default** (Settings) until the privacy policy mentions it.
   Not built yet: the CiderPay tax-doc check and the WooCommerce import.
 - **Instalment plans** (phase 3, `api/_lib/shop/instalments.js`, migration 018, plan section 14): KRW card only, through
   CiderPay's 정기 결제 (`ciderpay.requestPlan`: first payment at once, then monthly on the billing day, ending 7 days after

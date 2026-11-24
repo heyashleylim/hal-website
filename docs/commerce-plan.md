@@ -1073,3 +1073,34 @@ New Korean strings (`copy.my.ref…`, `errors.coupon_own`) are new copy for Ashl
 (e.g. ₩100 off that product), sign in to `/my` with a customer email to see the link, open it in another browser,
 pay with another email and phone, then check the order (₩900, referrer shown), the reward in Referrals (₩90, pending),
 and refund the order (the reward is cancelled at the next update).
+
+---
+
+## 19. ActiveCampaign: the remaining tags and fields of 3.4 (2026-11-24)
+
+Code: `sync.customerOps` (fields and tags with every paid order), `api/_lib/shop/abandoned.js` (abandoned checkouts),
+`referrals.referrerOps / saleOps / approvedOps`. Tests: `tests/shop/ac-fields.test.js`, e2e groups "ActiveCampaign: …".
+Shop → Settings lists every contact field to create in ActiveCampaign (a field that doesn't exist is skipped, never
+blocking the tags).
+
+| When | Tags | Fields |
+|---|---|---|
+| Every paid order | (purchase tags as before) | `ORDER_PAID_TOTAL`, `MY_ORDERS_LINK` (`https://www.ashleylim.com/my`), `CUSTOMER_TOTAL_SPENT` (paid less refunded, every order, per currency: "₩2,910,000 + $219"), `CUSTOMER_ORDER_COUNT` |
+| Bought with a friend's referral code | `referred_customer` | |
+| Gets a referral code | `referrer` | `REFERRAL_LINK`, `REFERRAL_CODE` |
+| A friend paid with their code | `referral_sale` (removed, then added: the automation starts again for every friend) | |
+| A reward approved | `referral_reward_approved` (removed, then added) | `REFERRAL_BALANCE` (approved rewards, per currency) |
+| Abandoned checkout (see below) | `checkout_abandoned_<product>` | `CHECKOUT_LINK` (that product's checkout) |
+| Bought the product after abandoning it | `checkout_abandoned_<product>` removed | |
+
+**Abandoned checkouts** (Shop → Settings → "Tag abandoned checkouts", **off by default**): someone who submitted the
+checkout form (so their email is known) and didn't pay within an hour, on the site's checkout (not an order made in the
+admin), in the last 3 days, who hasn't bought that product since or in the 30 days before. Once per person and product
+per 30 days. The daily job tags them each morning (09:10 Seoul time), so the tag arrives the next morning; on Vercel Pro
+the job could run hourly. **Turn it on only once Ashley's privacy policy says abandoned checkouts may get a reminder.**
+An AC automation on `checkout_abandoned_<product>`: wait, then an email linking to `%CHECKOUT_LINK%`; end it when the
+tag is removed (they bought).
+
+Not done: `ORDER_PAID_TOTAL` is written at the purchase; for an instalment plan, `INSTALMENT_REMAINING` follows the
+payments. `referral_reward_paid` waits for payouts (O2).
+

@@ -276,6 +276,8 @@ function settingsInput(input) {
     notifications: Object.fromEntries(Object.keys(SETTINGS.notifications).map((k) => [k, n[k] !== false && n[k] !== 'false'])),
     // Off unless ticked: selling instalment plans is a deliberate choice.
     instalments: { enabled: Boolean(input.instalments) && (input.instalments.enabled === true || input.instalments.enabled === 'true') },
+    // Off unless ticked: it needs a line in the privacy policy first.
+    abandoned: { enabled: Boolean(input.abandoned) && (input.abandoned.enabled === true || input.abandoned.enabled === 'true') },
   };
 }
 
@@ -367,6 +369,8 @@ const actions = {
         paypal_webhook_url: shopConfig.configured() ? safe(() => shopConfig.callbackUrl('paypal').replace(/x-vercel-protection-bypass=[^&]+/, 'x-vercel-protection-bypass=…')) : null,
         order_fields: require('../shop/sync.js').ORDER_FIELDS,
         plan_fields: Object.keys(require('../shop/instalments.js').planFields({ currency: 'KRW' }, [])),
+        customer_fields: require('../shop/sync.js').CUSTOMER_FIELDS,
+        other_fields: ['REFUND_AMOUNT', 'REFUND_DATE', 'COUPON_CODE', 'COUPON_EXPIRES', 'COUPON_LINK', 'REFERRAL_LINK', 'REFERRAL_CODE', 'REFERRAL_BALANCE', 'CHECKOUT_LINK'],
       },
     };
   },

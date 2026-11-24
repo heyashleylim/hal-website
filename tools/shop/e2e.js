@@ -194,7 +194,7 @@ async function main() {
     let led = await one('SELECT * FROM shop_ledger WHERE order_id = $1', [o.id]);
     eq('tax ledger line: supply + VAT', [led.kind, led.amount, led.supply, led.vat, led.vat_rule, led.currency, led.payment_id], ['sale', 220000, 200000, 20000, 'taxable', 'KRW', pay.id]);
     let box = await sql('SELECT op, payload, status FROM shop_outbox WHERE order_id = $1 ORDER BY id', [o.id]);
-    eq('ActiveCampaign updates queued: contact, both tags, fields', box.map((b) => `${b.op}:${b.payload.tag || ''}`), ['contact:', 'tag_add:purchased_eft', 'tag_add:customer', 'fields:']);
+    eq('ActiveCampaign updates queued: contact, both tags, the order fields, the customer fields', box.map((b) => `${b.op}:${b.payload.tag || ''}`), ['contact:', 'tag_add:purchased_eft', 'tag_add:customer', 'fields:', 'fields:']);
     eq('order fields for the emails', box[3].payload.fields.ORDER_NUMBER, String(o.number));
     eq('status API says paid', (await (await get(`/api/shop?action=status&o=${o.token}`)).json()).status, 'paid');
 
@@ -203,11 +203,11 @@ async function main() {
     eq('the same notice again: acknowledged as a duplicate', [n.status, JSON.parse(n.body).outcome], [200, 'duplicate']);
     await Promise.all([fake.notifyCiderpay(rid), fake.notifyCiderpay(rid), fake.notifyCiderpay(rid)]);
     o = await orderOf('buyer1@example.com');
-    eq('still one payment, one ledger line, same total, same AC updates', [await count('shop_payments', 'order_id = $1', [o.id]), await count('shop_ledger', 'order_id = $1', [o.id]), o.paid_total, await count('shop_outbox', 'order_id = $1', [o.id])], [1, 1, 220000, 4]);
+    eq('still one payment, one ledger line, same total, same AC updates', [await count('shop_payments', 'order_id = $1', [o.id]), await count('shop_ledger', 'order_id = $1', [o.id]), o.paid_total, await count('shop_outbox', 'order_id = $1', [o.id])], [1, 1, 220000, 5]);
     n = await fake.notifyCiderpay(rid, { orderNo: 'CP-SECOND', approvalNo: '30099999' });
     eq('a second, different payment for a paid order: flagged for a person', [n.status, JSON.parse(n.body).outcome], [200, 'extra']);
     o = await orderOf('buyer1@example.com');
-    eq('…held, not recorded: no second payment, no permanent tax line', [await count('shop_payments', 'order_id = $1', [o.id]), await count('shop_ledger', 'order_id = $1', [o.id]), o.paid_total, o.status, await count('shop_outbox', 'order_id = $1', [o.id])], [1, 1, 220000, 'paid', 4]);
+    eq('…held, not recorded: no second payment, no permanent tax line', [await count('shop_payments', 'order_id = $1', [o.id]), await count('shop_ledger', 'order_id = $1', [o.id]), o.paid_total, o.status, await count('shop_outbox', 'order_id = $1', [o.id])], [1, 1, 220000, 'paid', 5]);
     eq('…and kept with its full notice for the review', (await one(`SELECT payload->>'orderNo' AS no FROM shop_callbacks WHERE order_id = $1 AND outcome = 'extra'`, [o.id])).no, 'CP-SECOND');
     n = await fake.notifyCiderpay(rid, { orderNo: 'CP-SECOND', approvalNo: '30099999' });
     eq('the same second payment again: flagged again, still nothing recorded', [JSON.parse(n.body).outcome, await count('shop_ledger', 'order_id = $1', [o.id])], ['extra', 1]);
@@ -215,17 +215,17 @@ async function main() {
     group('A buyer never misses their ActiveCampaign tags');
     await sql('DELETE FROM shop_outbox WHERE order_id = $1', [o.id]); // as if queueing failed right after the payment was recorded
     n = await fake.notifyCiderpay(rid);
-    eq('the provider’s retry (a duplicate) queues them again', [JSON.parse(n.body).outcome, await count('shop_outbox', 'order_id = $1', [o.id])], ['duplicate', 4]);
+    eq('the provider’s retry (a duplicate) queues them again', [JSON.parse(n.body).outcome, await count('shop_outbox', 'order_id = $1', [o.id])], ['duplicate', 5]);
     await sql('DELETE FROM shop_outbox WHERE order_id = $1', [o.id]);
     const flowLib = require('../../api/_lib/shop/flow.js');
     check('the daily job finds paid orders without updates', (await flowLib.repairSync()) >= 1);
-    eq('…and queues them', await count('shop_outbox', 'order_id = $1', [o.id]), 4);
-    eq('…once (running it again adds nothing)', [await flowLib.repairSync(), await count('shop_outbox', 'order_id = $1', [o.id])], [0, 4]);
+    eq('…and queues them', await count('shop_outbox', 'order_id = $1', [o.id]), 5);
+    eq('…once (running it again adds nothing)', [await flowLib.repairSync(), await count('shop_outbox', 'order_id = $1', [o.id])], [0, 5]);
     await sql('DELETE FROM shop_outbox WHERE order_id = $1', [o.id]);
     let ov = (await (await fetch(`${base}/api/admin?action=shop-overview`)).json()).overview;
     check('the admin overview shows a paid order missing its updates', ov.attention.ac_missing >= 1);
     await admin('shop-sync-run', { order: o.id });
-    eq('“Send to ActiveCampaign now” on the order queues them', await count('shop_outbox', 'order_id = $1', [o.id]), 4);
+    eq('“Send to ActiveCampaign now” on the order queues them', await count('shop_outbox', 'order_id = $1', [o.id]), 5);
     ov = (await (await fetch(`${base}/api/admin?action=shop-overview`)).json()).overview;
     eq('…and the overview is clear again', ov.attention.ac_missing, 0);
 
@@ -303,7 +303,7 @@ async function main() {
     eq('payment recorded with PayPal’s fee', [o.status, o.paid_total, pay.provider, pay.amount, pay.currency, pay.fee, pay.provider_ref, pay.method], ['paid', 229900, 'paypal', 229900, 'USD', 10146, 'CAP' + o.provider_request, 'PayPal']);
     led = await one('SELECT * FROM shop_ledger WHERE order_id = $1', [o.id]);
     eq('ledger: USD, taxable, supply + VAT, fee', [led.currency, led.amount, led.supply, led.vat, led.vat_rule, led.fee, led.amount_krw], ['USD', 229900, 209000, 20900, 'taxable', 10146, null]);
-    eq('AC updates queued for the USD buyer', await count('shop_outbox', 'order_id = $1', [o.id]), 3);
+    eq('AC updates queued for the USD buyer', await count('shop_outbox', 'order_id = $1', [o.id]), 4);
     await get(back.replace(base, ''));
     await get(back.replace(base, ''));
     eq('reloading the thank-you page captures nothing twice', [await count('shop_payments', 'order_id = $1', [o.id]), await count('shop_ledger', 'order_id = $1', [o.id]), (await orderOf('abroad1@example.com')).paid_total], [1, 1, 229900]);
@@ -370,7 +370,7 @@ async function main() {
     group('Admin view');
     const paid = { id: paidId };
     const detail = await (await fetch(`${base}/api/admin?action=shop-order&id=${paid.id}`)).json();
-    check('order page shows payments, tax lines, AC updates and notices', detail.payments.length === 1 && detail.ledger.length === 1 && detail.outbox.length === 4 && detail.notices.length >= 9);
+    check('order page shows payments, tax lines, AC updates and notices', detail.payments.length === 1 && detail.ledger.length === 1 && detail.outbox.length === 5 && detail.notices.length >= 9);
     const overview = (await (await fetch(`${base}/api/admin?action=shop-overview`)).json()).overview;
     check('overview counts the notices needing attention and the AC updates waiting', overview.attention.notices > 0 && overview.attention.ac_pending > 0);
     check('overview totals come from the ledger', overview.last30days.KRW.net.amount >= 220000 && overview.last30days.USD.net.amount === 229900 * 3);
@@ -1059,7 +1059,7 @@ async function main() {
     led = await one('SELECT * FROM shop_ledger WHERE order_id = $1', [mo.id]);
     eq('its tax line: the day received, by hand', [led.amount, led.supply, led.vat, led.provider, led.method, new Date(led.at).toISOString()], [50000, 45455, 4545, 'manual', 'bank transfer', new Date(`${yesterdayKst}T12:00:00+09:00`).toISOString()]);
     box = await sql(`SELECT op, payload FROM shop_outbox WHERE order_id = $1 ORDER BY id`, [mo.id]);
-    eq('ActiveCampaign: contact, fields (and the product’s tags)', box.map((b) => b.op).filter((x) => x !== 'tag_add'), ['contact', 'fields']);
+    eq('ActiveCampaign: contact, fields (and the product’s tags)', box.map((b) => b.op).filter((x) => x !== 'tag_add'), ['contact', 'fields', 'fields']);
     check('the record of what happened lists it', Boolean(await one(`SELECT 1 AS x FROM shop_callbacks WHERE order_id = $1 AND provider = 'manual' AND outcome = 'paid'`, [mo.id])));
     mj = await admin('shop-order-mark-paid', { order: mo.id, method: 'bank', received: todayKst });
     check('recording it again: refused', /already paid/.test(mj.error || '') && (await count('shop_payments', 'order_id = $1', [mo.id])) === 1);
@@ -1569,6 +1569,52 @@ async function main() {
     eq('…and their code no longer works', [r.status, (await r.json()).fields], [422, { coupon: 'coupon_unknown' }]);
     check('/my of a paused referrer: no referral block', !(await (await myGet('/my', myCookie)).text()).includes('친구 추천'));
     await admin('shop-referrer-status', { id: refRow.id, status: 'active' });
+
+    group('ActiveCampaign: customers and referrals');
+    const outboxOf = (customerId) => sql(`SELECT op, payload, dedupe_key FROM shop_outbox WHERE customer_id = $1 ORDER BY id`, [customerId]);
+    const tagOps = (rows) => rows.filter((x) => x.op !== 'fields' && x.op !== 'contact').map((x) => `${x.op === 'tag_add' ? '+' : '-'}${x.payload.tag}`);
+    const fieldsOf = (rows) => Object.assign({}, ...rows.filter((x) => x.op === 'fields').map((x) => x.payload.fields));
+    const friendRows = await outboxOf(fo.customer_id);
+    const ff = fieldsOf(friendRows);
+    eq('a paid order: what was paid, the /my link, the customer’s total and order count', [ff.ORDER_PAID_TOTAL, ff.MY_ORDERS_LINK.endsWith('/my'), ff.CUSTOMER_TOTAL_SPENT, ff.CUSTOMER_ORDER_COUNT], ['₩198,000', true, '₩198,000', '1']);
+    check('the friend is tagged referred_customer, and gets their own code (referrer)', tagOps(friendRows).includes('+referred_customer') && tagOps(friendRows).includes('+referrer') && Boolean(ff.REFERRAL_CODE));
+    const refRows = await outboxOf((await one('SELECT customer_id FROM shop_referrers WHERE id = $1', [refRow.id])).customer_id);
+    const rt = tagOps(refRows);
+    eq('the referrer: referrer once, referral_sale for each friend (removed then added)', [rt.filter((t) => t === '+referrer').length, rt.filter((t) => t === '+referral_sale').length, rt.filter((t) => t === '-referral_sale').length], [1, 2, 2]);
+    eq('…an approved reward: REFERRAL_BALANCE, then referral_reward_approved', [fieldsOf(refRows).REFERRAL_BALANCE, rt.includes('-referral_reward_approved') && rt.includes('+referral_reward_approved')], ['₩19,800', true]);
+    eq('…their code and link', [fieldsOf(refRows).REFERRAL_CODE, fieldsOf(refRows).REFERRAL_LINK.endsWith('/r/' + refCode)], [refCode, true]);
+
+    group('ActiveCampaign: abandoned checkouts');
+    const abandonedMod = require('../../api/_lib/shop/abandoned.js');
+    r = await postJson('/api/shop?action=order', buyer(340, { phone: '010-5555-6666' }), from());
+    let ab = await orderOf('buyer340@example.com');
+    eq('switched off (the default): nothing tagged', (await abandonedMod.run()).skipped, 'off (Shop → Settings)');
+    await admin('shop-settings-save', { checkout_texts: {}, notifications: { paid: true, refund: true, instalment_failed: true }, instalments: { enabled: false }, abandoned: { enabled: true } });
+    let abr = await abandonedMod.run();
+    eq('switched on: a checkout started minutes ago is not abandoned yet', await count('shop_outbox', `customer_id = $1 AND payload->>'tag' LIKE 'checkout_abandoned_%'`, [ab.customer_id]), 0);
+    await sql(`UPDATE shop_orders SET created_at = now() - interval '2 hours' WHERE id = $1`, [ab.id]);
+    abr = await abandonedMod.run();
+    let abRows = await outboxOf(ab.customer_id);
+    eq('after an hour: CHECKOUT_LINK, then checkout_abandoned_<product>', [fieldsOf(abRows).CHECKOUT_LINK.endsWith('/checkout/e2e-eft'), tagOps(abRows)], [true, ['+checkout_abandoned_eft']]);
+    r = await postJson('/api/shop?action=order', buyer(340, { phone: '010-5555-6666' }), from());
+    await sql(`UPDATE shop_orders SET created_at = now() - interval '3 hours' WHERE customer_id = $1`, [ab.customer_id]);
+    await abandonedMod.run();
+    eq('a second abandoned checkout of the same product: tagged once', tagOps(await outboxOf(ab.customer_id)).filter((t) => t === '+checkout_abandoned_eft').length, 1);
+    ab = await orderOf('buyer340@example.com');
+    await fake.notifyCiderpay(ab.provider_request);
+    const abTags = tagOps(await outboxOf(ab.customer_id));
+    check('buying it removes the tag', abTags.lastIndexOf('-checkout_abandoned_eft') > abTags.lastIndexOf('+checkout_abandoned_eft'));
+    await sql(`UPDATE shop_orders SET created_at = now() - interval '2 hours' WHERE customer_id = $1 AND paid_at IS NULL`, [ab.customer_id]);
+    const before = await count('shop_outbox', `customer_id = $1`, [ab.customer_id]);
+    await abandonedMod.run();
+    eq('a buyer who paid since is never tagged again for it', await count('shop_outbox', `customer_id = $1`, [ab.customer_id]), before);
+    const manualOrder = await one(`SELECT o.id, o.customer_id FROM shop_orders o WHERE o.origin = 'manual' AND o.paid_at IS NULL ORDER BY id DESC LIMIT 1`);
+    if (manualOrder) {
+      await sql(`UPDATE shop_orders SET created_at = now() - interval '2 hours' WHERE id = $1`, [manualOrder.id]);
+      await abandonedMod.run();
+      eq('an order made in the admin is never an abandoned checkout', await count('shop_outbox', `order_id = $1 AND payload->>'tag' LIKE 'checkout_abandoned_%'`, [manualOrder.id]), 0);
+    }
+    await admin('shop-settings-save', { checkout_texts: {}, notifications: { paid: true, refund: true, instalment_failed: true }, instalments: { enabled: false } });
 
     group('Ledger integrity');
     const sums = await one(`SELECT (SELECT COALESCE(sum(amount), 0)::int FROM shop_ledger WHERE currency = 'KRW') AS ledger, (SELECT COALESCE(sum(CASE WHEN kind = 'refund' THEN -amount ELSE amount END), 0)::int FROM shop_payments WHERE currency = 'KRW') AS payments, (SELECT COALESCE(sum(paid_total - refunded_total), 0)::int FROM shop_orders WHERE currency = 'KRW') AS orders`);
