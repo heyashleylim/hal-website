@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Reports · Shop · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="shop">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide report">
+  <div class="admin-head">
+    <h1>Reports</h1>
+    <div class="admin-actions">
+      <button data-tip="Download every ledger line of this period as a CSV file for Excel: the detail behind each total" class="btn-sm" type="button" id="csv-lines">Download ledger (CSV)</button>
+    </div>
+  </div>
+  <p class="muted">From the tax ledger: one permanent line per payment and refund, VAT included, split into supply (공급가액) and VAT (부가세). Periods are Seoul dates. Compare the totals with CiderPay’s own VAT figures for the same period.</p>
+
+  <form class="admin-form" id="period-form" novalidate aria-label="Period">
+    <label>Period
+      <select name="kind">
+        <option value="month">Month</option>
+        <option value="quarter">Quarter</option>
+        <option value="half">Half-year (부가세 1기 / 2기)</option>
+        <option value="year">Year</option>
+        <option value="dates">Dates</option>
+      </select>
+    </label>
+    <label data-for="month">Month <input name="month" type="month"></label>
+    <label data-for="quarter half year" hidden>Year <input name="year" type="number" min="2000" max="2100" inputmode="numeric"></label>
+    <label data-for="quarter" hidden>Quarter <select name="quarter"><option value="1">Q1 (Jan–Mar)</option><option value="2">Q2 (Apr–Jun)</option><option value="3">Q3 (Jul–Sep)</option><option value="4">Q4 (Oct–Dec)</option></select></label>
+    <label data-for="half" hidden>Half <select name="half"><option value="1">H1 · 1기 (Jan–Jun)</option><option value="2">H2 · 2기 (Jul–Dec)</option></select></label>
+    <label data-for="dates" hidden>From <input name="from" type="date"></label>
+    <label data-for="dates" hidden>To <span class="hint">included</span><input name="to" type="date"></label>
+    <div class="admin-form__actions">
+      <button data-tip="Show the reports for this period" class="btn-sm" type="submit">Show</button>
+    </div>
+    <p class="admin-form__result" role="status" aria-live="polite"></p>
+  </form>
+
+  <section class="admin-card" aria-labelledby="sales-title">
+    <h2 id="sales-title">Sales <span id="period-label" class="muted"></span></h2>
+    <div id="sales" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" id="rates-card" hidden aria-labelledby="rates-title">
+    <h2 id="rates-title">Exchange rates missing</h2>
+    <p class="muted">A USD sale is declared in won at the exchange rate of its day. Type the rate the accountant uses (e.g. the 매매기준율 of that day) and where it comes from; it applies to every USD line of that Seoul day that has no rate yet. A rate can be changed later per line, below.</p>
+    <div id="rates" class="admin-scroll"></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="usd-title">
+    <h2 id="usd-title">Foreign sales (USD, PayPal)</h2>
+    <p class="muted">Each USD payment and refund with PayPal’s fee, what was received after it, and its won value. VAT as set on the product (“USD sales: taxable / zero-rated”).</p>
+    <div id="usd" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="products-title">
+    <h2 id="products-title">By product</h2>
+    <p class="muted">Each order counts under its product, add-ons included. Net = received − refunded.</p>
+    <div id="products" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="refunds-title">
+    <h2 id="refunds-title">Refunds</h2>
+    <div id="refunds" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="coupons-title">
+    <h2 id="coupons-title">Coupons and discounts</h2>
+    <p class="muted">Orders paid in this period with a discount, per coupon campaign.</p>
+    <div id="coupons" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="owed-title">
+    <div class="admin-head">
+      <h2 id="owed-title">Instalments still due (today)</h2>
+      <button data-tip="Download every instalment still to be paid on running plans as a CSV file" class="btn-ghost" type="button" id="csv-owed">Download (CSV)</button>
+    </div>
+    <p class="muted">Money still to come on running instalment plans (active, late or paused), whatever the period above.</p>
+    <div id="owed" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+  <section class="admin-card" aria-labelledby="backup-title">
+    <div class="admin-head">
+      <h2 id="backup-title">Monthly backups</h2>
+      <button data-tip="Write the monthly ledger files again now, replacing them (for example after typing exchange rates)" class="btn-ghost" type="button" id="backup-run">Back up now</button>
+    </div>
+    <p class="muted">A copy of the ledger per finished month (the same columns as “Download ledger”), kept in the site’s private file storage. The daily job adds each month once it is over. The database itself is also backed up by Neon.</p>
+    <div id="backups" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var esc = function (s) { return Admin.esc(s == null ? '' : String(s)); };
+  var money = Admin.money;
+  var form = document.getElementById('period-form');
+  var result = form.querySelector('.admin-form__result');
+  var current = null;
+  var RULES = { taxable: 'Taxable (과세)', zero: 'Zero-rated (영세)' };
+  var KINDS = { sale: 'Sale', instalment: 'Instalment', refund: 'Refund' };
+  function day(iso) { return iso ? Admin.kstParts(iso).date : '–'; }
+  function won(n) { return n == null ? '–' : money(n, 'KRW'); }
+  function table(head, rows, empty) {
+    if (!rows.length) return '<p class="admin-empty">' + empty + '</p>';
+    return '<table class="admin-table"><thead><tr>' + head.map(function (h) {
+      return '<th' + (h.charAt(0) === '#' ? ' class="num">' + h.slice(1) : '>' + h) + '</th>';
+    }).join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+  }
+  function td(v, numeric) { return '<td' + (numeric ? ' class="num"' : '') + '>' + v + '</td>'; }
+  function orderLink(id, number) { return '<a href="/admin/shop/orders?id=' + id + '">' + esc(number) + '</a>'; }
+
+  // ---- Period picker: ?period= in the address, the same keys as the API.
+  function keyOfForm() {
+    var f = form.elements, kind = f.kind.value;
+    if (kind === 'month') return f.month.value;
+    if (kind === 'quarter') return f.year.value + '-Q' + f.quarter.value;
+    if (kind === 'half') return f.year.value + '-H' + f.half.value;
+    if (kind === 'year') return f.year.value;
+    return f.from.value && f.to.value ? f.from.value + '..' + f.to.value : '';
+  }
+  function showFields() {
+    var kind = form.elements.kind.value;
+    form.querySelectorAll('[data-for]').forEach(function (l) { l.hidden = l.getAttribute('data-for').split(' ').indexOf(kind) < 0; });
+  }
+  function fillForm(p) {
+    var f = form.elements;
+    f.kind.value = p.kind;
+    f.year.value = p.from.slice(0, 4);
+    f.month.value = p.from.slice(0, 7);
+    f.quarter.value = String(Math.ceil(Number(p.from.slice(5, 7)) / 3));
+    f.half.value = Number(p.from.slice(5, 7)) <= 6 ? '1' : '2';
+    if (p.kind === 'dates') {
+      f.from.value = p.from;
+      var last = new Date(p.to + 'T00:00:00Z'); last.setUTCDate(last.getUTCDate() - 1);
+      f.to.value = last.toISOString().slice(0, 10);
+    }
+    showFields();
+  }
+  form.elements.kind.addEventListener('change', showFields);
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var key = keyOfForm();
+    if (!key) { Admin.say(result, 'Choose the period first.', true); return; }
+    load(key, true);
+  });
+
+  // ---- Sales by period
+  function block(t, cur) {
+    return [['Received (승인)', t.approved], ['Refunded (취소)', t.cancelled], ['Net (합계)', t.net]].map(function (row, i) {
+      return '<tr>' + (i === 0 ? '<td rowspan="3">' + cur + '</td>' : '') + td(row[0]) + td(row[1].count, 1) + td(money(row[1].amount, cur), 1) + td(money(row[1].supply, cur), 1) + td(money(row[1].vat, cur), 1) + '</tr>';
+    }).join('');
+  }
+  function grouped(rows, label) {
+    return table(['Currency', label, '#Received', '#Refunded', '#Net', '#Supply', '#VAT', '#Lines'], rows.map(function (g) {
+      return '<tr>' + td(g.currency) + td(esc(g.channel || RULES[g.vat_rule] || g.vat_rule)) + td(money(g.approved.amount, g.currency), 1) + td(money(g.cancelled.amount, g.currency), 1) +
+        td('<b>' + money(g.net.amount, g.currency) + '</b>', 1) + td(money(g.net.supply, g.currency), 1) + td(money(g.net.vat, g.currency), 1) + td(g.net.count, 1) + '</tr>';
+    }), '');
+  }
+  function renderSales(s) {
+    var curs = Object.keys(s.totals);
+    if (!curs.length) { document.getElementById('sales').innerHTML = '<p class="admin-empty">No payment or refund in this period.</p>'; return; }
+    var w = s.won, html = '';
+    html += '<table class="admin-table"><thead><tr><th>Currency</th><th></th><th class="num">Count</th><th class="num">Amount</th><th class="num">Supply</th><th class="num">VAT</th></tr></thead><tbody>' +
+      curs.map(function (c) { return block(s.totals[c], c); }).join('') + '</tbody></table>';
+    html += '<p class="admin-h3">In won, all currencies</p><dl class="stats">' +
+      '<div><dt>Net amount</dt><dd>' + won(w.amount) + '</dd></div><div><dt>Supply</dt><dd>' + won(w.supply) + '</dd></div><div><dt>VAT</dt><dd>' + won(w.vat) + '</dd></div></dl>' +
+      (w.usd_lines ? (w.complete ? '<p class="small muted">USD lines counted at their exchange rate.</p>'
+        : '<p class="small"><span class="status status--bad">' + w.missing_rate + '</span> USD line(s) have no exchange rate yet, so the won totals leave them out. Add the rates below.</p>') : '');
+    html += '<p class="admin-h3">By payment channel</p>' + grouped(s.byChannel, 'Channel');
+    html += '<p class="admin-h3">By VAT rule</p>' + grouped(s.byRule, 'VAT rule');
+    var fees = Object.keys(s.fees).filter(function (c) { return s.fees[c].known; });
+    if (fees.length) {
+      html += '<p class="admin-h3">Provider fees</p>' + table(['Currency', '#Net amount', '#Fees', '#Received after fees'], fees.map(function (c) {
+        var f = s.fees[c];
+        return '<tr>' + td(c) + td(money(f.amount, c), 1) + td(money(f.fee, c), 1) + td(money(f.net, c), 1) + '</tr>';
+      }), '');
+    }
+    document.getElementById('sales').innerHTML = html;
+  }
+
+  // ---- Exchange rates
+  function rateForm(attrs, button, tip) {
+    return '<form class="fx-form admin-actions"' + attrs + '>' +
+      '<input name="rate" inputmode="decimal" placeholder="1386.50" aria-label="Won per dollar" required>' +
+      '<input name="source" placeholder="Where it comes from" aria-label="Where the rate comes from" required>' +
+      '<button data-tip="' + tip + '" class="btn-sm" type="submit">' + button + '</button></form>';
+  }
+  function renderRates(missing) {
+    var card = document.getElementById('rates-card');
+    card.hidden = !missing.length;
+    document.getElementById('rates').innerHTML = table(['Seoul day', '#USD lines without a rate', 'Rate'], missing.map(function (m) {
+      return '<tr>' + td(m.date) + td(m.lines, 1) + td(rateForm(' data-date="' + m.date + '"', 'Save rate', 'Save this exchange rate for every USD line of ' + m.date + ' that has no rate yet')) + '</tr>';
+    }), '');
+  }
+
+  function renderUsd(rows) {
+    document.getElementById('usd').innerHTML = table(['Date', 'Order', 'Customer', 'Country', 'Kind', '#Amount', '#Fee', '#Received', 'VAT', '#Rate', '#Won value', ''], rows.map(function (l) {
+      var rate = l.fx_rate == null ? '<span class="muted">none</span>' : '<span title="' + esc(l.fx_source) + '">' + l.fx_rate + '</span>';
+      return '<tr>' + td(day(l.at)) + td(orderLink(l.order_id, l.number)) + td(esc(l.customer_name)) + td(esc(l.country)) + td(KINDS[l.kind] || l.kind) +
+        td(money(l.amount, 'USD'), 1) + td(money(l.fee, 'USD'), 1) + td(money(l.net, 'USD'), 1) + td(RULES[l.vat_rule] || l.vat_rule) + td(rate, 1) + td(won(l.amount_krw), 1) +
+        td('<details class="fx-line"><summary class="linkish">' + (l.fx_rate == null ? 'Set rate' : 'Change') + '</summary>' +
+          rateForm(' data-line="' + l.id + '"' + (l.fx_rate == null ? '' : ' data-replace="1"'), 'Save', 'Save this exchange rate for this line only') + '</details>') + '</tr>';
+    }), 'No USD payment or refund in this period.');
+  }
+
+  function renderProducts(rows) {
+    document.getElementById('products').innerHTML = table(['Product', 'Currency', '#Orders', '#Received', '#Refunded', '#Net', '#Supply', '#VAT'], rows.map(function (p) {
+      return '<tr>' + td(esc(p.product)) + td(p.currency) + td(p.orders, 1) + td(money(p.sales.amount, p.currency), 1) + td(money(p.refunds.amount, p.currency), 1) +
+        td('<b>' + money(p.net.amount, p.currency) + '</b>', 1) + td(money(p.net.supply, p.currency), 1) + td(money(p.net.vat, p.currency), 1) + '</tr>';
+    }), 'No sale in this period.');
+  }
+
+  function renderRefunds(rows) {
+    document.getElementById('refunds').innerHTML = table(['Refunded', 'Order', 'Customer', 'Product', '#Amount', '#Supply', '#VAT', 'Paid on', 'Reason'], rows.map(function (r) {
+      return '<tr>' + td(day(r.at)) + td(orderLink(r.order_id, r.number)) + td(esc(r.customer_name)) + td(esc(r.product_name)) + td(money(r.amount, r.currency), 1) +
+        td(money(r.supply, r.currency), 1) + td(money(r.vat, r.currency), 1) + td(day(r.refund_of_at)) + td(esc(r.reason)) + '</tr>';
+    }), 'No refund in this period.');
+  }
+
+  function renderCoupons(rows) {
+    document.getElementById('coupons').innerHTML = table(['Campaign', 'Currency', '#Orders', '#Discount given', '#Paid after discount'], rows.map(function (c) {
+      return '<tr>' + td(c.name ? esc(c.name) + ' <span class="small muted">' + esc(c.key) + '</span>' : '<span class="muted">Without a coupon (orders made by hand)</span>') + td(c.currency) + td(c.orders, 1) +
+        td(money(c.discount, c.currency), 1) + td(money(c.total, c.currency), 1) + '</tr>';
+    }), 'No discounted order paid in this period.');
+  }
+
+  function renderOwed(o) {
+    var curs = Object.keys(o.totals);
+    var html = curs.length ? '<dl class="stats">' + curs.map(function (c) {
+      var t = o.totals[c];
+      return '<div><dt>Still due, ' + c + ' (' + t.orders + ' plan' + (t.orders === 1 ? '' : 's') + ')</dt><dd>' + money(t.amount, c) + (t.late ? ' <span class="small muted">of which late ' + money(t.late, c) + '</span>' : '') + '</dd></div>';
+    }).join('') + '</dl>' : '';
+    html += table(['Due', 'Order', 'Customer', 'Product', 'Instalment', '#Amount', 'Status'], o.rows.map(function (r) {
+      var st = r.status === 'due' ? (r.plan_status === 'paused' ? '<span class="status status--info">Paused</span>' : 'Due')
+        : '<span class="status status--bad">' + (r.status === 'failed' ? 'Failed' : 'Late') + '</span>';
+      return '<tr>' + td(r.due_date) + td(orderLink(r.order_id, r.number)) + td(esc(r.customer_name)) + td(esc(r.product_name)) + td(r.instalment, 1) + td(money(r.amount, r.currency), 1) + td(st) + '</tr>';
+    }), 'No instalment plan is running.');
+    document.getElementById('owed').innerHTML = html;
+  }
+
+  function load(key, push) {
+    Admin.say(result, 'Loading…');
+    return Admin.get('shop-report', key ? { period: key } : {}).then(function (r) {
+      current = r.period;
+      Admin.say(result, '');
+      fillForm(r.period);
+      document.getElementById('period-label').textContent = '· ' + r.period.label;
+      if (push) history.replaceState(null, '', '?period=' + encodeURIComponent(r.period.key));
+      renderSales(r.summary);
+      renderRates(r.missing_rates);
+      renderUsd(r.foreign);
+      renderProducts(r.products);
+      renderRefunds(r.refunds);
+      renderCoupons(r.coupons);
+      renderOwed(r.outstanding);
+    }).catch(function (err) { Admin.say(result, err.message, true); });
+  }
+
+  // Exchange-rate forms (per day, or per line).
+  document.addEventListener('submit', function (e) {
+    var f = e.target.closest('.fx-form');
+    if (!f) return;
+    e.preventDefault();
+    var data = { rate: f.elements.rate.value, source: f.elements.source.value };
+    if (f.dataset.line) { data.line = f.dataset.line; data.replace = Boolean(f.dataset.replace); } else data.date = f.dataset.date;
+    var btn = f.querySelector('button');
+    btn.disabled = true;
+    Admin.post('shop-fx-set', data).then(function (r) {
+      Admin.say(result, r.updated + ' line(s) updated.');
+      return load(current.key);
+    }).catch(function (err) { btn.disabled = false; alert(err.message); });
+  });
+
+  function download(params, btn) {
+    btn.disabled = true;
+    Admin.get('shop-report-csv', params).then(function (r) {
+      var url = URL.createObjectURL(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }));
+      var a = document.createElement('a');
+      a.href = url; a.download = r.filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }).catch(function (err) { Admin.say(result, err.message, true); }).then(function () { btn.disabled = false; });
+  }
+  document.getElementById('csv-lines').addEventListener('click', function (e) { download({ file: 'lines', period: current ? current.key : '' }, e.currentTarget); });
+  document.getElementById('csv-owed').addEventListener('click', function (e) { download({ file: 'outstanding' }, e.currentTarget); });
+
+  function backups() {
+    return Admin.get('shop-backups').then(function (r) {
+      document.getElementById('backups').innerHTML = r.skipped ? '<p class="admin-empty">' + esc(r.skipped) + '</p>' :
+        table(['Month', '#Size', 'Saved', ''], r.files.map(function (f) {
+          return '<tr>' + td(esc(f.month)) + td(Admin.size(f.size), 1) + td(Admin.kst(f.uploaded_at)) + td('<a href="' + esc(f.url) + '" download="ledger-' + esc(f.month) + '.csv">Download</a>') + '</tr>';
+        }), 'No backup yet: the first one is written after the first month with a payment is over.');
+    }).catch(function (err) { document.getElementById('backups').innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+  }
+  document.getElementById('backup-run').addEventListener('click', function (e) {
+    var btn = e.currentTarget;
+    btn.disabled = true;
+    Admin.post('shop-backup-run', {}).then(function (r) {
+      Admin.say(result, r.skipped || ((r.written.length ? r.written.length + ' month(s) written' : 'Nothing to write') + (r.left ? ', ' + r.left + ' left: press again' : '') + '.'));
+      return backups();
+    }).catch(function (err) { Admin.say(result, err.message, true); }).then(function () { btn.disabled = false; });
+  });
+  backups();
+
+  load(new URLSearchParams(location.search).get('period') || '', false);
+})();
+</script>
+</body>
+</html>

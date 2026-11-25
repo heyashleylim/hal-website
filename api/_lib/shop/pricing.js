@@ -4,7 +4,7 @@
  * Unit-tested in tests/shop/pricing.test.js. Change the rules here and in the tests only.
  *
  * Money is a whole number in the currency's smallest unit: won for KRW, cents for USD.
- * Prices include VAT (10%). Coupons and referral discounts join in a later phase (quote() takes `discount`).
+ * Prices include VAT (10%). Coupons come in as quote()'s `discount`.
  */
 
 const CURRENCIES = ['KRW', 'USD'];
@@ -46,6 +46,25 @@ function instalmentPlan(product) {
   const { instalment_first: first, instalment_monthly: monthly, instalment_count: count } = product;
   if (first == null || monthly == null || count == null) return null;
   return { first, monthly, count, payments: count + 1, total: first + monthly * count };
+}
+
+/*
+ * An instalment plan with a discount (a coupon), Alex 2026-11-19: the plan's total goes down by the discount
+ * first, then the first payment and each monthly payment go down in the same proportion. The monthly amount is
+ * rounded to the unit and stays the same every month (CiderPay charges one fixed amount); the first payment takes
+ * the rounding, so the payments always add up to the new total exactly.
+ *   discountedPlan({ first: 930000, monthly: 930000, count: 2, … }, 279000) → first 837000, monthly 837000 (₩2,511,000)
+ * A discount that would leave a payment at zero or less is refused (discount_too_big).
+ */
+function discountedPlan(plan, discount = 0) {
+  if (!isAmount(discount)) throw new PricingError('bad_discount', 'discount must be a whole number, zero or more');
+  if (!discount) return { ...plan };
+  if (discount >= plan.total) throw new PricingError('discount_too_big', 'the discount is larger than the plan');
+  const total = plan.total - discount;
+  const monthly = Math.round((plan.monthly * total) / plan.total);
+  const first = total - monthly * plan.count;
+  if (monthly <= 0 || first <= 0) throw new PricingError('discount_too_big', 'the discount leaves an instalment at zero');
+  return { first, monthly, count: plan.count, payments: plan.payments, total };
 }
 
 // Is the product on sale at `now`? → { open, reason } with reason 'draft' | 'closed' | 'not_started' | 'ended'.
@@ -100,7 +119,8 @@ function options(product) {
  * `option` is the pricing option bought ({ key, label, tag }, or null for a product without options); the
  * product's item is then named "product · option".
  * `total` is everything the customer will pay; `dueToday` what is charged at checkout; `payments` lists each
- * charge in order (one entry for pay-in-full). A discount applies to the product, in pay-in-full only for now.
+ * charge in order (one entry for pay-in-full). A discount applies to the product; with the instalment plan it
+ * lowers the plan's total and every payment in proportion (discountedPlan).
  * `vatRule` is the product's; with add-ons under another rule, `groups` has one entry per rule.
  */
 function quote(product, { currency = 'KRW', plan = 'full', discount = 0, addons = [], option: optionKey = null } = {}) {
@@ -123,12 +143,12 @@ function quote(product, { currency = 'KRW', plan = 'full', discount = 0, addons 
   if (plan === 'instalment') {
     const p = currency === 'KRW' ? instalmentPlan(product) : null;
     if (!p) throw new PricingError('no_plan', currency === 'KRW' ? 'this product has no instalment plan' : 'instalments are only available in KRW');
-    if (discount) throw new PricingError('discount_plan', 'a discount cannot be combined with the instalment plan yet');
     if (addons.length) throw new PricingError('addon_plan', 'add-ons cannot be combined with the instalment plan yet');
+    const d = discountedPlan(p, discount);
     subtotal = p.total;
-    mainAmount = p.total;
-    payments = [{ number: 1, amount: p.first }];
-    for (let i = 1; i <= p.count; i++) payments.push({ number: i + 1, amount: p.monthly });
+    mainAmount = d.total;
+    payments = [{ number: 1, amount: d.first }];
+    for (let i = 1; i <= d.count; i++) payments.push({ number: i + 1, amount: d.monthly });
   } else {
     if (discount > price) throw new PricingError('discount_too_big', 'the discount is larger than the price');
     mainAmount = price - discount;
@@ -199,24 +219,34 @@ function daysInMonth(year, month) { // month 1–12
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
+// The day of the month CiderPay charges a plan started on `start` ('YYYY-MM-DD'): that day, capped at 30, and
+// 28 for a plan started on 29 February (the rule of the WooCommerce plugin, sent as periodDateVal).
+function billingDay(start) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(start));
+  if (!m) throw new PricingError('bad_schedule', 'not a date (YYYY-MM-DD)');
+  const month = Number(m[2]), day = Number(m[3]);
+  return month === 2 && day === 29 ? 28 : Math.min(day, 30);
+}
+
 /*
  * Due dates of an instalment plan that starts on `start` ('YYYY-MM-DD', Seoul date) with `payments` charges:
- * the first is due that day, then one per month on the same day of the month. CiderPay bills on a fixed day
- * of the month, so the day is capped at 30 (as the WooCommerce plugin did), and at the month's last day in
- * shorter months (30 Jan → 28 or 29 Feb → 30 Mar).
+ * the first is due that day, then one per month on the billing day (billingDay, or `day`), and on the month's
+ * last day in shorter months (30 Jan → 28 or 29 Feb → 30 Mar).
  */
-function schedule(start, payments) {
+function schedule(start, payments, chargeDay = null) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(start));
   if (!m || !Number.isInteger(payments) || payments < 1) throw new PricingError('bad_schedule', 'schedule needs a start date (YYYY-MM-DD) and a number of payments');
   const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
   if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) throw new PricingError('bad_schedule', 'not a real date');
-  const billingDay = Math.min(day, 30);
+  // `day`: the billing day agreed with CiderPay when it differs from the start's (a plan paid after midnight).
+  const day0 = chargeDay == null ? billingDay(start) : chargeDay;
+  if (!Number.isInteger(day0) || day0 < 1 || day0 > 30) throw new PricingError('bad_schedule', 'the billing day must be 1–30');
   const dates = [`${m[1]}-${m[2]}-${m[3]}`];
   for (let i = 1; i < payments; i++) {
     const index = month - 1 + i;
     const y = year + Math.floor(index / 12);
     const mo = (index % 12) + 1;
-    dates.push(`${y}-${pad(mo)}-${pad(Math.min(billingDay, daysInMonth(y, mo)))}`);
+    dates.push(`${y}-${pad(mo)}-${pad(Math.min(day0, daysInMonth(y, mo)))}`);
   }
   return dates;
 }
@@ -233,4 +263,4 @@ function formatMoney(amount, currency) {
   return `${sign}₩${abs.toLocaleString('en-US')}`;
 }
 
-module.exports = { CURRENCIES, VAT_RATE, PricingError, vatSplit, vatRule, vatGroups, instalmentPlan, saleState, priceOptions, optionOf, options, quote, addonChoices, priceIn, compareIn, schedule, formatMoney };
+module.exports = { CURRENCIES, VAT_RATE, PricingError, vatSplit, vatRule, vatGroups, instalmentPlan, discountedPlan, saleState, priceOptions, optionOf, options, quote, addonChoices, priceIn, compareIn, billingDay, schedule, formatMoney };

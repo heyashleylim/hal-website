@@ -341,3 +341,33 @@ ul.plain{list-style:none;margin:0;padding:0}
 .st-section>h2{font:700 22px/1.4 var(--font-head);margin:0 0 14px}
 .st-section>h2 .small{font-family:var(--font-body);font-weight:400}
 .admin-table .linkish{white-space:nowrap}
+
+/* Shop → Coupons */
+.check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px 16px;margin-top:6px}
+.admin-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;margin:20px 0}
+code.wrap{word-break:break-all;white-space:normal}
+/* Shop reports: exchange-rate forms inside tables */
+.fx-form{flex-wrap:wrap;gap:6px}
+.fx-form input{min-height:36px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);font:400 13px/1.4 var(--font-body)}
+.fx-form input[name=rate]{width:96px}
+.fx-form input[name=source]{width:180px}
+.fx-line[open] .fx-form{margin-top:8px}
+.report .admin-table td:first-child{white-space:nowrap}
+.fx-line summary{cursor:pointer}
+/* Shop: printable order / customer statement (/admin/shop/print) */
+.doc__head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:8px}
+.doc__head h1{margin:0}
+.doc__seller{margin:0;font-size:12px;line-height:1.6;color:var(--ink-2);word-break:keep-all}
+.doc__facts{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0}
+.doc__facts dt{font-weight:600;color:var(--ink-2)}
+.doc__facts dd{margin:0;word-break:break-all}
+.doc__foot{margin-top:32px}
+.doc tfoot th{text-align:right}
+@media print{
+  .admin-bar,.rail,.subnav,.skip,.no-print{display:none!important}
+  body.admin{background:var(--surface)}
+  .admin-main{margin:0!important;padding:0!important;max-width:none!important}
+  .doc .admin-table{font-size:11px}
+  .doc .admin-table th,.doc .admin-table td{padding:4px 6px}
+  .doc a{color:inherit;text-decoration:none}
+}

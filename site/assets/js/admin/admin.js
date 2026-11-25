@@ -33,7 +33,10 @@ window.Admin = (function () {
       { title: 'Manage', items: [
         ['/admin/shop/orders', 'Orders'],
         ['/admin/shop/products', 'Products'],
+        ['/admin/shop/coupons', 'Coupons'],
+        ['/admin/shop/referrals', 'Referrals'],
       ] },
+      { title: 'Records', items: [['/admin/shop/reports', 'Reports']] },
       { title: 'Setup', items: [['/admin/shop/settings', 'Settings']] },
     ] },
     { key: 'emails', label: 'Emails', icon: 'emails', home: '/admin/emails', groups: [

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Referrals · Shop · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="shop">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <div class="admin-head">
+    <h1>Referrals</h1>
+    <div class="admin-actions">
+      <button data-tip="Bring every referred order’s rewards up to date (new payments, refunds) and approve the ones past the refund window. The daily job does this every morning" class="btn-ghost" type="button" id="sweep">Update rewards now</button>
+    </div>
+  </div>
+  <p class="muted">Every customer with a paid order gets a personal link, <code>/r/&lt;code&gt;</code> (in their <a href="/my">내 주문</a> page and in ActiveCampaign as <code>REFERRAL_LINK</code>). A friend who opens it has the code remembered for 30 days; the checkout applies it like a coupon (it can also be typed). The referrer earns the product’s reward on the money received: <b>pending</b> for the refund window, then <b>approved</b>; a refund lowers or cancels it. <b>Rewards are not paid out yet</b>: cash or credit waits for the accountant’s answer (O2). Nobody can use their own code (same email or phone).</p>
+  <p class="admin-form__result" role="status" aria-live="polite" id="result"></p>
+
+  <section class="admin-card" aria-labelledby="program-title">
+    <div class="admin-head">
+      <h2 id="program-title">The friend’s discount</h2>
+      <span id="program-state"></span>
+    </div>
+    <p class="muted small">A coupon campaign of its own (tag key <code>referral</code>: a friend’s paid order adds <code>coupon_used_referral</code> in ActiveCampaign). One code per order: a friend uses a referral code or a coupon, never both. Until this is saved, nobody gets a code.</p>
+    <form id="program" class="admin-form" novalidate>
+      <label>Name <span class="hint">for you</span><input name="name" maxlength="100" value="Referral program" required></label>
+      <label>Discount
+        <select name="kind"><option value="percent">A percentage of the price</option><option value="amount">A fixed amount off</option></select>
+      </label>
+      <label data-kind="percent">Percentage off <span class="hint">1 to 99, rounded down</span><input name="percent" type="number" min="1" max="99" inputmode="numeric"></label>
+      <label data-kind="amount" hidden>Amount off in KRW <span class="hint">won</span><input name="amount_krw" inputmode="numeric" placeholder="50000"></label>
+      <label data-kind="amount" hidden>Amount off in USD <span class="hint">dollars</span><input name="amount_usd" inputmode="decimal" placeholder="40"></label>
+      <fieldset class="admin-form__wide">
+        <legend>Products <span class="hint">none ticked = every product</span></legend>
+        <div id="products" class="check-grid"></div>
+      </fieldset>
+      <label>Uses per friend <span class="hint">paid orders one email can make with a referral code</span><input name="per_person" type="number" min="1" max="100" value="1" inputmode="numeric"></label>
+      <label>Starts <span class="hint">optional, Seoul time</span><input name="starts_at" type="datetime-local"></label>
+      <label>Ends <span class="hint">optional, Seoul time</span><input name="ends_at" type="datetime-local"></label>
+      <label>Status <select name="status"><option value="active">Active</option><option value="disabled">Paused (no referral code works)</option></select></label>
+      <label class="admin-form__wide">Note <span class="hint">for you only</span><textarea name="note" rows="2" maxlength="1000"></textarea></label>
+      <div class="admin-form__actions">
+        <button data-tip="Save the friend’s discount. The first save starts the program: customers get their codes from their next payment, or with “Make codes”" class="btn-sm" type="submit">Save</button>
+      </div>
+      <p class="admin-form__result" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section class="admin-card" aria-labelledby="rewards-rule-title">
+    <h2 id="rewards-rule-title">The referrer’s reward, per product</h2>
+    <p class="muted small">Set on each product (Products → the product → Referral reward). A percentage is of each payment received (instalments: as they come in); a fixed amount is per order, shared over its payments. The rule is kept on each order when it is made.</p>
+    <div id="product-rewards" class="admin-scroll"></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="totals-title">
+    <h2 id="totals-title">Rewards so far</h2>
+    <div id="totals"></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="referrers-title">
+    <div class="admin-head">
+      <h2 id="referrers-title">Referrers</h2>
+      <div class="admin-actions">
+        <label class="sr-only" for="q">Find a referrer</label>
+        <input id="q" type="search" placeholder="Find a name, email or code" autocapitalize="none" spellcheck="false">
+        <button data-tip="Make a referral code (and its ActiveCampaign REFERRAL_LINK) for every customer with a paid order who has none yet" class="btn-ghost" type="button" id="make">Make codes</button>
+      </div>
+    </div>
+    <div id="referrers" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" aria-labelledby="list-title">
+    <h2 id="list-title">Rewards</h2>
+    <div id="rewards" class="admin-scroll" aria-live="polite"></div>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var data = null;
+  var form = document.getElementById('program'), out = form.querySelector('.admin-form__result'), result = document.getElementById('result');
+  var BADGE = { pending: 'badge--info', approved: 'badge--ok', cancelled: '', active: 'badge--ok', paused: 'badge--warn', banned: 'badge--warn' };
+  function esc(s) { return Admin.esc(s == null ? '' : String(s)); }
+  function dollars(c) { return c == null ? '' : (c % 100 ? (c / 100).toFixed(2) : String(c / 100)); }
+  function local(iso) { if (!iso) return ''; var k = Admin.kstParts(iso); return k.date + 'T' + k.time; }
+  function day(iso) { return iso ? Admin.kstParts(iso).date : ''; }
+  function badge(s) { return '<span class="badge ' + (BADGE[s] || '') + '">' + esc(s) + '</span>'; }
+  function kind() {
+    var k = form.elements.kind.value;
+    form.querySelectorAll('[data-kind]').forEach(function (el) { el.hidden = el.getAttribute('data-kind') !== k; });
+  }
+  form.elements.kind.addEventListener('change', kind);
+
+  function load() {
+    return Admin.get('shop-referrals').then(function (r) { data = r; render(); })
+      .catch(function (err) { document.getElementById('referrers').innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+  }
+
+  function render() {
+    var p = data.program;
+    document.getElementById('program-state').innerHTML = p ? (p.status === 'active' ? '<span class="badge badge--ok">Running · ' + esc(p.value) + ' off</span>' : '<span class="badge badge--warn">Paused</span>') : '<span class="badge badge--warn">Not set up</span>';
+    var v = p || { kind: 'percent', per_person: 1, status: 'active', product_ids: [], name: 'Referral program' };
+    ['name', 'kind', 'percent', 'per_person', 'status', 'note'].forEach(function (k) { form.elements[k].value = v[k] == null ? '' : v[k]; });
+    form.elements.amount_krw.value = v.amount_krw == null ? '' : v.amount_krw;
+    form.elements.amount_usd.value = dollars(v.amount_usd);
+    form.elements.starts_at.value = local(v.starts_at);
+    form.elements.ends_at.value = local(v.ends_at);
+    kind();
+    var sellable = data.products.filter(function (x) { return !x.addon_only; });
+    document.getElementById('products').innerHTML = sellable.map(function (x) {
+      return '<label class="check-ac"><input type="checkbox" name="product_ids" value="' + x.id + '"' + (v.product_ids.indexOf(x.id) >= 0 ? ' checked' : '') + '><span>' + esc(x.name) + '</span></label>';
+    }).join('') || '<p class="muted small">No product yet.</p>';
+
+    document.getElementById('product-rewards').innerHTML = '<table class="admin-table"><thead><tr><th>Product</th><th>Status</th><th>Reward</th></tr></thead><tbody>' +
+      sellable.map(function (x) {
+        return '<tr><td><a href="/admin/shop/products">' + esc(x.name) + '</a></td><td>' + esc(x.status) + '</td><td>' + (x.reward ? esc(x.reward) : '<span class="muted">no reward</span>') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+
+    document.getElementById('totals').innerHTML = data.totals.length
+      ? '<table class="admin-table"><thead><tr><th>Status</th><th class="num">Rewards</th><th class="num">Amount</th></tr></thead><tbody>' + data.totals.map(function (t) { return '<tr><td>' + badge(t.status) + '</td><td class="num">' + t.count + '</td><td class="num"><b>' + esc(t.label) + '</b></td></tr>'; }).join('') + '</tbody></table>'
+      : '<p class="admin-empty">No reward yet.</p>';
+
+    var make = document.getElementById('make');
+    make.textContent = data.without_code ? 'Make codes (' + data.without_code + ')' : 'Make codes';
+    make.disabled = !p || !data.without_code;
+    referrers();
+
+    document.getElementById('rewards').innerHTML = data.rewards.length
+      ? '<table class="admin-table"><thead><tr><th>Earned</th><th>Referrer</th><th>Order</th><th class="num">Reward</th><th>Status</th><th>Approved / approves</th></tr></thead><tbody>' +
+        data.rewards.map(function (w) {
+          return '<tr><td>' + esc(day(w.created_at)) + '</td><td>' + esc(w.referrer_name) + '<br><span class="small muted">' + esc(w.referrer_email) + '</span></td>' +
+            '<td><a href="/admin/shop/orders?id=' + w.order_id + '">#' + esc(w.number) + '</a><br><span class="small muted">' + esc(w.product_name) + (w.instalment_no ? ' · instalment ' + w.instalment_no : '') + '</span></td>' +
+            '<td class="num">' + Admin.money(w.amount, w.currency) + (w.amount !== w.earned ? '<br><span class="small muted">was ' + Admin.money(w.earned, w.currency) + '</span>' : '') + '</td>' +
+            '<td>' + badge(w.status) + (w.note ? '<br><span class="small muted">' + esc(w.note) + '</span>' : '') + '</td>' +
+            '<td class="small">' + (w.status === 'approved' ? esc(day(w.approved_at)) : w.status === 'pending' ? 'from ' + esc(day(w.approve_after)) : '') + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '<p class="admin-empty">No reward yet.</p>';
+  }
+
+  function money(r, status) {
+    return ['KRW', 'USD'].map(function (c) { var n = r.rewards[c + ':' + status]; return n ? Admin.money(Number(n), c) : ''; }).filter(Boolean).join('<br>') || '<span class="muted">–</span>';
+  }
+
+  function referrers() {
+    var q = document.getElementById('q').value.trim().toLowerCase();
+    var list = data.referrers.filter(function (r) { return !q || [r.name, r.email, r.code].join(' ').toLowerCase().indexOf(q) >= 0; });
+    var el = document.getElementById('referrers');
+    if (!list.length) { el.innerHTML = '<p class="admin-empty">' + (data.referrers.length ? 'Nobody matches.' : 'No referrer yet.') + '</p>'; return; }
+    el.innerHTML = '<table class="admin-table"><thead><tr><th>Referrer</th><th>Code</th><th class="num">Visits</th><th class="num">Orders</th><th class="num">Pending</th><th class="num">Approved</th><th>Status</th></tr></thead><tbody>' +
+      list.map(function (r) {
+        return '<tr><td>' + esc(r.name) + '<br><span class="small muted">' + esc(r.email) + '</span></td>' +
+          '<td><code>' + esc(r.code || '–') + '</code>' + (r.link ? '<br><span class="small muted wrap">' + esc(r.link) + '</span>' : '') + '</td>' +
+          '<td class="num">' + r.clicks + '</td><td class="num">' + r.orders + '</td>' +
+          '<td class="num">' + money(r, 'pending') + '</td><td class="num">' + money(r, 'approved') + '</td>' +
+          '<td><label class="sr-only" for="st-' + r.id + '">Status of ' + esc(r.email) + '</label><select id="st-' + r.id + '" data-referrer="' + r.id + '">' +
+          ['active', 'paused', 'banned'].map(function (s) { return '<option value="' + s + '"' + (r.status === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') +
+          '</select>' + (r.note ? '<br><span class="small muted">' + esc(r.note) + '</span>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  document.getElementById('q').addEventListener('input', referrers);
+
+  document.getElementById('referrers').addEventListener('change', function (ev) {
+    var sel = ev.target.closest('select[data-referrer]');
+    if (!sel) return;
+    var note = sel.value === 'active' ? '' : (window.prompt('Why? (a note for you, optional)') || '');
+    Admin.post('shop-referrer-status', { id: Number(sel.getAttribute('data-referrer')), status: sel.value, note: note })
+      .then(function () { Admin.say(result, 'Saved: the code ' + (sel.value === 'active' ? 'works again.' : 'no longer works.')); return load(); })
+      .catch(function (err) { Admin.say(result, err.message, true); });
+  });
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var body = {}, submit = form.querySelector('[type=submit]');
+    ['name', 'kind', 'percent', 'amount_krw', 'amount_usd', 'per_person', 'starts_at', 'ends_at', 'status', 'note'].forEach(function (k) { body[k] = form.elements[k].value; });
+    body.amount_krw = body.amount_krw.replace(/[,\s₩]/g, '');
+    body.amount_usd = body.amount_usd.replace(/[\s$]/g, '');
+    body.product_ids = Array.prototype.filter.call(form.querySelectorAll('input[name="product_ids"]'), function (x) { return x.checked; }).map(function (x) { return Number(x.value); });
+    submit.disabled = true;
+    Admin.say(out, 'Saving…');
+    Admin.post('shop-referral-program-save', body).then(function () { Admin.say(out, 'Saved.'); return load(); })
+      .catch(function (err) { Admin.say(out, err.message, true); })
+      .then(function () { submit.disabled = false; });
+  });
+
+  document.getElementById('make').addEventListener('click', function () {
+    var b = this;
+    b.disabled = true;
+    Admin.say(result, 'Making codes…');
+    Admin.post('shop-referrals-create-links', {}).then(function (r) {
+      Admin.say(result, r.made + ' code' + (r.made === 1 ? '' : 's') + ' made' + (r.left ? '; ' + r.left + ' left: press again' : '') + '.');
+      return load();
+    }).catch(function (err) { Admin.say(result, err.message, true); b.disabled = false; });
+  });
+
+  document.getElementById('sweep').addEventListener('click', function () {
+    var b = this;
+    b.disabled = true;
+    Admin.say(result, 'Updating…');
+    Admin.post('shop-referrals-sweep', {}).then(function (r) {
+      Admin.say(result, r.orders + ' referred order' + (r.orders === 1 ? '' : 's') + ' checked: ' + r.added + ' new reward' + (r.added === 1 ? '' : 's') + ', ' + r.changed + ' changed by a refund, ' + r.approved + ' approved.');
+      return load();
+    }).catch(function (err) { Admin.say(result, err.message, true); }).then(function () { b.disabled = false; });
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>

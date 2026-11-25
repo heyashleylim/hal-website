@@ -20,15 +20,17 @@ async function send(text, { fetchImpl = fetch, env = process.env } = {}) {
 }
 
 // The message sent for a payment received (same spirit as the WooCommerce one). Add-ons are listed after the product.
-function paidText(order, method, items = []) {
+// `amount`: what was paid (default: what the order charges at checkout); `suffix`: e.g. " — instalment 2 of 3".
+function paidText(order, method, items = [], { amount = null, suffix = '' } = {}) {
   const name = (order.billing || {}).name || '';
   const extras = (items || []).filter((i) => i.kind === 'addon').map((i) => ` + ${i.name}`).join('');
-  return `You've got MONEY!\nYAY!! Paid ${pricing.formatMoney(order.due_today, order.currency)} 🎉${method ? ` (${method})` : ''}\n${name} - ${order.product_name}${order.price_option && order.price_option.label ? ` · ${order.price_option.label}` : ''}${extras} [${order.number}]`;
+  const plan = !suffix && order.plan === 'instalment' && order.plan_terms ? ` — instalment 1 of ${order.plan_terms.count + 1}` : '';
+  return `You've got MONEY!\nYAY!! Paid ${pricing.formatMoney(amount == null ? order.due_today : amount, order.currency)} 🎉${method ? ` (${method})` : ''}\n${name} - ${order.product_name}${order.price_option && order.price_option.label ? ` · ${order.price_option.label}` : ''}${extras} [${order.number}]${suffix || plan}`;
 }
 
-async function paid(order, method, settings, opts, items = []) {
+async function paid(order, method, settings, opts, items = [], extra = {}) {
   if (settings && settings.notifications && settings.notifications.paid === false) return 0;
-  return send(paidText(order, method, items), opts);
+  return send(paidText(order, method, items, extra), opts);
 }
 
 // Something a person must look at: a notice we refused, a second payment for one order, a refund made at the provider…

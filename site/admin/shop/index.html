@@ -50,7 +50,7 @@
       '<div><dt>Paid, last 30 days</dt><dd>' + o.orders.paid_30d + '</dd></div>';
 
     var a = o.attention, items = [
-      [a.instalments, 'instalment(s) failed or overdue', 'No failed or overdue instalment'],
+      [a.instalments, 'instalment(s) failed or overdue', 'No failed or overdue instalment', '/admin/shop/orders?plan=attention'],
       [a.refunds, 'refund(s) requested and not yet confirmed by the payment provider', 'No refund waiting for confirmation'],
       [a.unpaid, 'order(s) started more than an hour ago and still unpaid', 'No unpaid order waiting'],
       [a.ac_missing, 'paid order(s) never sent to ActiveCampaign: the buyer has no purchase tag yet. The daily job fixes it; to do it now, open the order', 'Every paid order was sent to ActiveCampaign'],
@@ -58,7 +58,7 @@
       [a.ac_failed, 'ActiveCampaign update(s) failed after 8 tries (open the order, then “Send to ActiveCampaign now”)', a.ac_pending ? a.ac_pending + ' ActiveCampaign update(s) waiting to be sent' : 'ActiveCampaign is up to date'],
     ];
     document.getElementById('attention').innerHTML = items.map(function (i) {
-      return '<li><span class="status ' + (i[0] ? 'status--bad">' + i[0] : 'status--ok">OK') + '</span><span>' + (i[0] ? i[1] + ' — <a href="/admin/shop/orders">see orders</a>' : i[2]) + '</span></li>';
+      return '<li><span class="status ' + (i[0] ? 'status--bad">' + i[0] : 'status--ok">OK') + '</span><span>' + (i[0] ? i[1] + ' — <a href="' + (i[3] || '/admin/shop/orders') + '">see orders</a>' : i[2]) + '</span></li>';
     }).join('');
 
     var currencies = Object.keys(o.last30days);

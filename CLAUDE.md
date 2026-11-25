@@ -23,7 +23,7 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), program reviews (016), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options, 016 refunds, 017 coupons, 018–019 instalment plans), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), program reviews (016_program_reviews), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
@@ -207,7 +207,8 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch. 
   per hour per network, `learn_requests`), then an HttpOnly cookie `hal_learn` for 30 days from the last visit (Alex,
   2026-11-15). Only hashes are stored (`learn_codes`, `learn_sessions`). `/learn/start/<token>` also signs in.
   **Who gets a code** (Alex, 2026-11-15): purchasers (an ActiveCampaign tag starting with `purchased`, looked up only for
-  emails not enrolled here; a purchaser without a row gets one) and students enrolled in a cohort. Revoked students never.
+  emails not enrolled here; a purchaser without a row gets one), students enrolled in a cohort, and shop customers with a
+  paid order (for `/my`, 2026-11-21). Revoked students never.
   The page never says whether an email qualifies. A revoked student is signed out at once.
 - First sign-in ever → `/learn?welcome=1`: a card explaining how to save the student area on the home screen (phones and
   tablets only; `site/learn.webmanifest`, icons in `assets/img/app/`). `/learn/help` = the help page (no sign-in needed).
@@ -227,13 +228,14 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch. 
 
 Plan, decisions and phases: `docs/commerce-plan.md` (phase table at the top; section 10 = the checkout as built and
 Alex's real-payment tests). Built on the `shop` branch. Phase 1 (products, orders, tax ledger) and phase 2 (checkout,
-pay in full) are built. The site's payment links still go to WordPress until go-live (phase 5).
+pay in full) are built; phase 3 has refunds, coupons, orders made by hand and instalment plans (switched off until tested). The site's payment
+links still go to WordPress until go-live (phase 5).
 **This code takes real money: every change needs `npm test` and `npm run test:shop` to pass, and a browser check.**
 - Pages: `/checkout/<product>` and `/checkout/complete` (rewrites in `vercel.json` → `api/shop-page.js`), rendered on the
   server by `api/_lib/shop/page.js`, in Korean (`copy.ko.js` holds every customer-facing string), `noindex`, with GTM.
   `/checkout`, `/checkout/order-received/*` and `/checkout/order-pay/*` still redirect to WordPress; a product can't use
   those addresses or `complete`.
-- Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
+- Admin section `/admin/shop/` (Overview, `orders/`, `products/`, `coupons/`, `referrals/`, `reports/`, `settings/`); API modules `api/_lib/admin/shop-*.js`,
   actions prefixed `shop-`.
 - Money is a whole number in the smallest unit (won; cents for USD), VAT included. **Every amount is computed on the
   server by `api/_lib/shop/pricing.js`** (pure, unit-tested); the browser never sends an amount. Change price rules there
@@ -274,8 +276,75 @@ pay in full) are built. The site's payment links still go to WordPress until go-
   (`option_unavailable` otherwise). The order keeps `{ key, label, tag }` in `shop_orders.price_option`, its main item
   is named "product · option", and the option's tag is added in AC with the product's. Not with instalment plans yet:
   they join the same picker in phase 3.
-- Instalment plans are stored on products but not sold yet (`orders.INSTALMENTS_ENABLED`, phase 3). The refund window is
-  14 days; refunds are handled by hand until phase 3.
+- **Reports** (phase 4, plan section 15): `/admin/shop/reports`, read from `shop_ledger` only. Rules in
+  `api/_lib/shop/reports.js` (pure, tested), actions `shop-report`, `shop-report-csv`, `shop-fx-set` in
+  `api/_lib/admin/shop-reports.js`. Periods are Seoul dates. USD exchange rates are typed in the admin per Seoul day
+  or per line (no rate service); only the ledger's `fx_rate`, `fx_source`, `amount_krw` may change. CSVs are UTF-8
+  with a BOM for Korean Excel, formula-like text cells prefixed with an apostrophe. Printable order and customer
+  statement at `/admin/shop/print/` (`?order=`, `?customer=`). Monthly ledger CSVs in the private Blob store
+  (`api/_lib/shop/backup.js`, `shop-ledger/YYYY-MM.csv`, previews under `preview/`), written by the daily job.
+- **"내 주문" `/my`** (plan section 16): the customer's own orders, payments, CiderPay receipts and instalment plan, and
+  a "결제하기" button for a missed instalment (it makes that instalment's payment link, like the admin's). Same sign-in
+  and cookie as `/learn` (one login for both; shop buyers with a paid order get a code too). Routes in `api/learn.js`
+  (`/my`, `POST /my/pay`; rewrites in `vercel.json`), data in `api/_lib/shop/my.js`, page `api/_lib/shop/my-page.js`
+  + `pages/my.css`, strings in `copy.ko.js` (`my`). Private: noindex, no GTM / analytics, in robots.txt.
+- **Referrals** (plan section 17): `/r/<code>[/<product>]` remembers a referral code 30 days (cookie `hal_ref`); the
+  checkout applies it like a coupon. The friend's discount is the coupon campaign marked `referral` (key `referral`);
+  each customer's code is a coupon tied to them (`shop_coupons.referrer_id`). Rewards per product (`reward_*` on
+  `shop_products`), one per payment in `shop_rewards`: pending 14 days, then approved by the daily job; refunds lower
+  or cancel them. Rules in `api/_lib/shop/referrals.js` (tested), admin `/admin/shop/referrals`. **Rewards are not paid
+  out yet** (cash or credit waits for the accountant, O2).
+- **ActiveCampaign tags and fields** (plan 3.4, section 19): with every paid order `sync.customerOps` also writes
+  `ORDER_PAID_TOTAL`, `MY_ORDERS_LINK`, `CUSTOMER_TOTAL_SPENT`, `CUSTOMER_ORDER_COUNT` (and `referred_customer`); referral
+  tags `referrer`, `referral_sale`, `referral_reward_approved` (repeatable events: removed then added) and fields
+  `REFERRAL_CODE`, `REFERRAL_BALANCE`. Abandoned checkouts (`api/_lib/shop/abandoned.js`, daily job):
+  `checkout_abandoned_<product>` + `CHECKOUT_LINK`, **off by default** (Settings) until the privacy policy mentions it.
+  Not built yet: the CiderPay tax-doc check and the WooCommerce import.
+- **Instalment plans** (phase 3, `api/_lib/shop/instalments.js`, migration 018, plan section 14): KRW card only, through
+  CiderPay's 정기 결제 (`ciderpay.requestPlan`: first payment at once, then monthly on the billing day, ending 7 days after
+  the last date; `devID`/`devToken` headers = the member id and API token). **Sold only while Shop → Settings → "Sell
+  instalment plans" is ticked** (off until a real plan has been tested): then the checkout of a product with a plan offers
+  "결제 방식": 일시불 or 분할 결제, under the card only, in one page (Alex, 2026-11-20); `checkout.js` switches the order
+  in place (today / each month, no add-ons, coupon spread like `pricing.discountedPlan`); `?plan=instalment` preselects
+  it; without JavaScript `plan_changed` / `plan_card_only` post back once. The order carries its terms (`plan_terms`) and schedule (`shop_instalments`, dated again from the
+  first payment). Notices (`cmd`): agree (keeps `rp_token`), reject (cancels the unpaid order), completeRpPayment
+  (`turnSeq` 0 = instalment 1, through `flow.confirm`; later ones recorded with their tax line by `confirmInstalment`),
+  errorRpPayment (instalment failed, plan overdue, Slack + AC `instalment_failed_<product>` at once). The daily job flags
+  instalments whose date was yesterday or before with no notice (same alert), and ends agreements of completed/stopped plans at
+  CiderPay. A charge for an instalment already paid, or for a stopped/completed plan, is held (not recorded) with an
+  alert. Admin order page: pause / resume / stop (at CiderPay; stop can be forced after checking its dashboard), record
+  an instalment paid another way, or make a payment link for one instalment (`/checkout/pay/<token>?i=<n>`, 14 days;
+  paid by card on CiderPay's one-time page, var1 `<token>.<n>`, recorded by its notice like a charge; migration 019). A full refund stops the plan. AC: `instalment_active_`, `instalment_paid_<product>_<n>`,
+  `instalment_completed_`, `instalment_failed_`, `cancelled_<product>`; fields `INSTALMENT_NEXT_DATE`,
+  `INSTALMENT_NEXT_AMOUNT`, `INSTALMENT_REMAINING`. The refund window is 14 days.
+- **Refunds** (phase 3, `api/_lib/shop/refunds.js`, table `shop_refunds`, migration 016): on the admin order page, all or
+  part of a payment, with a reason. CiderPay: `/oapi/payment/cancel`, or `/cancelRequest` once settled (`requested`
+  until CiderPay's CANCEL notice). PayPal: `/v2/payments/captures/{id}/refund` (`custom_id` = `r<refund id>`; its
+  `PAYMENT.CAPTURE.REFUNDED` webhook confirms, or records a refund made inside PayPal). No answer from the provider →
+  `check`: a person says "It went through" / "It didn't". A cancel made in CiderPay's dashboard is flagged, then
+  recorded by hand ("Record a refund made at …"): its notice doesn't say how much. The amount is reserved on the order
+  first (`refund_pending`, one guarded UPDATE) and the database refuses refunds above what was paid. Once done, one
+  statement writes the refund payment (`refund_of`), its negative tax lines and the order's totals/status; then AC
+  (`refund_<product>` or `refund_partial_<product>`, `REFUND_AMOUNT`, `REFUND_DATE`; a full refund removes the purchase
+  tags), podcast access revoked on a full refund (`api/_lib/enrolments.js`, shared with the AC revoke webhook), Slack.
+- **Coupons** (phase 3, `api/_lib/shop/coupons.js`, migration 017, admin `/admin/shop/coupons/`): a campaign holds the
+  rule (1–99% rounded down, or a fixed amount per currency; products; dates; paid orders per email) and the AC tag key
+  (`coupon_issued_<key>`, `coupon_used_<key>`; can't change). Codes are shared (anyone, optional max uses) or personal
+  (one email, one use, `valid_days` from the day given, last day = Seoul date). A coupon lowers the product's own price
+  only (the option picked, never add-ons) and never to zero. On an instalment plan it comes off the plan's total, then every payment goes down in proportion (`pricing.discountedPlan`). The checkout's "쿠폰이 있으신가요?" box
+  has its own small GET form (`?coupon=` re-opens the page with it; checkout.js asks `/api/shop?action=coupon` instead);
+  the order form carries the applied code in a hidden `coupon`, checked again with the email by `flow.start`
+  (`coupons.forOrder`). An unpaid order under an hour old holds a limited code (not for the same email); a payment is
+  never refused because of a coupon. 20 unknown codes per network per hour → `too_many`. Personal codes: given in the
+  admin (emails, or everyone with an AC tag in the Contacts copy) or by AC's automation Webhook step
+  (`/api/shop-callback?p=ac-coupon&k=…&campaign=<key>`, address shown on the campaign); a person holding a working
+  code keeps it. AC gets `COUPON_CODE`, `COUPON_EXPIRES`, `COUPON_LINK` first, then the tag.
+- **Orders made by hand** (phase 3, `api/_lib/shop/manual.js`, admin Orders → "New order"; plan section 13):
+  `origin = 'manual'`, priced by `pricing.quote()` with an optional special price for the product (the difference is
+  the discount). Paid by a **payment link** `/checkout/pay/<token>` (14 days, `orders.LINK_DAYS`; no GTM on that page:
+  the token is in its address; card in won needs the customer's mobile), **already paid** (a `manual` payment on the
+  day received, with its tax line), or **free** (paid at 0, no payment, no tax line, AC tags still added). Any unpaid
+  order can be recorded as paid by hand or cancelled from its page. `pay` is a reserved product slug.
 - Env vars: `SHOP_SECRET` (never change once live), `CIDERPAY_*`, `PAYPAL_*`, `SLACK_WEBHOOK_*` (`.env.example`).
   Previews use the PayPal sandbox and need Vercel's "Protection Bypass for Automation" so providers can reach them.
 - The Kakao address search loads from `t1.kakaocdn.net` with no parameters (the script refuses any, with an alert).

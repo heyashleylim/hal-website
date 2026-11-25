@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Print · Shop · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="shop">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide report doc">
+  <div class="admin-head no-print">
+    <p class="muted" id="what">Loading…</p>
+    <div class="admin-actions">
+      <a data-tip="Back to the order in the Orders page" class="btn-ghost" id="back" href="/admin/shop/orders">Back</a>
+      <button data-tip="Print this page, or save it as a PDF from the print window" class="btn-sm" type="button" id="print">Print / PDF</button>
+    </div>
+  </div>
+  <p class="admin-form__result no-print" role="status" aria-live="polite" id="result"></p>
+  <article id="doc" aria-live="polite"></article>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var esc = function (s) { return Admin.esc(s == null ? '' : String(s)); };
+  var money = Admin.money;
+  var KINDS = { sale: 'Sale', instalment: 'Instalment', refund: 'Refund' };
+  var STATUS = { created: 'Started', awaiting_payment: 'Awaiting payment', paid: 'Paid', refund_requested: 'Refund requested', partially_refunded: 'Partly refunded', refunded: 'Refunded', expired: 'Expired', cancelled: 'Cancelled' };
+  var ORIGINS = { site: 'Checkout', manual: 'Made by hand in the admin', imported: 'Imported (WooCommerce)' };
+  var RULES = { taxable: 'Taxable (과세)', zero: 'Zero-rated (영세)' };
+  // The seller, exactly as in the site footer (site/index.html).
+  var SELLER = '<p class="doc__seller">주식회사 애슐리림<br>대표 : ASHLEY GAYOUNG LIM | 주소 : 서울 용산구 이촌로 72, 4층 124호 (이촌동)<br>사업자등록번호 : 708-81-01999 | 통신판매업신고 : 2024-서울용산-0378<br>TEL : 010-2071-5727 | 이메일 : hello@ashleylim.com</p>';
+  var params = new URLSearchParams(location.search);
+  var result = document.getElementById('result');
+  document.getElementById('print').addEventListener('click', function () { window.print(); });
+
+  function when(iso) { if (!iso) return '–'; var k = Admin.kstParts(iso); return k.date + ' ' + k.time; }
+  function dl(rows) {
+    return '<dl class="doc__facts">' + rows.filter(function (r) { return r[1] !== '' && r[1] != null; }).map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('') + '</dl>';
+  }
+  function table(head, rows, foot) {
+    if (!rows.length) return '<p class="admin-empty">None.</p>';
+    return '<table class="admin-table"><thead><tr>' + head.map(function (h) { return h.charAt(0) === '#' ? '<th class="num">' + h.slice(1) + '</th>' : '<th>' + h + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + rows.join('') + '</tbody>' + (foot ? '<tfoot>' + foot + '</tfoot>' : '') + '</table>';
+  }
+  function td(v, n) { return '<td' + (n ? ' class="num"' : '') + '>' + v + '</td>'; }
+  function ledgerRows(lines, withOrder) {
+    return lines.map(function (l) {
+      var refs = [l.provider_ref, l.approval_no ? 'approval ' + l.approval_no : ''].filter(Boolean).map(esc).join('<br>');
+      if (l.receipt_url && /^https:\/\//.test(l.receipt_url)) refs += (refs ? '<br>' : '') + '<a href="' + esc(l.receipt_url) + '" rel="noopener noreferrer" target="_blank">receipt</a>';
+      return '<tr>' + td(when(l.at)) + (withOrder ? td(esc(l.number) + '<br><span class="small muted">' + esc(l.product_name) + '</span>') : '') +
+        td((KINDS[l.kind] || l.kind) + (l.instalment_no ? ' ' + l.instalment_no : '')) + td(esc(l.method)) +
+        td(money(l.amount, l.currency), 1) + td(money(l.supply, l.currency), 1) + td(money(l.vat, l.currency), 1) + td(RULES[l.vat_rule] || l.vat_rule) +
+        (l.currency === 'USD' ? td(l.amount_krw == null ? '–' : money(l.amount_krw, 'KRW') + '<br><span class="small muted">@ ' + l.fx_rate + '</span>', 1) : td('', 1)) +
+        td(refs) + '</tr>';
+    });
+  }
+  var LEDGER_HEAD = ['Date (Seoul)', 'Kind', 'Method', '#Amount', '#Supply (공급가액)', '#VAT (부가세)', 'VAT rule', '#Won value', 'References'];
+  function totalsBlock(t) {
+    return Object.keys(t).map(function (c) {
+      var x = t[c];
+      return '<tr><th colspan="2">' + c + '</th><td class="num">Received ' + money(x.approved.amount, c) + '</td><td class="num">Refunded ' + money(x.cancelled.amount, c) + '</td><td class="num"><b>Net ' + money(x.net.amount, c) + '</b></td><td class="num">Supply ' + money(x.net.supply, c) + '</td><td class="num">VAT ' + money(x.net.vat, c) + '</td></tr>';
+    }).join('');
+  }
+
+  function order(id) {
+    return Admin.get('shop-order', { id: id }).then(function (r) {
+      var o = r.order, cur = o.currency;
+      document.getElementById('what').textContent = 'Order #' + o.number + ' — a supporting document for the records';
+      document.getElementById('back').href = '/admin/shop/orders?id=' + o.id;
+      document.title = 'Order ' + o.number + ' · Shop · Admin';
+      var addr = [o.postcode, o.address1, o.address2].filter(Boolean).join(' ');
+      var html = '<header class="doc__head"><h1>Order #' + esc(o.number) + '</h1>' + SELLER + '</header>';
+      html += '<div class="admin-cols">' +
+        '<section><h2 class="admin-h3">Customer</h2>' + dl([['Name', esc(o.customer_name)], ['Email', esc(o.email)], ['Phone', esc(o.phone)], ['Country', esc(o.country)], ['Address', esc(addr)]]) + '</section>' +
+        '<section><h2 class="admin-h3">Order</h2>' + dl([['Placed', when(o.created_at)], ['Paid', when(o.paid_at)], ['Status', STATUS[o.status] || esc(o.status)], ['Payment', o.plan === 'instalment' ? 'Instalment plan' : 'In full'], ['Coupon', esc(o.coupon_code || '')], ['Origin', ORIGINS[o.origin] || esc(o.origin)]]) + '</section></div>';
+      html += '<h2 class="admin-h3">Items</h2>' + table(['Item', 'VAT rule', '#Amount'], r.items.map(function (i) {
+        return '<tr>' + td(esc(i.name)) + td(RULES[i.vat_rule] || i.vat_rule) + td(money(i.amount, cur), 1) + '</tr>';
+      }), (o.discount ? '<tr><th colspan="2">Price before discount</th><td class="num">' + money(o.subtotal, cur) + '</td></tr><tr><th colspan="2">Discount</th><td class="num">-' + money(o.discount, cur) + '</td></tr>' : '') +
+        '<tr><th colspan="2">Total (VAT included)</th><td class="num"><b>' + money(o.total, cur) + '</b></td></tr>' +
+        '<tr><th colspan="2">Paid</th><td class="num">' + money(o.paid_total, cur) + '</td></tr>' +
+        (o.refunded_total ? '<tr><th colspan="2">Refunded</th><td class="num">-' + money(o.refunded_total, cur) + '</td></tr>' : ''));
+      if (r.instalments.length) {
+        html += '<h2 class="admin-h3">Instalments</h2>' + table(['#', 'Due (Seoul)', '#Amount', 'Status'], r.instalments.map(function (i) {
+          return '<tr>' + td(i.number) + td(i.due_date) + td(money(i.amount, cur), 1) + td(esc(i.status)) + '</tr>';
+        }));
+      }
+      html += '<h2 class="admin-h3">Tax record (ledger)</h2>' + table(LEDGER_HEAD, ledgerRows(r.ledger.map(function (l) {
+        var p = r.payments.find(function (x) { return x.id === l.payment_id; }) || {};
+        return Object.assign({ provider_ref: p.provider_ref, approval_no: p.approval_no, receipt_url: p.receipt_url, instalment_no: p.instalment_no }, l);
+      }), false));
+      var refunds = r.refunds.filter(function (x) { return x.status === 'done'; });
+      if (refunds.length) {
+        html += '<h2 class="admin-h3">Refunds</h2>' + table(['Date (Seoul)', '#Amount', 'Reason'], refunds.map(function (x) {
+          return '<tr>' + td(when(x.done_at || x.created_at)) + td(money(x.amount, x.currency), 1) + td(esc(x.reason)) + '</tr>';
+        }));
+      }
+      html += '<p class="small muted doc__foot">Printed ' + when(new Date().toISOString()) + ' (Seoul). Card receipts are issued by CiderPay; the links above open them.</p>';
+      document.getElementById('doc').innerHTML = html;
+    });
+  }
+
+  function customer(email) {
+    return Admin.get('shop-customer-statement', { email: email }).then(function (r) {
+      var c = r.customer;
+      document.getElementById('what').textContent = 'Statement for ' + c.email + ' — every order and payment';
+      document.title = 'Statement ' + c.email + ' · Shop · Admin';
+      var html = '<header class="doc__head"><h1>Customer statement</h1>' + SELLER + '</header>';
+      html += dl([['Name', esc(c.name)], ['Email', esc(c.email)], ['Phone', esc(c.phone)], ['Address', esc([c.postcode, c.address1, c.address2].filter(Boolean).join(' '))], ['Customer since', when(c.created_at)]]);
+      html += '<h2 class="admin-h3">Orders</h2>' + table(['Order', 'Placed', 'Product', 'Payment', '#Total', '#Paid', '#Refunded', 'Status'], r.orders.map(function (o) {
+        return '<tr>' + td('<a href="/admin/shop/print/?order=' + o.id + '">' + esc(o.number) + '</a>') + td(when(o.created_at)) + td(esc(o.product_name) + (o.option ? ' · ' + esc(o.option) : '')) +
+          td(o.plan === 'instalment' ? 'Instalments' : 'In full') + td(money(o.total, o.currency), 1) + td(money(o.paid_total, o.currency), 1) + td(money(o.refunded_total, o.currency), 1) + td(STATUS[o.status] || esc(o.status)) + '</tr>';
+      }));
+      html += '<h2 class="admin-h3">Payments and refunds (ledger)</h2>' + table(['Date (Seoul)', 'Order'].concat(LEDGER_HEAD.slice(1)), ledgerRows(r.lines, true));
+      if (Object.keys(r.totals).length) html += '<h2 class="admin-h3">Totals</h2><table class="admin-table"><tbody>' + totalsBlock(r.totals) + '</tbody></table>';
+      html += '<p class="small muted doc__foot">Printed ' + when(new Date().toISOString()) + ' (Seoul).</p>';
+      document.getElementById('doc').innerHTML = html;
+    });
+  }
+
+  var job = params.get('order') ? order(params.get('order')) : params.get('customer') ? customer(params.get('customer')) : Promise.reject(new Error('Open this page from an order (Print) or a customer (Statement).'));
+  job.catch(function (err) { document.getElementById('what').textContent = ''; Admin.say(result, err.message, true); });
+})();
+</script>
+</body>
+</html>

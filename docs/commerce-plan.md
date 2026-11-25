@@ -22,10 +22,10 @@ settings and product screenshots, and CiderPay's API documentation (http://uddoc
 | **0. Inventory** | WordPress exports, the list of what tags AC today, PayPal app + sandbox, accountant's answers. | The open points of section 8 that block a phase are cleared. |
 | **1. Foundations** ✅ 2026-11-10 | Migration `005`, pricing + ledger modules with tests, Shop admin: Products, Orders (read), Settings. | A product can be created in the admin and quoted by the API. |
 | **2. Checkout, pay in full** (built 2026-11-11, section 10) | Checkout page, Kakao search, CiderPay pay-in-full, PayPal, notices, thank-you page, Slack, AC sync for purchases, dataLayer. | A real ₩1,000 payment and a sandbox $ payment go through on a preview, end to end. **Still to do: Alex's tests in section 10.** |
-| **3. Instalments, refunds, coupons** | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
-| **4. Tax & reports + import** | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
+| **3. Instalments, refunds, coupons** (refunds, coupons and manual orders built 2026-11-19, sections 11–13; instalment plans built 2026-11-20, section 14, switched off until tested) | CiderPay recurring, schedule, failed-instalment alerts, automatic stop, one-click refunds with the full chain, shared and individual coupons with AC, manual orders. | The section 5 manual script passes. |
+| **4. Tax & reports + import** (reports built 2026-11-20, section 15; CiderPay check and import still to do) | Reports, CiderPay check, exports, WooCommerce import into the ledger. | Ashley can read a past quarter's figures in the admin and they match CiderPay. |
 | **5. Go live** | Section 6, steps 3–6. Vercel Pro. | No payment link points to WordPress. |
-| **6. Referrals + `/my`** | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
+| **6. Referrals + `/my`** (`/my` built 2026-11-21, section 16; referral links, discount and rewards built 2026-11-21, section 17; payouts wait for O2) | Referral links, friend discount and bonus, rewards, cash / credit, payouts, customer page. Then server-side conversions, abandoned-checkout tags, order bump. | A test referral earns, is approved after the window and shows in a payout list. |
 | **7. Bare domain, retire WordPress** | Section 6, steps 7–8. | Hosting cancelled. |
 
 ---
@@ -690,3 +690,417 @@ the daily schedule check).
    a USD price, open `/checkout/test?currency=usd`, pay with a sandbox buyer account.
 9. Tell Claude what happened at each step, especially anything unexpected on CiderPay's page (step 6 is the first
    time the new request format meets the real CiderPay).
+
+---
+
+## 11. Phase 3 as built: refunds (2026-11-19)
+
+| Piece | Where |
+|---|---|
+| Rules, provider calls, recording, what follows | `api/_lib/shop/refunds.js`; `pay/ciderpay.js` (`cancelPayment`), `pay/paypal.js` (`refundCapture`, `readRefund`) |
+| Database | `db/migrations/016_shop_refunds.sql`: `shop_refunds`, `shop_orders.refund_pending`, `shop_payments.refund_of` |
+| Admin | Order page → Refunds: amount + reason, "Refund through CiderPay / PayPal", "Record a refund made at …", and "It went through" / "It didn't" for a refund to check |
+| Notices | `api/shop-callback.js`: CiderPay `paymentState=CANCEL`, PayPal `PAYMENT.CAPTURE.REFUNDED` |
+| Podcast | `api/_lib/enrolments.js` (`revokeByTags`), shared with the AC revoke webhook |
+
+**How a refund goes**
+
+1. The admin types an amount (all or part of what's left) and a reason, and confirms.
+2. The amount is reserved on the order by one guarded UPDATE (paid − refunded − reserved must cover it), so two clicks
+   or two people can never send more back than was paid. The database also refuses it (`shop_orders_refund_fits`).
+3. The provider is called:
+   - CiderPay `/oapi/payment/cancel` (ALL for a whole untouched payment, PART with `cancelPrice` otherwise). If CiderPay
+     answers `CANCEL_REQ` (already settled), `/oapi/payment/cancelRequest` with the same fields: the refund waits
+     (`requested`, order "Refund requested") until CiderPay's CANCEL notice.
+   - PayPal `/v2/payments/captures/{capture}/refund` with `custom_id` = `r<refund id>` and the same as idempotency key.
+     PENDING waits for the `PAYMENT.CAPTURE.REFUNDED` webhook.
+   - Refused: nothing changes, the reservation is released, the admin sees CiderPay's or PayPal's reason.
+   - No answer (timeout, 5xx): `check`. The amount stays reserved, Slack says so, and a person checks the provider's
+     dashboard and presses "It went through" or "It didn't". A refund left "sending" by a stopped function becomes
+     `check` in the daily job.
+4. Done: one statement writes the refund payment, its negative tax lines (split by VAT rule like the sale; PayPal's
+   fee given back on the line) and the order's totals and status (`partially_refunded`, `refunded`), once.
+5. Then: ActiveCampaign (`refund_partial_<product>`, or on a full refund `refund_<product>` and every purchase tag of the
+   order removed: product, extra tags, add-ons, pricing option; fields `REFUND_AMOUNT`, `REFUND_DATE`), podcast access
+   revoked on a full refund (cohorts whose AC tag is one of those purchase tags), Slack, the activity log.
+
+**Refunds made at the provider**
+
+- **Inside PayPal**: its verified webhook is recorded as is (origin "made in PayPal"). One larger than what's left is
+  flagged, not recorded.
+- **In CiderPay's dashboard**: its CANCEL notice is flagged (Slack + the order's notices). It doesn't say how much
+  went back (the `price` it carries may be the original payment's), so a person uses "Record a refund made at
+  CiderPay" with the amount. A CANCEL notice whose `var1`/`var2` don't match the order is refused, as before.
+
+**Not testable without Alex**: CiderPay's real cancel answers (no test mode). Check during the ₩1,000 test (section 10,
+step 7, now done from the admin): refund it with "Refund through CiderPay", then check the order (Refunded, one
+refund payment, tax line −₩1,000), Slack, ActiveCampaign (`refund_…` tag added, `test_shop_purchase` removed),
+and that CiderPay's own CANCEL notice arrives as "duplicate" on the order. If CiderPay answers something
+unexpected, the refund ends as "failed" (nothing changed) or "check" (say what CiderPay's dashboard shows).
+
+**Open questions for CiderPay**: does `/oapi/payment/cancel` also send the CANCEL notice to our feedback address? What
+does a partial cancel's notice carry in `price` (the amount cancelled or the original)? If it is the amount cancelled,
+dashboard cancels could be recorded automatically.
+
+## 12. Phase 3 as built: coupons (2026-11-19)
+
+| Piece | Where |
+|---|---|
+| Rules (pure, unit-tested) and the database side | `api/_lib/shop/coupons.js`; tests `tests/shop/coupons.test.js` |
+| Database | `db/migrations/017_shop_coupons.sql`: `shop_coupon_campaigns`, `shop_coupons`, `shop_orders.coupon_id/coupon_code`, `shop_coupon_misses` |
+| Checkout | "쿠폰이 있으신가요?" above the order (`page.js` `couponBlock`), `?coupon=` in the link, `checkout.js` "적용", `/api/shop?action=coupon` |
+| Admin | Shop → Coupons: campaigns, shared codes, personal codes (emails or an AC tag), code states, CSV, the AC webhook address |
+| ActiveCampaign | `coupon_issued_<key>` + `COUPON_CODE`, `COUPON_EXPIRES`, `COUPON_LINK` (personal codes); `coupon_used_<key>` on a paid order |
+
+**Decisions taken while building (change them if Ashley wants otherwise)**
+
+- A coupon discounts the **product's own price** (the pricing option picked), never the add-ons. Add-ons are already
+  offers of their own.
+- **With an instalment plan** (Alex, 2026-11-19; priced already, sold once instalments are built): the discount is
+  worked out on the plan's total, the total goes down by it, then the first payment and each monthly payment go
+  down in the same proportion (`pricing.discountedPlan`). The monthly amount stays the same every month (CiderPay
+  charges one fixed amount); the first payment takes the rounding, so the payments add up to the new total.
+  Example: NSMB ₩930,000 + 2 × ₩930,000, 10% off → ₩837,000 × 3.
+- A percentage is **rounded down** to the won / cent; a discount that would leave nothing to pay is refused (no free
+  orders: CiderPay can't charge ₩0). 100% coupons don't exist.
+- A **use** is a paid order. An order still waiting for payment and under an hour old holds a limited code for
+  everyone else (so two people can't both pay with the last use); the same email starting again isn't blocked.
+  Refunded orders still count as uses (give the person a new code if needed).
+- The **per-person limit** belongs to the campaign (default 1 paid order per email, across all its codes).
+- A **personal code** works for its email only, once, for `valid_days` counting the day it is given, and never past
+  the campaign's end. Someone who already holds a working code of the campaign keeps it rather than getting a second.
+- Without JavaScript, "적용" re-opens the checkout with `?coupon=` (what was typed in the form is lost; with
+  JavaScript nothing is lost). Pressing Enter in the buyer's details still pays.
+- New Korean strings in `copy.ko.js` (`coupon`, the `coupon_*` errors, `problems.coupon` / `coupon_applied`,
+  `complete.coupon`): written in the checkout's 해요체; Ashley may want to reword them.
+
+**Setting up the AC automation that hands out codes**
+
+1. In the admin, create the campaign (Shop → Coupons → New campaign): discount, products, "Days a personal code works",
+   the checkout link.
+2. Create the contact fields `COUPON_CODE`, `COUPON_EXPIRES`, `COUPON_LINK` in ActiveCampaign (text fields).
+3. In the automation: a **Webhook** step posting to the address shown on the campaign, then **Wait until** the contact
+   has the tag `coupon_issued_<key>`, then the email using `%COUPON_CODE%`, `%COUPON_EXPIRES%` and `%COUPON_LINK%`.
+4. Optional: an automation on `coupon_used_<key>` to stop the reminders.
+
+**To test with Alex** (with the ₩1,000 test product of section 10): create a campaign "₩100 off" (fixed amount
+₩100, that product only) with a shared code, open `/checkout/<test product>?coupon=<code>`, check the page shows
+₩900, pay, then check the order (discount ₩100, coupon shown), its tax line (₩900), ActiveCampaign
+(`coupon_used_<key>`), and refund it from the admin (₩900 goes back).
+
+## 13. Phase 3 as built: orders made by hand (2026-11-19)
+
+Admin → Shop → Orders → **New order**. Code: `api/_lib/shop/manual.js` (rules), `api/_lib/admin/shop-manual.js`
+(actions `shop-manual-form`, `shop-manual-quote`, `shop-manual-create`, `shop-order-mark-paid`, `shop-order-cancel`),
+the payment link page `/checkout/pay/<token>` (`page.payPage`, `api/shop-page.js` view `pay`, button
+`POST /api/shop?action=pay`). No migration: `shop_orders.origin = 'manual'` and the `manual` payment provider were
+in the schema from phase 1. Tests: `tests/shop/manual.test.js`, e2e groups "Manual orders: …".
+
+**Three ways an order made by hand is paid**
+
+1. **Payment link.** The order is created unpaid and the admin copies its link (`/checkout/pay/<token>`) to send
+   (email, KakaoTalk…). The page shows the order (product, add-ons, discount, amount, method) and one button to the
+   card payment page (won, CiderPay) or PayPal (dollars). From there it is a normal payment: the provider's notice
+   records it, the thank-you page, AC tags, Slack. Pressing the button again (back from the payment page) asks for a
+   new payment page for the same order. The link works for **14 days** (`orders.LINK_DAYS`); then the daily job
+   expires the order (checkout orders still expire after a day). A paid link opens the thank-you page.
+2. **Already paid another way** (bank transfer, cash, card or PayPal outside the site, other): recorded at once as a
+   `manual` payment with the day it was received (noon Seoul time; never in the future) and an optional reference,
+   its tax ledger line(s) on that day, the AC tags and Slack. One payment by hand per order (`provider_ref
+   manual-<order id>`).
+3. **Free**: the order is paid at ₩0 / $0, with no payment and no tax line; the customer still gets the purchase tags
+   (access, onboarding emails). No Slack message. Not with add-ons.
+
+**Also on an unpaid order's page** (any order, from the checkout too): "Record as paid" (same as 2) and "Cancel order"
+(its link stops working; a payment that still arrives is recorded as usual).
+
+**Decisions taken while building (change them if Ashley wants otherwise)**
+
+- Amounts still come from `pricing.quote()`: the admin picks product, pricing option, add-ons and currency, and may
+  set a **special price for the product** (never above its price); add-ons keep their price. The difference is the
+  order's discount. No coupon on orders made by hand (the special price does that job).
+- A closed product can be sold by hand (a late joiner); a draft or an add-on-only product can't.
+- Pay in full only, like the checkout (instalments come with phase 3's instalment work).
+- A payment link in won needs the customer's mobile number (CiderPay's payment page uses it); in dollars it doesn't.
+- An existing customer keeps the details the admin leaves empty (the order copies them).
+- The link page has **no GTM and no analytics**: its address is the order's key (like the student pages). The
+  thank-you page after paying still has them, as for every purchase.
+- Refunds of a payment made by hand can only be **recorded** (give the money back yourself first).
+- New Korean strings in `copy.ko.js` (`payLink`): written in the checkout's 해요체; Ashley may want to reword them.
+
+**To test with Alex**: New order → the ₩1,000 test product, special price ₩900, "Send a payment link", Alex's email and
+mobile → copy the link, open it on a phone, pay ₩900 by card → the order is paid, with its tax line and AC tags. Then
+New order → same product, "Already paid another way" (bank transfer, today) → paid at once, tax line dated today.
+Refund both (the first through CiderPay, the second "Record a refund made by hand").
+
+## 14. Phase 3 as built: instalment plans (2026-11-20)
+
+Code: `api/_lib/shop/instalments.js` (the plan's life), `ciderpay.requestPlan / planAction / planNoticeProblem`
+(CiderPay's 정기 결제), `orders.planTerms / planRows` and `recordPayment` (the schedule), `api/_lib/admin/shop-plans.js`
+(actions `shop-plan-pause`, `shop-plan-resume`, `shop-plan-stop`, `shop-instalment-paid`), the instalment checkout in
+`page.checkoutPage` (the plan choice in the payment step) and `checkout.js`. Migration 018 (`plan_terms`, `rp_card`, `rp_closed_at` on orders;
+`alerted_at`, `note` on instalments; one payment per instalment). Tests: `tests/shop/instalments.test.js`, e2e groups
+"Instalments: …".
+
+**Where the CiderPay details come from.** CiderPay's documentation site (uddocs.net) stopped loading on 2026-11-20. The
+calls follow the documentation as read on 2026-11-10 (kept in that session's notes) and the WooCommerce plugin that
+sells NSMB instalments today (`woocommerce-gateway-ciderpay.php` v3.0.0): `POST /oapi/regularPay/request` with the
+`devID` / `devToken` headers (the plugin sends the member id and the same API token), the agreement page in the
+answer's `var1`; `turnSeq` 0 = the first charge; the plan ends 7 days after the last due date (`limitDateStr`). Not
+tested against the real CiderPay yet: **the switch stays off until Alex's test below passes.**
+
+**How it works**
+
+1. **Switch**: Shop → Settings → "Sell instalment plans" (off by default, per database: a preview can be switched on
+   alone). While off, nothing about plans shows on the checkout and an instalment order is refused; notices for plans
+   already running are still handled.
+2. **Checkout, one page** (Alex, 2026-11-20): for a product with a plan (first payment, monthly payment, number of
+   monthly payments, KRW), the payment step shows "결제 방식" under the card: **일시불** (the price) or **분할 결제**
+   ("오늘 ₩930,000 — 이후 매월 20일 ₩930,000씩 2회 · 총 ₩2,790,000"). Choosing 분할 결제 switches the order in place:
+   "오늘 결제" and "이후 매월 N일 · n회" lines, the total of the plan, the button "₩930,000 결제하기 →"; the add-ons are
+   put away (not with a plan). PayPal hides the choice and pays in full. A coupon comes off the plan's total and every
+   payment goes down in proportion (section 12), on the page at once. `?plan=instalment` opens the page with 분할 결제
+   already chosen (for a button on a sales page). Without JavaScript: the page shows the amounts of the plan it was made
+   with; another choice posts back once with its amounts (`plan_changed`), and 분할 결제 with PayPal says the plan is card
+   only (`plan_card_only`).
+3. **The order** stores its terms (`plan_terms` = first, monthly, count, billing day) and its schedule
+   (`shop_instalments`: 1 = paid at checkout, then one per month). The billing day is the day of the order, capped at 30
+   (28 for an order on 29 February), as the plugin sent it; the dates are set again from the day the first payment is
+   made.
+4. **CiderPay's agreement page** charges the first payment. Its notices:
+   - `agreeRegularPayment`: the plan's token (`rp_token`, to pause or end it) and the card's last 4 digits are kept.
+   - `rejectRegularPayment`: the unpaid order is cancelled.
+   - `completeRpPayment` `turnSeq` 0: the first payment, exactly like a payment in full (order paid, purchase tags,
+     Slack), plus `instalment_active_<product>` and the plan fields. Later turns: the payment and its tax line
+     (`kind = instalment`), the instalment marked paid (one statement), `instalment_paid_<product>_<n>`, Slack
+     "instalment 2 of 3". The last one: plan `completed`, `instalment_completed_<product>`, and the agreement is ended
+     at CiderPay (`destroyMp`; retried by the daily job if CiderPay doesn't answer).
+   - `errorRpPayment`: the instalment `failed` with CiderPay's message, the plan `overdue`, **Slack at once** (who,
+     which program, which instalment, amount, date, CiderPay's reason, link to the order) and
+     `instalment_failed_<product>` so an AC automation can email the customer. Once per instalment.
+   - Each notice must carry our token and signature (`var1`/`var2`, sent with every plan request), or, if CiderPay
+     leaves them out of a charge notice, the plan's own token learned from a checked agreement notice.
+5. **Silent failures**: a charge CiderPay reports as failed is alerted the moment its notice arrives (4). When CiderPay
+   says nothing at all, the daily job (09:10 Seoul time) flags any instalment of a running plan whose date was
+   **yesterday or before** as `overdue`, with the same alert and tag (Alex, 2026-11-20: know right away, not 2 days
+   later). Its own day is left alone, because CiderPay charges during that day. Once on Vercel Pro the job can run
+   hourly.
+6. **Paid after all** (CiderPay retries, or the admin records a bank transfer): `instalment_failed_` removed, the plan
+   back to `active`, Slack "Instalment received after all".
+7. **Money that shouldn't have come** (a second charge for an instalment already paid, a charge for a stopped or
+   completed plan): held, never recorded, Slack "refund it in CiderPay's dashboard if it is real" (like a second payment
+   of a paid order).
+
+**In the admin** (Shop → Orders → an instalment order → "Instalment plan"): terms, plan status, CiderPay agreement
+(card …1234, ended date), the schedule, and:
+- **Payment link** on an unpaid instalment (Alex, 2026-11-20, instead of a bank transfer): makes
+  `/checkout/pay/<order token>?i=<n>`, shown with "Copy link" and its last day (works **14 days**; "Renew link" starts
+  them again, same address). The customer sees which instalment ("3회 중 2회차"), its date and amount, and one button to
+  CiderPay's one-time card page for that amount. CiderPay's notice (var1 = `<order token>.<n>`, its own signature
+  binding the instalment and amount) records it exactly like a monthly charge: payment, tax line, instalment paid, plan
+  back to active, `instalment_failed_` removed, `instalment_paid_<product>_<n>`, Slack "received after all". If CiderPay's
+  own retry charges the same instalment later, that charge is held (not recorded) with an alert. The link stops working
+  once the instalment is paid (it opens the thank-you page), cancelled, or the plan stopped. Refundable like any
+  payment. Migration 019 (`shop_instalments.link_at`). Code: `instalments.makeLink / requestLinkPage /
+  fromLinkNotice`, `page.instalmentPayPage`, admin action `shop-instalment-link`.
+- **Record as paid** on an unpaid instalment: paid another way (bank transfer…), with the day received and a reference;
+  its own payment (`manual-<order>-i<n>`) and tax line.
+- **Pause / Resume** (at CiderPay too). While paused, passed dates aren't flagged; after resuming, the next morning's
+  check flags any instalment whose date passed. CiderPay's plan still ends on its original end date: instalments
+  pushed past it must be collected by hand.
+- **Stop plan**: ended at CiderPay, unpaid instalments cancelled, `cancelled_<product>`. If CiderPay refuses or doesn't
+  answer, nothing changes unless the admin confirms they checked CiderPay's dashboard ("stop it here anyway").
+- A **full refund** of the order stops the plan the same way (Slack if CiderPay couldn't end it).
+- Orders list: Plan filter ("Instalment plans", "Instalments failed or late"); the Overview's count links there.
+
+**Decisions taken while building (change them if Ashley wants otherwise)**
+
+- Instalments not with add-ons or pricing options (as before). The first payment can't be recorded by hand (there is
+  no card agreement without CiderPay's page).
+- AC tag numbers are the instalment's number: `instalment_paid_<product>_2` is the first monthly payment.
+- New Korean strings (`copy.plan`, `copy.complete.planNext`, `copy.payLink.instalment…`): "일시불 / 분할 결제" are the NSMB page's words, the rest is
+  new copy for Ashley to review.
+
+**To test with Alex (a preview with its own database, real card, ₩1,000 amounts)**
+
+1. Product: a test product at ₩3,000 with a plan of ₩1,000 first + ₩1,000 × 2 monthly. Settings → tick "Sell
+   instalment plans" (on that preview only).
+2. Open `/checkout/<product>`, choose 분할 결제, pay ₩1,000 on CiderPay's page. Check: order paid, plan active, card
+   …digits shown, schedule dated today / next month / the month after, Slack "instalment 1 of 3", AC tags.
+3. In CiderPay's dashboard, check the plan exists with the right day and end date. Then Admin → Pause, Resume (check
+   CiderPay shows each), and finally Stop (CiderPay shows it ended). Refund the ₩1,000.
+4. Optionally leave a second plan running a month to see the second charge arrive (`turnSeq` 1) and be recorded.
+5. Only then: tick the switch in production.
+
+
+---
+
+## 15. Phase 4 as built: reports (2026-11-20)
+
+`/admin/shop/reports` (Shop → Records → Reports). Everything is read from the tax ledger (`shop_ledger`), so the
+figures are the ones the business files. Rules in `api/_lib/shop/reports.js` (pure, `tests/shop/reports.test.js`);
+queries and actions in `api/_lib/admin/shop-reports.js`. No migration: the ledger already had the exchange-rate columns.
+
+- **Period**: month, quarter, half-year (부가세 1기 / 2기), year, or any two dates (both included), all on Seoul dates.
+  The address keeps it (`?period=2026-Q4`, `2026-H2`, `2026-11`, `2026`, `2026-11-01..2026-11-15`).
+- **Sales**: per currency, Received (승인) / Refunded (취소) / Net (합계) with count, amount, supply and VAT, the
+  layout of CiderPay's VAT document; then the same per payment channel (Card (CiderPay), PayPal, Recorded by hand,
+  Imported) and per VAT rule (과세 / 영세); provider fees and what was received after them; and the whole period in
+  won (USD lines at their exchange rate). While a USD line has no rate, the won total says how many are left out.
+- **Exchange rates**: a USD sale is declared in won at the rate of its day. No rate is fetched automatically (no new
+  outside service). The page lists the Seoul days whose USD lines have no rate; one rate + its source ("매매기준율",
+  as the accountant says) fills every line of that day without one. Each line can be corrected on its own ("Change",
+  replaces). The won value is recomputed exactly like `ledger.wonValue` (rounded to the won, a refund like its sale).
+  The ledger's trigger still refuses any other change. Every change is in the activity log with who made it.
+- **Foreign sales (USD, PayPal)**: per line, amount, PayPal fee, received, country, VAT rule, rate, won value.
+- **By product**: each order under its product (add-ons count with it), received / refunded / net.
+- **Refunds**: each refund line with the date of the payment it gave back and the reason typed in the admin.
+- **Coupons and discounts**: orders paid in the period with a discount, per campaign (special prices typed on a
+  manual order show as "without a coupon").
+- **Instalments still due (today)**: per currency, what running plans (active, late, paused) still owe, late ones
+  apart, with the list.
+- **CSV for Excel** (UTF-8 with a byte-order mark, so Korean opens correctly): "Download ledger" = one row per ledger
+  line of the period, with order, customer, product, channel, method, amounts in won / dollars (cents as decimals),
+  supply, VAT, VAT rule, fee, rate, won value, instalment, coupon, provider reference, approval number, receipt link,
+  refund date and reason. And the instalments still due. A text cell starting with `=`, `+`, `-` or `@` gets an
+  apostrophe so nothing a customer typed runs as a formula.
+
+**Added the same day**
+
+- **Printable order** (`/admin/shop/print/?order=<id>`, "Print" on an order): seller details as in the site footer,
+  customer, items, discount, total, paid, refunded, instalments, every tax line with its provider reference, approval
+  number and receipt link, and refunds with their reasons. "Print / PDF" uses the browser's print window (save as PDF).
+- **Customer statement** (`/admin/shop/print/?customer=<email>`, "Customer statement" on an order): every order and
+  ledger line of one customer, with totals per currency. Action `shop-customer-statement`.
+- **Monthly ledger backups** (`api/_lib/shop/backup.js`): one CSV per finished Seoul month in the private Blob store
+  (`shop-ledger/YYYY-MM.csv`; previews `preview/shop-ledger/`), same columns as "Download ledger". The daily job writes
+  each month once it is over; "Back up now" on Reports rewrites them all (after typing exchange rates). Listed on
+  Reports with one-hour download links. Not written off Vercel (local server, tests). Neon's point-in-time restore stays
+  the main backup.
+
+**Not built yet in phase 4**
+
+- **CiderPay check** (`GET /oapi/pv/payment/tax-doc`): the answer's shape isn't in the docs we saved and CiderPay's
+  documentation site is down (2026-11-20). Until then, compare the Sales totals with CiderPay's VAT figures by hand.
+- **WooCommerce import**: needs the WordPress exports (orders with instalment children and payment details,
+  customers, coupons). Imported payments get the channel "Imported (WooCommerce)", already handled by the reports.
+- O1 (accountant): which exchange rate and date for USD sales, and whether they stay taxable at 10%.
+
+---
+
+## 16. "내 주문" `/my` as built (2026-11-21)
+
+Code: `api/_lib/shop/my.js` (what a customer sees: `view`, `missed` pure; `forEmail`, `payLink`), `api/_lib/shop/my-page.js`
+(the page), `site/assets/css/pages/my.css`, routes in `api/learn.js`, strings in `copy.ko.js` (`my`). Tests:
+`tests/shop/my.test.js`, e2e group "Customer page /my".
+
+**Sign-in: the student area's, not a new one.** Section 3.9 planned an emailed link valid 15 minutes. The student area
+(`/learn`) already signs people in with a 6-digit code by email and a 30-day cookie (Alex, 2026-11-15), so `/my` uses
+exactly that: one sign-in for both pages, the same cookie, the same limits. A shop customer with a paid order now gets a
+code too, even before ActiveCampaign has their `purchased_` tag (a student row is made for them, with no programs, named
+from the order). `/my` signed out → `/learn/login?next=/my` → back to `/my` (without the "save to home screen" card).
+The student area's account card links to "내 주문 · 영수증"; `/my` links back to "내 강의실".
+
+**What it shows** (only the orders of the signed-in email; never anyone else's):
+- every order that was paid at some point (unpaid, expired or cancelled checkouts aren't listed), newest first: product
+  (and option), status (결제 완료 / 환불 진행 중 / 일부 환불 / 환불 완료), order number, date, 일시불 or 분할 결제 n회,
+  discount and coupon, total, paid, refunded, add-ons when there are some;
+- payments and refunds with dates and amounts, and CiderPay's card receipt link (PayPal emails its own receipt);
+- an instalment plan: its status, the next charge (date, amount, card's last 4 digits), the schedule, what is left.
+
+**A missed instalment** (failed at CiderPay, or flagged by the morning check), on a plan still running (not paused or
+stopped), in won: a card at the top with "₩930,000 결제하기". The button makes (or renews for 14 days) that instalment's
+payment link, exactly like the admin's "Payment link", and opens it: CiderPay's one-time card page, recorded like any
+instalment (section 14). The activity log says the customer made it. An instalment not due yet can't be paid early here.
+
+**Not in this step:** coupons owned by the customer and the referral block (phase 6, with referrals); a link to `/my` in
+ActiveCampaign emails (`MY_ORDERS_LINK`: the one-tap `/learn/start/<token>` link could take `?next=/my`, later); a
+customer whose student row is revoked (refunded program) can't sign in, so can't see `/my` either.
+
+New Korean strings (`copy.my`) are new copy for Ashley to review.
+
+---
+
+## 17. Phase 6 as built: referral links, the friend's discount and rewards (2026-11-21)
+
+Code: `api/_lib/shop/referrals.js` (rules, pure + database), `api/_lib/admin/shop-referrals.js` and
+`/admin/shop/referrals` (Shop → Manage → Referrals), the reward fields on Products, `/r/<code>` in `api/shop-page.js`,
+the referral block of `/my`. Migration 020. Tests: `tests/shop/referrals.test.js`, e2e groups "Referrals: …".
+
+**How it works**
+
+1. **The program** = the friend's discount, saved on the Referrals page: a coupon campaign of its own (tag key
+   `referral`, `shop_coupon_campaigns.referral`): percentage or fixed amount, products, dates, uses per friend
+   (default 1). Until it is saved, nobody gets a code. Paused = no referral code works.
+2. **Codes**: every customer with a paid order gets one (e.g. `K7MD-Q2XP`) at their next payment, when they open
+   `/my`, or with "Make codes" in the admin. It is a shared coupon code tied to them (`shop_coupons.referrer_id`), and
+   its link `https://www.ashleylim.com/r/<code>` goes to ActiveCampaign as `REFERRAL_LINK`.
+3. **The link**: `/r/<code>` (or `/r/<code>/<product>`, which opens that program's page) counts the visit per day and
+   remembers the code for 30 days in a first-party cookie (`hal_ref`). The checkout then applies it like a coupon
+   typed by the buyer. Last link opened wins. Where the program doesn't apply (another product), the page shows no
+   discount and no error. The code can also be typed in the coupon field.
+4. **The order**: the code's discount (one code per order: a referral or a coupon, never both); the order keeps its
+   referrer and the reward rule of the moment (`shop_orders.referrer_id`, `referral_reward`). Refused: the referrer's
+   own email or phone ("본인의 추천 코드는 사용할 수 없어요."), a paused or banned referrer's code, a second use by the
+   same friend. A friend's paid order adds `coupon_used_referral` in ActiveCampaign.
+5. **The reward**, set per product (Products → Referral reward): a percentage of the money received, or a fixed
+   amount per order (per currency). One reward per payment (`shop_rewards`): an instalment order earns as its
+   payments come in. **Pending** for 14 days after the payment, then **approved** by the daily job (not while a
+   refund is being asked for). A refund lowers the order's rewards in proportion to the money kept (newest first,
+   pending before approved); a full refund cancels them.
+6. **`/my`**: "친구 추천": the link (copy button), the code, visits, referred orders, pending and approved rewards.
+7. **Admin**: the friend's discount, each product's reward, totals by status, referrers (visits, orders, pending,
+   approved; pause / ban / reactivate), every reward with its order, "Make codes", "Update rewards now".
+
+**Not built yet (waits for O2, the accountant)**: paying approved rewards out, as a bank transfer (withholding tax,
+identification, the ₩50,000 threshold) or as credit spent at checkout (how it is shown for VAT). Approved rewards just
+add up until then. Also not built: per-referrer custom rates, ready-to-send KakaoTalk / Instagram messages (copy for
+Ashley), alerts on unusual patterns, rewards in the tax reports.
+
+**Decisions taken while building (change them if Ashley wants otherwise)**
+
+- One friend's discount for the whole program (one campaign), not one per product; rewards are per product.
+- The reward is on what the friend actually paid (after the friend's discount, add-ons included).
+- A refund after a reward was approved lowers the approved reward too (nothing is paid out yet, so nothing is lost).
+- Opening your own link and buying is refused at the order, not on the page (the page doesn't know who you are yet).
+- The program pages' buy buttons still go to WordPress until go-live (phase 5): until then a referral link only
+  leads to a discount when the friend reaches a checkout on this site (e.g. `/r/<code>/<product>` for a product whose
+  page links to `/checkout/<product>`).
+
+New Korean strings (`copy.my.ref…`, `errors.coupon_own`) are new copy for Ashley to review.
+
+**To test with Alex**: on a preview with the ₩1,000 test product, set a reward (10%) and the friend's discount
+(e.g. ₩100 off that product), sign in to `/my` with a customer email to see the link, open it in another browser,
+pay with another email and phone, then check the order (₩900, referrer shown), the reward in Referrals (₩90, pending),
+and refund the order (the reward is cancelled at the next update).
+
+---
+
+## 19. ActiveCampaign: the remaining tags and fields of 3.4 (2026-11-24)
+
+Code: `sync.customerOps` (fields and tags with every paid order), `api/_lib/shop/abandoned.js` (abandoned checkouts),
+`referrals.referrerOps / saleOps / approvedOps`. Tests: `tests/shop/ac-fields.test.js`, e2e groups "ActiveCampaign: …".
+Shop → Settings lists every contact field to create in ActiveCampaign (a field that doesn't exist is skipped, never
+blocking the tags).
+
+| When | Tags | Fields |
+|---|---|---|
+| Every paid order | (purchase tags as before) | `ORDER_PAID_TOTAL`, `MY_ORDERS_LINK` (`https://www.ashleylim.com/my`), `CUSTOMER_TOTAL_SPENT` (paid less refunded, every order, per currency: "₩2,910,000 + $219"), `CUSTOMER_ORDER_COUNT` |
+| Bought with a friend's referral code | `referred_customer` | |
+| Gets a referral code | `referrer` | `REFERRAL_LINK`, `REFERRAL_CODE` |
+| A friend paid with their code | `referral_sale` (removed, then added: the automation starts again for every friend) | |
+| A reward approved | `referral_reward_approved` (removed, then added) | `REFERRAL_BALANCE` (approved rewards, per currency) |
+| Abandoned checkout (see below) | `checkout_abandoned_<product>` | `CHECKOUT_LINK` (that product's checkout) |
+| Bought the product after abandoning it | `checkout_abandoned_<product>` removed | |
+
+**Abandoned checkouts** (Shop → Settings → "Tag abandoned checkouts", **off by default**): someone who submitted the
+checkout form (so their email is known) and didn't pay within an hour, on the site's checkout (not an order made in the
+admin), in the last 3 days, who hasn't bought that product since or in the 30 days before. Once per person and product
+per 30 days. The daily job tags them each morning (09:10 Seoul time), so the tag arrives the next morning; on Vercel Pro
+the job could run hourly. **Turn it on only once Ashley's privacy policy says abandoned checkouts may get a reminder.**
+An AC automation on `checkout_abandoned_<product>`: wait, then an email linking to `%CHECKOUT_LINK%`; end it when the
+tag is removed (they bought).
+
+Not done: `ORDER_PAID_TOTAL` is written at the purchase; for an instalment plan, `INSTALMENT_REMAINING` follows the
+payments. `referral_reward_paid` waits for payouts (O2).
+

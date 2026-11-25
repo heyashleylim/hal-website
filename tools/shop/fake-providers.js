@@ -11,6 +11,17 @@ function create({ base, memberId, apiToken }) {
   const cider = new Map();   // id → { body }
   const paypal = new Map();  // id → { body, status, declined }
   const sent = [];           // every notice the fakes sent: { provider, status, body }
+  // Refunds. `modes` sets how the next refund calls are answered (tests change it):
+  //   ciderpayCancel: 'ok' | 'settled' (cancel → CANCEL_REQ, then the cancel request is accepted) | 'refuse' | 'down' | 'hang'
+  //   paypalRefund:   'ok' | 'pending' | 'refuse' | 'down' | 'hang'
+  //   ciderpayPlan:   'ok' | 'refuse' | 'down'   (pause, resume and end of an instalment plan)
+  const modes = { ciderpayCancel: 'ok', paypalRefund: 'ok', ciderpayPlan: 'ok' };
+  const plans = new Map();    // plan request id → { body, rpToken, agreed }
+  const planCalls = [];       // every pause / resume / end call: { action, rpToken }
+  const refundCalls = [];    // every refund call received: { provider, path, body }
+  const ciderRefunded = new Map(); // rid → won refunded
+  const paypalRefunds = new Map(); // PayPal-Request-Id → refund answer (idempotency)
+  const hang = (res) => { setTimeout(() => res.destroy(), 50); };
   const id = (prefix) => prefix + crypto.randomBytes(5).toString('hex').toUpperCase();
   const html = (res, body) => { res.statusCode = 200; res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Fake provider</title><body style="font:16px/1.6 system-ui;max-width:520px;margin:40px auto;padding:0 20px">${body}`); };
   const send = (res, status, data) => { res.statusCode = status; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(data)); };
@@ -39,7 +50,85 @@ function create({ base, memberId, apiToken }) {
     return out;
   }
 
+  // ---------- CiderPay instalment plans (정기 결제) ----------
+  // A plan notice as CiderPay posts it (form-encoded): agreeRegularPayment / rejectRegularPayment to feedbackUrl,
+  // completeRpPayment / errorRpPayment to payFeedbackUrl. `turnSeq` 0 is the first payment.
+  function planFeedback(pid, cmd, { turnSeq = 0, amount = null, message = '잔액 부족', ...overrides } = {}) {
+    const p = plans.get(pid);
+    if (!p) throw new Error('unknown fake CiderPay plan ' + pid);
+    const b = p.body;
+    const common = { cmd, memberID: b.memberID, rpToken: p.rpToken, customerName: b.customName, customerMobile: b.customMobile };
+    if (cmd === 'agreeRegularPayment' || cmd === 'rejectRegularPayment') return { ...common, var1: b.var1, var2: b.var2, last4: '1234', ...overrides };
+    const price = String(amount == null ? (turnSeq === 0 ? b.firstPrice : b.price) : amount);
+    const out = { ...common, var1: b.payVar1, var2: b.payVar2, price, turnSeq: String(turnSeq), customerEmail: b.customEmail };
+    if (cmd === 'errorRpPayment') return { ...out, errorMessage: message, ...overrides };
+    // A charge: refundable like a one-time payment (its orderNo / feedbackToken work with the cancel calls).
+    const rid = id('R');
+    cider.set(rid, { body: { memberID: b.memberID, price: Number(price), goodName: b.goodName } });
+    return { ...out, paymentState: 'COMPLETE', orderNo: 'CP' + rid, feedbackToken: 'FT' + rid, approvalNo: '40012345', ccname: '국민카드', cardNum: '1234-****-****-1234', cardQuota: '00', csturl: 'https://example.com/receipt/' + rid, ...overrides };
+  }
+  async function notifyPlan(pid, cmd, opts = {}) {
+    const p = plans.get(pid);
+    const body = new URLSearchParams(planFeedback(pid, cmd, opts)).toString();
+    const to = opts.url || (cmd === 'agreeRegularPayment' || cmd === 'rejectRegularPayment' ? p.body.feedbackUrl : p.body.payFeedbackUrl);
+    const res = await fetch(to, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+    const out = { provider: 'ciderpay', status: res.status, body: await res.text() };
+    sent.push(out);
+    return out;
+  }
+  // The plan of an order (by its token, var1), for tests.
+  function planOf(token) {
+    for (const [pid, p] of plans) if (p.body.var1 === token) return { pid, ...p };
+    return null;
+  }
+
+  async function planRoutes(req, res, url, path) {
+    const devOk = req.headers.devid === memberId && req.headers.devtoken === apiToken;
+    if (req.method === 'POST' && path === '/oapi/regularPay/request') {
+      const body = await readJson(req);
+      if (!devOk) return send(res, 200, { success: false, errCode: '1002', message: 'devToken 오류' });
+      for (const k of ['memberID', 'customMobile', 'goodName', 'price', 'periodDateVal']) if (body[k] == null || body[k] === '') return send(res, 200, { success: false, errCode: '1001', message: `필수 필드 에러: ${k}` });
+      if (body.memberID !== memberId) return send(res, 200, { success: false, errCode: '1003', message: '회원 아이디 오류' });
+      if (!(Number(body.price) >= 1000) || !(Number(body.firstPrice) >= 1000)) return send(res, 200, { success: false, errCode: '1004', message: '1,000원 이상 부터 결제 가능합니다.' });
+      if (body.customName === 'PROVIDERFAIL') return send(res, 200, { success: false, errCode: '9999', message: '시스템 오류' });
+      const pid = id('P');
+      plans.set(pid, { body, rpToken: 'RP' + pid, agreed: false });
+      return send(res, 200, { success: true, var1: `${base}/__fake/ciderpay/plan?id=${pid}`, var2: pid });
+    }
+    const act = /^\/oapi\/regularPay\/(pauseAct|unpauseAct)$/.exec(path);
+    const end = /^\/oapi\/regularPay\/destroyMp\/([^/]+)\/([^/]+)$/.exec(path);
+    if ((req.method === 'POST' && act) || (req.method === 'DELETE' && end)) {
+      let rpToken = end ? decodeURIComponent(end[2]) : '';
+      if (act) { const chunks = []; for await (const c of req) chunks.push(c); rpToken = new URLSearchParams(Buffer.concat(chunks).toString('utf8')).get('rpToken') || ''; }
+      planCalls.push({ action: act ? (act[1] === 'pauseAct' ? 'pause' : 'resume') : 'end', rpToken });
+      if (!devOk) return send(res, 200, { success: false, errCode: '1002', message: 'devToken 오류' });
+      if (modes.ciderpayPlan === 'down') { res.statusCode = 503; return res.end('down'); }
+      if (modes.ciderpayPlan === 'refuse') return send(res, 200, { success: false, errCode: '3001', message: '정기 결제 상태 오류' });
+      const known = [...plans.values()].some((p) => p.rpToken === rpToken);
+      return known ? send(res, 200, { success: true, errorMessage: '' }) : send(res, 200, { success: false, errCode: '3002', message: '토큰 에러' });
+    }
+    const pid = url.searchParams.get('id');
+    const p = plans.get(pid);
+    if (!p) { res.statusCode = 404; return res.end('unknown plan'); }
+    if (path === '/plan') {
+      const a = (x, label) => link(`${base}/__fake/ciderpay/plan-do?id=${pid}&act=${x}`, label);
+      return html(res, `<h1>Fake CiderPay: 정기 결제</h1><p>${p.body.goodName}<br><strong>₩${Number(p.body.firstPrice).toLocaleString('en-US')}</strong> today, then ₩${Number(p.body.price).toLocaleString('en-US')} on day ${p.body.periodDateVal} of each month until ${p.body.limitDateStr} · ${p.body.customName}</p>
+        ${a('agree', 'Agree and pay the first instalment')}${a('paidfirst', 'Agree, payment notice before the agreement')}${a('declined', 'Agree, first charge declined')}${a('refuse', 'Refuse')}`);
+    }
+    if (path === '/plan-do') {
+      const x = url.searchParams.get('act');
+      if (x === 'agree') { await notifyPlan(pid, 'agreeRegularPayment'); await notifyPlan(pid, 'completeRpPayment', { turnSeq: 0 }); }
+      if (x === 'paidfirst') { await notifyPlan(pid, 'completeRpPayment', { turnSeq: 0 }); await notifyPlan(pid, 'agreeRegularPayment'); }
+      if (x === 'declined') { await notifyPlan(pid, 'agreeRegularPayment'); await notifyPlan(pid, 'errorRpPayment', { turnSeq: 0, message: '한도 초과' }); }
+      if (x === 'refuse') await notifyPlan(pid, 'rejectRegularPayment');
+      p.agreed = x !== 'refuse';
+      return go(res, p.body.returnUrl);
+    }
+    res.statusCode = 404; return res.end('not found');
+  }
+
   async function ciderpayRoutes(req, res, url, path) {
+    if (path.startsWith('/oapi/regularPay/') || path === '/plan' || path === '/plan-do') return planRoutes(req, res, url, path);
     if (req.method === 'POST' && path === '/oapi/payment/request') {
       const body = await readJson(req);
       if (req.headers.approvaltoken !== apiToken) return send(res, 200, { success: false, errCode: '1002', message: 'approvalToken 오류' });
@@ -51,6 +140,26 @@ function create({ base, memberId, apiToken }) {
       const rid = id('R');
       cider.set(rid, { body });
       return send(res, 200, { success: true, payUrl: `${base}/__fake/ciderpay/pay?id=${rid}`, payUniqueNo: rid });
+    }
+    if (req.method === 'POST' && (path === '/oapi/payment/cancel' || path === '/oapi/payment/cancelRequest')) {
+      const body = await readJson(req);
+      refundCalls.push({ provider: 'ciderpay', path, body });
+      if (req.headers.approvaltoken !== apiToken) return send(res, 200, { success: false, errCode: '1002', message: 'approvalToken 오류' });
+      if (body.memberID !== memberId) return send(res, 200, { success: false, errCode: '1003', message: '회원 아이디 오류' });
+      const rid = String(body.orderNo || '').replace(/^CP/, '');
+      const r = cider.get(rid);
+      if (!r || body.token !== 'FT' + rid) return send(res, 200, { success: false, errCode: '2002', message: '결제 토큰 에러' });
+      const mode = modes.ciderpayCancel;
+      if (mode === 'down') { res.statusCode = 503; return res.end('down'); }
+      if (mode === 'hang') return hang(res);
+      if (mode === 'refuse') return send(res, 200, { success: false, errCode: '2001', message: '취소 가능 상태 에러' });
+      if (path === '/oapi/payment/cancel' && mode === 'settled') return send(res, 200, { success: false, var1: 'CANCEL_REQ', errorMessage: '정산 완료: 취소 요청이 필요합니다' });
+      const done = ciderRefunded.get(rid) || 0;
+      const amount = body.rangeType === 'ALL' ? Number(r.body.price) - done : Number(body.cancelPrice);
+      if (body.rangeType === 'ALL' && done > 0) return send(res, 200, { success: false, errCode: '2001', message: '부분 취소된 결제는 전체 취소할 수 없습니다' });
+      if (!(amount > 0) || done + amount > Number(r.body.price)) return send(res, 200, { success: false, errCode: '2001', message: '취소 금액 오류' });
+      ciderRefunded.set(rid, done + amount);
+      return send(res, 200, { success: true });
     }
     const rid = url.searchParams.get('id');
     const r = cider.get(rid);
@@ -85,6 +194,12 @@ function create({ base, memberId, apiToken }) {
     }
     return out;
   }
+  // A refund as PayPal describes it (refund call answer, and the resource of PAYMENT.CAPTURE.REFUNDED).
+  function paypalRefund(captureId, { amount, custom_id = '', status = 'COMPLETED', id: rid = id('RF') }) {
+    const fee = (Math.round(Math.round(Number(amount.value) * 100) * 0.03) / 100).toFixed(2);
+    return { id: rid, status, amount, custom_id, seller_payable_breakdown: { paypal_fee: { currency_code: 'USD', value: fee } },
+      links: [{ rel: 'self', href: `${base}/__fake/paypal/v2/payments/refunds/${rid}` }, { rel: 'up', href: `${base}/__fake/paypal/v2/payments/captures/${captureId}` }] };
+  }
   // A webhook as PayPal sends it. `good` decides whether the fake "verify signature" call will accept it.
   async function notifyPaypal(eventType, resource, { good = true, url } = {}) {
     const res = await fetch(url || `${base}/api/shop-callback?p=paypal`, {
@@ -111,6 +226,27 @@ function create({ base, memberId, apiToken }) {
     if (req.method === 'POST' && path === '/v1/notifications/verify-webhook-signature') {
       const body = await readJson(req);
       return send(res, 200, { verification_status: body.transmission_sig === 'good' && body.webhook_id && body.webhook_event ? 'SUCCESS' : 'FAILURE' });
+    }
+    const rf = /^\/v2\/payments\/captures\/(CAP[A-Z0-9]+)\/refund$/.exec(path);
+    if (req.method === 'POST' && rf) {
+      const body = await readJson(req);
+      const key = req.headers['paypal-request-id'] || '';
+      refundCalls.push({ provider: 'paypal', path, body, key });
+      if (key && paypalRefunds.has(key)) return send(res, 201, paypalRefunds.get(key));
+      const o = paypal.get(rf[1].slice(3));
+      if (!o || o.status !== 'COMPLETED') return send(res, 404, { name: 'RESOURCE_NOT_FOUND', details: [{ issue: 'INVALID_RESOURCE_ID' }] });
+      const mode = modes.paypalRefund;
+      if (mode === 'down') return send(res, 503, { name: 'INTERNAL_SERVER_ERROR' });
+      if (mode === 'hang') return hang(res);
+      if (mode === 'refuse') return send(res, 422, { name: 'UNPROCESSABLE_ENTITY', details: [{ issue: 'REFUND_NOT_ALLOWED' }] });
+      const paid = Math.round(Number(o.body.purchase_units[0].amount.value) * 100);
+      const want = Math.round(Number(body.amount.value) * 100);
+      o.refunded = o.refunded || 0;
+      if (want + o.refunded > paid) return send(res, 422, { name: 'UNPROCESSABLE_ENTITY', details: [{ issue: 'REFUND_AMOUNT_EXCEEDED' }] });
+      o.refunded += want;
+      const answer = paypalRefund(rf[1], { amount: body.amount, custom_id: body.custom_id, status: mode === 'pending' ? 'PENDING' : 'COMPLETED' });
+      if (key) paypalRefunds.set(key, answer);
+      return send(res, 201, answer);
     }
     const m = /^\/v2\/checkout\/orders\/([A-Z0-9]+)(\/capture)?$/.exec(path);
     if (m) {
@@ -155,7 +291,7 @@ function create({ base, memberId, apiToken }) {
     res.statusCode = 404; res.end('not found');
   }
 
-  return { handle, cider, paypal, sent, ciderpayFeedback, notifyCiderpay, notifyPaypal, paypalOrder };
+  return { handle, cider, paypal, sent, ciderpayFeedback, notifyCiderpay, notifyPaypal, paypalOrder, paypalRefund, modes, refundCalls, plans, planCalls, planFeedback, notifyPlan, planOf };
 }
 
 module.exports = { create };

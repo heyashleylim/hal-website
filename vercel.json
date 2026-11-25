@@ -121,9 +121,40 @@
           "value": "same-origin"
         }
       ]
+    },
+    {
+      "source": "/my",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        }
+      ]
+    },
+    {
+      "source": "/my/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        }
+      ]
     }
   ],
   "redirects": [
+    {
+      "source": "/waitlist",
+      "destination": "/nsmb/waitlist",
+      "permanent": false
+    },
     {
       "source": "/",
       "has": [
@@ -263,6 +294,14 @@
       "destination": "/api/learn?path=:path*"
     },
     {
+      "source": "/my",
+      "destination": "/api/learn?path=my"
+    },
+    {
+      "source": "/my/:path*",
+      "destination": "/api/learn?path=my/:path*"
+    },
+    {
       "source": "/f/:token([A-Za-z0-9_-]+)/:show([a-z0-9-]+)",
       "destination": "/api/podcast-feed?token=:token&show=:show"
     },
@@ -279,8 +318,20 @@
       "destination": "/api/shop-page?view=complete"
     },
     {
+      "source": "/checkout/pay/:token([A-Za-z0-9_-]+)",
+      "destination": "/api/shop-page?view=pay&o=:token"
+    },
+    {
       "source": "/checkout/:slug([a-z0-9-]+)",
       "destination": "/api/shop-page?view=checkout&slug=:slug"
+    },
+    {
+      "source": "/r/:code([A-Za-z0-9_-]+)",
+      "destination": "/api/shop-page?view=ref&code=:code"
+    },
+    {
+      "source": "/r/:code([A-Za-z0-9_-]+)/:slug([a-z0-9-]+)",
+      "destination": "/api/shop-page?view=ref&code=:code&slug=:slug"
     }
   ]
 }

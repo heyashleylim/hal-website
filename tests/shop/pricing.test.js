@@ -63,15 +63,39 @@ test('refuses what the product does not offer', () => {
   assert.throws(() => p.quote(nsmb, { plan: 'weekly' }), (e) => e.code === 'bad_plan');
 });
 
-test('discounts (pay in full only for now)', () => {
+test('discounts on pay in full', () => {
   const q = p.quote(eft, { discount: 20000 });
   assert.equal(q.subtotal, 220000);
   assert.equal(q.total, 200000);
   assert.equal(q.dueToday, 200000);
   assert.throws(() => p.quote(eft, { discount: 220001 }), (e) => e.code === 'discount_too_big');
   assert.throws(() => p.quote(eft, { discount: -1 }), (e) => e.code === 'bad_discount');
-  assert.throws(() => p.quote(nsmb, { plan: 'instalment', discount: 1000 }), (e) => e.code === 'discount_plan');
   assert.equal(p.quote(eft, { discount: 220000 }).total, 0);
+});
+
+test('a discount on an instalment plan: the total first, then every payment in proportion (Alex, 2026-11-19)', () => {
+  // NSMB: ₩930,000 + 2 × ₩930,000 = ₩2,790,000; 10% off (₩279,000) → ₩837,000 × 3.
+  const q = p.quote(nsmb, { plan: 'instalment', discount: 279000 });
+  assert.equal(q.subtotal, 2790000);
+  assert.equal(q.discount, 279000);
+  assert.equal(q.total, 2511000);
+  assert.deepEqual(q.payments, [{ number: 1, amount: 837000 }, { number: 2, amount: 837000 }, { number: 3, amount: 837000 }]);
+  assert.equal(q.dueToday, 837000);
+  assert.equal(q.items[0].amount, 2511000);
+  // A first payment that differs from the monthly one keeps its share; the first takes the rounding.
+  const plan = { first: 500000, monthly: 300000, count: 3, payments: 4, total: 1400000 };
+  const d = p.discountedPlan(plan, 100000); // 1,300,000 left: monthly 300000 × 13/14 = 278571.4 → 278571
+  assert.deepEqual(d, { first: 1300000 - 3 * 278571, monthly: 278571, count: 3, payments: 4, total: 1300000 });
+  assert.equal(d.first, 464287);
+  // The payments always add up to the new total, whatever the discount.
+  for (let off = 1; off < 1400000; off += 9973) {
+    const x = p.discountedPlan(plan, off);
+    assert.equal(x.first + x.monthly * x.count, plan.total - off);
+    assert.ok(Math.abs(x.first / plan.first - x.monthly / plan.monthly) < 0.0001 + 3 / plan.first);
+  }
+  assert.deepEqual(p.discountedPlan(plan, 0), plan);
+  assert.throws(() => p.discountedPlan(plan, 1400000), (e) => e.code === 'discount_too_big');
+  assert.throws(() => p.quote(nsmb, { plan: 'instalment', discount: 2790000 }), (e) => e.code === 'discount_too_big');
 });
 
 test('options list every way to buy', () => {
@@ -94,7 +118,11 @@ test('instalment dates: same day each month, capped at the 30th and at short mon
   assert.deepEqual(p.schedule('2026-11-10', 3), ['2026-11-10', '2026-12-10', '2027-01-10']);
   assert.deepEqual(p.schedule('2026-12-31', 4), ['2026-12-31', '2027-01-30', '2027-02-28', '2027-03-30']);
   assert.deepEqual(p.schedule('2028-01-30', 3), ['2028-01-30', '2028-02-29', '2028-03-30']); // leap year
-  assert.deepEqual(p.schedule('2028-02-29', 3), ['2028-02-29', '2028-03-29', '2028-04-29']);
+  // Started on 29 February: CiderPay charges on the 28th after that (the WooCommerce plugin's rule).
+  assert.deepEqual(p.schedule('2028-02-29', 3), ['2028-02-29', '2028-03-28', '2028-04-28']);
+  assert.equal(p.billingDay('2028-02-29'), 28);
+  assert.equal(p.billingDay('2026-12-31'), 30);
+  assert.equal(p.billingDay('2026-11-10'), 10);
   assert.deepEqual(p.schedule('2026-11-10', 1), ['2026-11-10']);
   assert.equal(p.schedule('2026-01-15', 25).at(-1), '2028-01-15');
   assert.throws(() => p.schedule('2026-02-30', 3), /not a real date/);

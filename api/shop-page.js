@@ -1,7 +1,11 @@
 /*
  * The shop's pages (rewrites in vercel.json):
- *   GET /checkout/<product>   → ?view=checkout&slug=<product>   the checkout form
+ *   GET /checkout/<product>   → ?view=checkout&slug=<product>   the checkout form (?plan=instalment: 분할 결제 preselected)
  *   GET /checkout/complete    → ?view=complete&o=<order token>  where the buyer lands after the payment page
+ *   GET /checkout/pay/<token> → ?view=pay&o=<order token>       the payment link of an order made in the admin
+ *                                (&i=<n>: the payment link of one instalment of a plan)
+ *   GET /r/<code>[/<product>] → ?view=ref&code=…&slug=…    a referral link: remembers the code (30 days), then the
+ *                                program's page (or its checkout, or the home page)
  *
  * Server-rendered (api/_lib/shop/page.js). The thank-you page never marks an order paid because someone
  * opened it: only a provider's confirmation does. For PayPal, opening it is the moment we capture the payment
@@ -12,6 +16,11 @@ const flow = require('./_lib/shop/flow.js');
 const pricing = require('./_lib/shop/pricing.js');
 const settings = require('./_lib/shop/settings.js');
 const page = require('./_lib/shop/page.js');
+const coupons = require('./_lib/shop/coupons.js');
+const manual = require('./_lib/shop/manual.js');
+const instalments = require('./_lib/shop/instalments.js');
+const config = require('./_lib/shop/config.js');
+const referrals = require('./_lib/shop/referrals.js');
 const { sendHtml, redirect } = require('./_lib/shop/http.js');
 
 const PROBLEMS = new Set(['cancelled', 'declined', 'provider', 'server']);
@@ -22,16 +31,34 @@ async function checkout(req, res, url) {
   // A product sold only as an add-on has no checkout of its own.
   if (!product || product.status === 'draft' || product.addon_only) return sendHtml(res, 404, page.notFoundPage());
   const sale = pricing.saleState(product);
-  const offers = orders.offers(product, flow.providers());
+  const shopSettings = await settings.read();
+  const offers = orders.offers(product, flow.providers(), { instalments: shopSettings.instalments.enabled === true });
   if (!sale.open || !offers.length) return sendHtml(res, 200, page.closedPage({ product, reason: sale.reason || 'closed' }));
   const wanted = String(url.searchParams.get('currency') || '').toUpperCase();
   const currency = offers.some((o) => o.currency === wanted) ? wanted : offers[0].currency;
+  // ?plan=instalment opens the checkout with 분할 결제 already chosen (when this product has a plan on sale).
+  const hasPlan = offers.some((o) => o.plan === 'instalment');
+  const plan = url.searchParams.get('plan') === 'instalment' && hasPlan ? 'instalment' : 'full';
   const problem = PROBLEMS.has(url.searchParams.get('problem')) ? url.searchParams.get('problem') : '';
   const addons = {};
   for (const cur of [...new Set(offers.map((o) => o.currency))]) addons[cur] = await orders.addonChoices(product, cur);
+  // A code in the link (?coupon=…, as ActiveCampaign emails send it) is applied without typing. Without one, the
+  // referral code this browser remembers from a /r/<code> link is applied the same way, but quietly: when it can't be
+  // used on this product, the page simply shows no discount.
+  let coupon = null;
+  const typed = coupons.normalize(url.searchParams.get('coupon'));
+  const code = typed || referrals.codeFromRequest(req);
+  if (code) {
+    try {
+      coupon = await coupons.forPage({ code, product, currencies: [...new Set(offers.map((o) => o.currency))], plan: hasPlan ? 'both' : 'full', ipHash: typed ? config.ipHash(req) : null });
+    } catch (err) {
+      if (!(err instanceof coupons.CouponError)) throw err;
+      coupon = typed ? { code, error: err.code === 'too_many' ? 'coupon_unknown' : err.code } : null;
+    }
+  }
   return sendHtml(res, 200, page.checkoutPage({
-    product, offers, currency, problem, addons,
-    settings: await settings.read(), query: Object.fromEntries(url.searchParams),
+    product, offers, currency, problem, addons, coupon, plan,
+    settings: shopSettings, query: Object.fromEntries(url.searchParams),
   }));
 }
 
@@ -63,7 +90,57 @@ async function complete(req, res, url) {
   const tries = Math.max(0, Math.min(99, parseInt(url.searchParams.get('n') || '0', 10) || 0));
   const receiptUrl = order.paid_at ? await flow.receiptUrl(order.id) : '';
   const items = order.paid_at ? await orders.items(order.id) : [];
-  return sendHtml(res, 200, page.completePage({ order, product, items, receiptUrl, tries, slow: tries >= SLOW_AFTER }));
+  const plan = order.paid_at && order.plan === 'instalment' ? await instalments.rowsOf(order.id) : [];
+  return sendHtml(res, 200, page.completePage({ order, product, items, receiptUrl, plan, tries, slow: tries >= SLOW_AFTER }));
+}
+
+// A payment link: the order as made in the admin, and a button to its payment page. Paid → the thank-you page.
+// ?i=<n>: the link for one instalment of a plan (instalments.makeLink).
+async function pay(req, res, url) {
+  if (url.searchParams.has('i')) return payInstalment(req, res, url);
+  const order = await orders.byToken(tokenFrom(url));
+  if (!order || order.origin !== 'manual') return sendHtml(res, 404, page.notFoundPage());
+  const state = manual.linkState(order);
+  if (state === 'paid') return redirect(res, 303, `/checkout/complete?o=${encodeURIComponent(order.token)}`);
+  const problem = String(url.searchParams.get('problem') || '');
+  return sendHtml(res, 200, page.payPage({
+    order, items: await orders.items(order.id), state, lastDay: manual.linkLastDay(order),
+    problem: ['cancelled', 'declined', 'provider', 'not_configured', 'unavailable', 'server'].includes(problem) ? problem : '',
+    settings: await settings.read(),
+  }));
+}
+
+async function payInstalment(req, res, url) {
+  const order = await orders.byToken(tokenFrom(url));
+  const number = parseInt(url.searchParams.get('i'), 10);
+  if (!order || order.plan !== 'instalment' || !(number >= 2)) return sendHtml(res, 404, page.notFoundPage());
+  const rows = await instalments.rowsOf(order.id);
+  const row = rows.find((r) => r.number === number);
+  if (!row) return sendHtml(res, 404, page.notFoundPage());
+  const state = instalments.linkState(order, row);
+  if (state === 'paid') return redirect(res, 303, `/checkout/complete?o=${encodeURIComponent(order.token)}`);
+  const problem = String(url.searchParams.get('problem') || '');
+  return sendHtml(res, 200, page.instalmentPayPage({
+    order, row, count: rows.length, state, lastDay: instalments.linkLastDay(row),
+    problem: ['provider', 'not_configured', 'unavailable', 'server'].includes(problem) ? problem : '',
+    settings: await settings.read(),
+  }));
+}
+
+// A referral link: count the visit, remember the code for 30 days, then the program's page. An unknown, paused or
+// banned code just opens the page (or the home page) without remembering anything.
+async function ref(req, res, url) {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  res.setHeader('Cache-Control', 'no-store');
+  const slug = String(url.searchParams.get('slug') || '');
+  const product = /^[a-z0-9-]{1,60}$/.test(slug) ? await orders.productBySlug(slug) : null;
+  const shown = product && product.status !== 'draft' && !product.addon_only ? product : null;
+  const referrer = await referrals.byCode(url.searchParams.get('code'));
+  if (referrer) {
+    await referrals.click(referrer.id).catch((err) => console.error('referral click', err.message));
+    res.setHeader('Set-Cookie', referrals.cookieHeader(referrer.code));
+  }
+  return redirect(res, 302, referrals.landing(shown));
 }
 
 module.exports = async function handler(req, res) {
@@ -78,6 +155,8 @@ module.exports = async function handler(req, res) {
   }
   try {
     if (view === 'complete') return await complete(req, res, url);
+    if (view === 'pay') return await pay(req, res, url);
+    if (view === 'ref') return await ref(req, res, url);
     return await checkout(req, res, url);
   } catch (err) {
     console.error('shop-page', err);

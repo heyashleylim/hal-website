@@ -69,7 +69,7 @@ function cents(value) {
 }
 
 // The order we ask PayPal to create. Pure, so tests can check exactly what is sent.
-function orderRequest({ order, productName, slug }, env = process.env) {
+function orderRequest({ order, productName, slug, cancelUrl = null }, env = process.env) {
   if (order.currency !== 'USD') throw new PayError('unavailable', 'PayPal is used for USD only');
   if (!Number.isInteger(order.due_today) || order.due_today < 100) throw new PayError('unavailable', `amount too small for PayPal: ${order.due_today}`);
   return {
@@ -89,7 +89,7 @@ function orderRequest({ order, productName, slug }, env = process.env) {
           shipping_preference: 'NO_SHIPPING',
           user_action: 'PAY_NOW',
           return_url: config.completeUrl(order.token, env),
-          cancel_url: config.checkoutUrl(slug, { currency: 'usd', problem: 'cancelled' }, env),
+          cancel_url: cancelUrl || config.checkoutUrl(slug, { currency: 'usd', problem: 'cancelled' }, env),
         },
       },
     },
@@ -179,4 +179,53 @@ async function verifyWebhook(headers, event, opts = {}) {
 
 function resetCache() { cached = null; }
 
-module.exports = { orderRequest, createOrder, captureOrder, verifyWebhook, readCapture, firstCapture, dollars, cents, accessToken, resetCache };
+// One shape for a PayPal refund, from our refund call or a PAYMENT.CAPTURE.REFUNDED webhook.
+//   { id, status, amount (cents), currency, fee (cents, PayPal fee given back) | null, captureId, customId }
+function readRefund(refund) {
+  const amount = refund.amount || {};
+  const breakdown = refund.seller_payable_breakdown || {};
+  const fee = breakdown.paypal_fee;
+  const up = (refund.links || []).find((l) => l.rel === 'up' && /\/captures\//.test(String(l.href || '')));
+  return {
+    id: refund.id ? String(refund.id) : '',
+    status: String(refund.status || ''),
+    amount: cents(amount.value),
+    currency: String(amount.currency_code || ''),
+    fee: fee && fee.currency_code === 'USD' ? cents(fee.value) : null,
+    captureId: up ? decodeURIComponent(String(up.href).split('/captures/')[1].split(/[/?#]/)[0]) : '',
+    customId: String(refund.custom_id || ''),
+  };
+}
+
+/*
+ * Gives back all or part of a captured payment (Payments v2: POST /v2/payments/captures/{id}/refund).
+ * `key` makes the call idempotent (PayPal-Request-Id) and comes back as custom_id in the webhook. →
+ *   { outcome: 'done', refund }        COMPLETED
+ *   { outcome: 'requested', refund }   PENDING: PayPal finishes it later (its webhook confirms)
+ *   { outcome: 'refused', detail }     nothing was refunded
+ * Throws PayError('unknown') when the answer never came.
+ */
+async function refundCapture({ captureId, amount, currency, key, note }, opts = {}) {
+  if (!captureId) throw new PayError('unavailable', 'this payment has no PayPal capture id');
+  if (currency !== 'USD' || !Number.isInteger(amount) || amount <= 0) throw new PayError('unavailable', `not a USD refund amount: ${amount} ${currency}`);
+  const body = { amount: { currency_code: 'USD', value: dollars(amount) }, custom_id: String(key).slice(0, 127) };
+  if (note) body.note_to_payer = String(note).slice(0, 255);
+  let r;
+  try {
+    r = await call('POST', `/v2/payments/captures/${encodeURIComponent(captureId)}/refund`, body, { ...opts, requestId: `refund-${key}` });
+  } catch (err) {
+    if (err instanceof PayError && err.code === 'not_configured') throw err;
+    throw new PayError('unknown', err.message);
+  }
+  if (r.status >= 500) throw new PayError('unknown', `PayPal answered HTTP ${r.status}`);
+  if (!r.ok) {
+    const issue = ((r.data.details || [])[0] || {}).issue || r.data.name || `HTTP ${r.status}`;
+    return { outcome: 'refused', detail: issue };
+  }
+  const refund = readRefund(r.data);
+  if (refund.status === 'COMPLETED') return { outcome: 'done', refund };
+  if (refund.status === 'PENDING') return { outcome: 'requested', refund };
+  return { outcome: 'refused', detail: `refund ${refund.status || 'without a status'}`, refund };
+}
+
+module.exports = { orderRequest, createOrder, captureOrder, verifyWebhook, readCapture, firstCapture, dollars, cents, accessToken, resetCache, readRefund, refundCapture };

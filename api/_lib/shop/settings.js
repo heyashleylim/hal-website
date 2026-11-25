@@ -9,6 +9,11 @@ const DEFAULTS = {
   checkout_texts: { consent: '', guarantee: '', secure_note: '', paypal_instalments: '' },
   // Slack messages (webhook addresses are Vercel env vars).
   notifications: { paid: true, refund: true, instalment_failed: true },
+  // Instalment plans at checkout (docs/commerce-plan.md section 14): off until a real plan has been tested.
+  instalments: { enabled: false },
+  // Abandoned checkouts (plan 3.4): tag checkout_abandoned_<product> in ActiveCampaign for someone who gave their
+  // email at checkout and didn't pay. Off until the privacy policy says so (Ashley's legal page).
+  abandoned: { enabled: false },
 };
 
 async function read() {

@@ -39,6 +39,20 @@ function callbackKey(env = process.env) {
   return sign('callback', 'ciderpay', env);
 }
 
+// The key in the address an ActiveCampaign automation calls to give a contact a coupon code
+// (…/api/shop-callback?p=ac-coupon&k=<key>&campaign=<campaign key>). Shown in the admin, on the campaign.
+function acCouponKey(env = process.env) {
+  return sign('callback', 'ac-coupon', env);
+}
+
+function acCouponUrl(campaignKey, env = process.env) {
+  const url = new URL(`${publicBase(env)}/api/shop-callback`);
+  url.searchParams.set('p', 'ac-coupon');
+  url.searchParams.set('k', acCouponKey(env));
+  url.searchParams.set('campaign', campaignKey);
+  return url.toString();
+}
+
 function newToken() {
   return crypto.randomBytes(16).toString('base64url');
 }
@@ -81,6 +95,11 @@ function callbackUrl(provider, env = process.env) {
 
 function completeUrl(token, env = process.env) {
   return `${publicBase(env)}/checkout/complete?o=${encodeURIComponent(token)}`;
+}
+
+// The payment link of an order made in the admin (manual.js): the customer opens it and pays that order.
+function payLinkUrl(token, env = process.env) {
+  return `${publicBase(env)}/checkout/pay/${encodeURIComponent(token)}`;
 }
 
 function checkoutUrl(slug, params = {}, env = process.env) {
@@ -130,6 +149,7 @@ const ciderpayConfigured = (env = process.env) => present('CIDERPAY_MEMBER_ID', 
 const paypalConfigured = (env = process.env) => present('PAYPAL_CLIENT_ID', env) && present('PAYPAL_SECRET', env);
 
 module.exports = {
+  acCouponKey, acCouponUrl,
   secret, configured, sign, verify, safeEqual, callbackKey, newToken, isToken, ipHash, isProduction, publicBase,
-  callbackUrl, completeUrl, checkoutUrl, ciderpayBase, paypalMode, paypalBase, trustedPayUrl, ciderpayConfigured, paypalConfigured,
+  callbackUrl, completeUrl, payLinkUrl, checkoutUrl, ciderpayBase, paypalMode, paypalBase, trustedPayUrl, ciderpayConfigured, paypalConfigured,
 };

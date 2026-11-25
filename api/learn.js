@@ -11,6 +11,9 @@
  *   GET  /learn/<program>[?e=<guid>]  the player, chapters and modules of one program
  *   GET  /learn/audio/<guid>.<ext> the audio, checked against the session on every request (revoked/expired = 404)
  *   POST /learn/progress           the player saves where the student is (JSON or sendBeacon text)
+ *   GET  /my                       "내 주문": the signed-in customer's orders, receipts and instalments (same sign-in)
+ *   POST /my/pay                   a missed instalment → its payment link (/checkout/pay/<token>?i=<n>)
+ *   (/my and /my/<path> are rewritten here as ?path=my…)
  *
  * Pages are rendered on the server (api/_lib/learn/pages.js) and work without JavaScript. No GTM / analytics.
  */
@@ -24,6 +27,8 @@ const pages = require('./_lib/learn/pages.js');
 const { streamEpisode } = require('./_lib/audio-stream.js');
 const { extension } = require('./_lib/rss.js');
 const { readBody, sendJson, sendHtml, redirect, sameOrigin } = require('./_lib/shop/http.js');
+const my = require('./_lib/shop/my.js');
+const myPage = require('./_lib/shop/my-page.js');
 
 const IP_CODES_PER_HOUR = 20;
 
@@ -35,10 +40,10 @@ function fromThisSite(req) {
   return sameOrigin(req);
 }
 
-// Only paths inside the student area, never another site.
+// Only paths inside the student area or "내 주문", never another site.
 function safeNext(value) {
   const v = String(value || '');
-  return /^\/learn(\/[A-Za-z0-9_\-/?=&.%]*)?$/.test(v) && !v.includes('//') ? v : '';
+  return /^\/(learn|my)(\/[A-Za-z0-9_\-/?=&.%]*)?$/.test(v) && !v.includes('//') ? v : '';
 }
 
 function loginRedirect(res, next) {
@@ -93,8 +98,8 @@ async function verify(req, res, data) {
   if (result.error) return sendHtml(res, 400, pages.codePage({ email, message: result.error, next: safeNext(data.next) }));
   const first = await learnAuth.isFirstSession(result.student.id);
   await learnAuth.startSession(res, result.student.id, { via: 'code', userAgent: req.headers['user-agent'] });
-  // First sign-in ever: the home page shows how to save the student area on the home screen.
-  return redirect(res, 303, first ? '/learn?welcome=1' : next);
+  // First sign-in ever: the home page shows how to save the student area on the home screen (not when they came for /my).
+  return redirect(res, 303, first && !next.startsWith('/my') ? '/learn?welcome=1' : next);
 }
 
 async function home(req, res, student, params) {
@@ -162,6 +167,19 @@ async function saveProgress(req, res, student, data) {
   return sendJson(res, 200, { ok: true, done: Boolean(row.completed_at) });
 }
 
+// "내 주문": the orders of the signed-in email.
+async function myOrders(req, res, student, params) {
+  const data = await my.forEmail(student.email);
+  return sendHtml(res, 200, myPage.myPage({ student, orders: data.orders, missed: data.missed, referral: data.referral, problem: params.get('m') === 'pay' ? 'pay' : '' }));
+}
+
+// "지금 결제하기" on a missed instalment: its payment link (made or renewed), or back to /my with a message.
+async function myPay(req, res, student, data) {
+  if (!student) return loginRedirect(res, '/my');
+  const url = await my.payLink(student.email, Number(data.order), Number(data.i));
+  return redirect(res, 303, url || '/my?m=pay');
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -198,13 +216,15 @@ module.exports = async function handler(req, res) {
 
     const student = await learnAuth.studentFromRequest(req, res);
     if (route === 'progress' && method === 'POST') return saveProgress(req, res, student, body);
+    if (route === 'my/pay' && method === 'POST') return myPay(req, res, student, body);
     const audioMatch = /^audio\/([^/]+)$/.exec(route);
     if (audioMatch && (method === 'GET' || method === 'HEAD')) return audio(req, res, student, audioMatch[1]);
 
     if (method !== 'GET' && method !== 'HEAD') return sendJson(res, 405, { error: 'method' });
-    const here = '/learn' + (route ? `/${route}` : '') + (params.get('e') ? `?e=${params.get('e')}` : '');
+    const here = route === 'my' ? '/my' : '/learn' + (route ? `/${route}` : '') + (params.get('e') ? `?e=${params.get('e')}` : '');
     if (!student) return loginRedirect(res, safeNext(here));
     if (!route) return home(req, res, student, params);
+    if (route === 'my') return myOrders(req, res, student, params);
     if (/^[a-z0-9-]+$/.test(route)) return program(req, res, student, route, params);
     return sendHtml(res, 404, pages.messagePage({ title: '페이지를 찾을 수 없어요', text: '주소를 다시 확인해 주세요.' }));
   } catch (err) {

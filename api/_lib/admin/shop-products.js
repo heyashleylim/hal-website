@@ -12,8 +12,9 @@ const safe = (fn) => { try { return fn(); } catch (_) { return null; } };
 const { userError, text, int, friendlyUnique } = require('./util.js');
 
 const STATUSES = ['draft', 'open', 'closed'];
-// /checkout/complete is the thank-you page; the other two are WooCommerce addresses still redirected to WordPress.
-const RESERVED_SLUGS = ['complete', 'order-received', 'order-pay'];
+// /checkout/complete is the thank-you page, /checkout/pay/<token> a payment link (orders made in the admin); the
+// other two are WooCommerce addresses still redirected to WordPress.
+const RESERVED_SLUGS = ['complete', 'pay', 'order-received', 'order-pay'];
 const MAX_WON = 100000000;   // ₩100,000,000
 const MAX_CENTS = 10000000;  // $100,000
 
@@ -161,7 +162,7 @@ function productInput(input) {
   const parts = [instalment_first, instalment_monthly, instalment_count].filter((x) => x != null).length;
   if (parts !== 0 && parts !== 3) throw userError('The instalment plan needs all three: first payment, monthly payment and number of monthly payments (or leave all three empty)');
   if (parts === 3 && price_krw == null) throw userError('The instalment plan is for KRW: add a KRW price');
-  if (parts === 3 && price_options.length) throw userError('Pricing options and an instalment plan can’t be combined yet (instalments join the options in phase 3): remove one');
+  if (parts === 3 && price_options.length) throw userError('Pricing options and an instalment plan can’t be combined yet: remove one');
 
   const sale_starts_at = seoulTime(input.sale_starts_at, 'Sale start');
   const sale_ends_at = seoulTime(input.sale_ends_at, 'Sale end');
@@ -204,7 +205,17 @@ function productInput(input) {
     addon_note: text(c.addon_note, { max: 300, label: 'Add-on note' }),
   };
 
-  return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content, addon_ids, addon_only, compare_krw, compare_usd, price_options };
+  // The referrer's reward for this product (Shop → Referrals): none, a percentage of the money received, or a fixed
+  // amount per order in each currency.
+  const reward_kind = input.reward_kind === 'percent' || input.reward_kind === 'amount' ? input.reward_kind : null;
+  let reward_percent = null, reward_krw = null, reward_usd = null;
+  if (reward_kind === 'percent') reward_percent = int(input.reward_percent, { min: 1, max: 50, label: 'Referral reward (%)' });
+  if (reward_kind === 'amount') {
+    reward_krw = won(input.reward_krw, 'Referral reward (KRW)');
+    reward_usd = cents(input.reward_usd, 'Referral reward (USD)');
+    if (reward_krw == null && reward_usd == null) throw userError('Give the referral reward in won, in dollars, or both (or choose no reward)');
+  }
+  return { name, slug, status, sale_starts_at, sale_ends_at, price_krw, price_usd, instalment_first, instalment_monthly, instalment_count, usd_vat, purchase_tag, extra_tags, legacy_ids, content, addon_ids, addon_only, compare_krw, compare_usd, price_options, reward_kind, reward_percent, reward_krw, reward_usd };
 }
 
 // Every way the product can be bought, priced: [{ currency, plan, option, total, dueToday, vat, payments, label }]
@@ -245,7 +256,7 @@ function shape(row, now, all = []) {
   return { ...row, sale: pricing.saleState(row, now), options: priced(row), warnings: warnings(row, all) };
 }
 
-const COLUMNS = ['name', 'slug', 'status', 'sale_starts_at', 'sale_ends_at', 'price_krw', 'price_usd', 'instalment_first', 'instalment_monthly', 'instalment_count', 'usd_vat', 'purchase_tag', 'extra_tags', 'legacy_ids', 'content', 'addon_ids', 'addon_only', 'compare_krw', 'compare_usd', 'price_options'];
+const COLUMNS = ['name', 'slug', 'status', 'sale_starts_at', 'sale_ends_at', 'price_krw', 'price_usd', 'instalment_first', 'instalment_monthly', 'instalment_count', 'usd_vat', 'purchase_tag', 'extra_tags', 'legacy_ids', 'content', 'addon_ids', 'addon_only', 'compare_krw', 'compare_usd', 'price_options', 'reward_kind', 'reward_percent', 'reward_krw', 'reward_usd'];
 const CAST = { extra_tags: '::text[]', legacy_ids: '::int[]', addon_ids: '::int[]', addon_only: '::boolean', content: '::jsonb', price_options: '::jsonb', sale_starts_at: '::timestamptz', sale_ends_at: '::timestamptz' };
 const JSON_COLUMNS = new Set(['content', 'price_options']);
 
@@ -263,6 +274,10 @@ function settingsInput(input) {
   return {
     checkout_texts: Object.fromEntries(Object.keys(SETTINGS.checkout_texts).map((k) => [k, text(t[k], { max: 500, label: k })])),
     notifications: Object.fromEntries(Object.keys(SETTINGS.notifications).map((k) => [k, n[k] !== false && n[k] !== 'false'])),
+    // Off unless ticked: selling instalment plans is a deliberate choice.
+    instalments: { enabled: Boolean(input.instalments) && (input.instalments.enabled === true || input.instalments.enabled === 'true') },
+    // Off unless ticked: it needs a line in the privacy policy first.
+    abandoned: { enabled: Boolean(input.abandoned) && (input.abandoned.enabled === true || input.abandoned.enabled === 'true') },
   };
 }
 
@@ -353,6 +368,9 @@ const actions = {
         // Where the providers must send their notices (the CiderPay address is sent with each payment request).
         paypal_webhook_url: shopConfig.configured() ? safe(() => shopConfig.callbackUrl('paypal').replace(/x-vercel-protection-bypass=[^&]+/, 'x-vercel-protection-bypass=…')) : null,
         order_fields: require('../shop/sync.js').ORDER_FIELDS,
+        plan_fields: Object.keys(require('../shop/instalments.js').planFields({ currency: 'KRW' }, [])),
+        customer_fields: require('../shop/sync.js').CUSTOMER_FIELDS,
+        other_fields: ['REFUND_AMOUNT', 'REFUND_DATE', 'COUPON_CODE', 'COUPON_EXPIRES', 'COUPON_LINK', 'REFERRAL_LINK', 'REFERRAL_CODE', 'REFERRAL_BALANCE', 'CHECKOUT_LINK'],
       },
     };
   },

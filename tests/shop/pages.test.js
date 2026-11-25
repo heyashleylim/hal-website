@@ -27,8 +27,7 @@ test('only the payment methods this deployment has keys for are offered', () => 
   assert.deepEqual(orders.offers(product, []), []);
 });
 
-test('until instalments are built, the checkout only offers pay-in-full', () => {
-  assert.equal(orders.INSTALMENTS_ENABLED, false);
+test('while the shop doesn’t sell instalment plans, the checkout only offers pay-in-full', () => {
   assert.deepEqual(offers.map((o) => `${o.currency} ${o.plan} ${o.provider} ${o.dueToday}`), ['KRW full ciderpay 2690000', 'USD full paypal 229900']);
 });
 

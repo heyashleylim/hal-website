@@ -6,7 +6,7 @@
  * On a paid order:
  *   contact   the buyer exists in AC (created with their name if new) and is on the Master Contact List
  *   tag_add   the product's purchase tag (purchased_eft, purchased_nsmb_XX_YYYYMM…) and its extra tags, and the
- *             same for each add-on bought with it
+ *             same for each add-on bought with it; coupon_used_<campaign> when a coupon was used
  *   fields    ORDER_NUMBER, ORDER_PRODUCT, ORDER_DATE, ORDER_TOTAL, ORDER_PLAN, ORDER_RECEIPT_URL
  * A contact field that doesn't exist in AC yet is skipped and reported (it never blocks the tags).
  */
@@ -16,6 +16,8 @@ const pricing = require('./pricing.js');
 const ledger = require('./ledger.js');
 
 const ORDER_FIELDS = ['ORDER_NUMBER', 'ORDER_PRODUCT', 'ORDER_DATE', 'ORDER_TOTAL', 'ORDER_PLAN', 'ORDER_RECEIPT_URL'];
+// Written with every paid order too (plan 3.4): for segments and for links inside Ashley's emails.
+const CUSTOMER_FIELDS = ['ORDER_PAID_TOTAL', 'MY_ORDERS_LINK', 'CUSTOMER_TOTAL_SPENT', 'CUSTOMER_ORDER_COUNT'];
 
 function acConfigured(env = process.env) {
   return Boolean((env.AC_API_URL || '').trim() && (env.AC_API_KEY || '').trim());
@@ -32,12 +34,14 @@ async function enqueue({ customerId, orderId = null, op, payload = {}, dedupe = 
 
 // What a paid order sends to AC (pure): [{ op, payload, dedupe }].
 // `addons`: the add-on products bought with it; each brings its own purchase tag and extra tags.
-function purchaseOps(order, product, payment = {}, addons = []) {
+// `couponKey`: the key of the coupon campaign used (→ coupon_used_<key>), or ''.
+function purchaseOps(order, product, payment = {}, addons = [], couponKey = '') {
   const key = `o${order.id}`;
   const ops = [{ op: 'contact', payload: { name: (order.billing || {}).name || '' }, dedupe: `${key}:contact` }];
   // The product's tags, the pricing option's own tag (VIP…) and each add-on's.
   const optionTag = order.price_option && order.price_option.tag;
   const tags = [...new Set([...[product, ...(addons || [])].flatMap((p) => [p.purchase_tag, ...(p.extra_tags || [])]), optionTag].map((t) => String(t || '').trim()).filter(Boolean))];
+  if (couponKey) tags.push(`coupon_used_${couponKey}`);
   for (const tag of tags) ops.push({ op: 'tag_add', payload: { tag }, dedupe: `${key}:tag:${tag}` });
   ops.push({
     op: 'fields',
@@ -56,10 +60,51 @@ function purchaseOps(order, product, payment = {}, addons = []) {
   return ops;
 }
 
+/*
+ * What else a paid order sends (pure), next to purchaseOps:
+ *   fields   ORDER_PAID_TOTAL, MY_ORDERS_LINK (/my), CUSTOMER_TOTAL_SPENT (all paid orders less refunds, per
+ *            currency: "₩2,910,000 + $219"), CUSTOMER_ORDER_COUNT
+ *   tags     checkout_abandoned_<product> removed (when it had been added); referred_customer when a friend's
+ *            referral code was used
+ * stats: { spent: { KRW: n, USD: n }, orders: n }; opts: { abandoned: true when the abandoned tag was queued before,
+ * base: the site's address }.
+ */
+function customerOps(order, product, stats = {}, { abandoned = false, base = '' } = {}) {
+  const key = `o${order.id}`;
+  const spent = Object.entries(stats.spent || {}).filter(([, n]) => n > 0).map(([cur, n]) => pricing.formatMoney(n, cur)).join(' + ');
+  const ops = [{
+    op: 'fields',
+    payload: { fields: {
+      ORDER_PAID_TOTAL: pricing.formatMoney(order.paid_total || order.due_today || 0, order.currency),
+      MY_ORDERS_LINK: `${base}/my`,
+      CUSTOMER_TOTAL_SPENT: spent || pricing.formatMoney(0, order.currency),
+      CUSTOMER_ORDER_COUNT: String(stats.orders || 1),
+    } },
+    dedupe: `${key}:fields:customer`,
+  }];
+  if (abandoned) ops.push({ op: 'tag_remove', payload: { tag: abandonedTag(product) }, dedupe: `${key}:untag:abandoned` });
+  if (order.referrer_id) ops.push({ op: 'tag_add', payload: { tag: 'referred_customer' }, dedupe: `${key}:tag:referred_customer` });
+  return ops;
+}
+
+// checkout_abandoned_<product> (the part after purchased_ in the product's purchase tag, like every product tag).
+const abandonedTag = (product) => `checkout_abandoned_${require('./refunds.js').tagKey(product)}`;
+
 async function queuePurchase(order, product, payment) {
   const addons = await db.query(
     `SELECT p.* FROM shop_order_items i JOIN shop_products p ON p.id = i.product_id WHERE i.order_id = $1 AND i.kind = 'addon' ORDER BY i.position`, [order.id]);
-  for (const x of purchaseOps(order, product, payment, addons)) await enqueue({ customerId: order.customer_id, orderId: order.id, ...x });
+  const coupon = order.coupon_id
+    ? await db.one('SELECT k.key FROM shop_coupons c JOIN shop_coupon_campaigns k ON k.id = c.campaign_id WHERE c.id = $1', [order.coupon_id]) : null;
+  for (const x of purchaseOps(order, product, payment, addons, coupon ? coupon.key : '')) await enqueue({ customerId: order.customer_id, orderId: order.id, ...x });
+  const stats = await db.query(
+    `SELECT currency, count(*)::int AS orders, coalesce(sum(paid_total - refunded_total), 0)::bigint AS spent
+       FROM shop_orders WHERE customer_id = $1 AND paid_at IS NOT NULL GROUP BY currency`, [order.customer_id]);
+  const abandoned = await db.one(`SELECT 1 AS yes FROM shop_outbox WHERE customer_id = $1 AND op = 'tag_add' AND payload->>'tag' = $2 LIMIT 1`, [order.customer_id, abandonedTag(product)]);
+  const ops = customerOps(order, product, {
+    spent: Object.fromEntries(stats.map((s) => [s.currency, Number(s.spent)])),
+    orders: stats.reduce((n, s) => n + s.orders, 0),
+  }, { abandoned: Boolean(abandoned), base: require('./config.js').publicBase() });
+  for (const x of ops) await enqueue({ customerId: order.customer_id, orderId: order.id, ...x });
 }
 
 // The customer's AC contact id: known, found by email, or created (only then is our name used: AC's own
@@ -132,4 +177,4 @@ async function sendPending({ budgetMs = 6000, orderId = null } = {}) {
 }
 
 // Exported as `process` for callers; never named that inside this file, where `process` must stay Node's.
-module.exports = { ORDER_FIELDS, acConfigured, enqueue, purchaseOps, queuePurchase, process: sendPending, backoffMs, setFields };
+module.exports = { ORDER_FIELDS, CUSTOMER_FIELDS, acConfigured, enqueue, purchaseOps, customerOps, abandonedTag, queuePurchase, process: sendPending, backoffMs, setFields };

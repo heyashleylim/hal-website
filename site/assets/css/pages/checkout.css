@@ -116,6 +116,25 @@
 .co-addon:has(.co-addon__check:checked){background:var(--surface);box-shadow:0 0 0 1px var(--accent)}
 .co-addon__check:focus-visible ~ .co-addon__toggle{outline:3px solid var(--accent);outline-offset:3px}
 
+/* "쿠폰이 있으신가요?": a quiet link that opens the code field */
+.co-coupon{margin:-6px 0}
+.co-coupon summary{display:inline-flex;align-items:center;min-height:44px;color:var(--ink-2);font:600 15px/1.4 var(--font-body);text-decoration:underline;text-underline-offset:3px;cursor:pointer;list-style:none}
+.co-coupon summary::-webkit-details-marker{display:none}
+.co-coupon summary::after{content:"";width:6px;height:6px;margin:-3px 0 0 8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+.co-coupon[open] summary::after{margin-top:3px;transform:rotate(-135deg)}
+.co-coupon summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:var(--r-sm)}
+.co-coupon__field{margin-top:6px}
+.co-coupon__row{display:flex;gap:10px}
+.co-coupon__row input{flex:1;min-width:0;text-transform:uppercase}
+.co-coupon__row input::placeholder{text-transform:none}
+.co-coupon__apply{flex:none;min-height:52px;padding:0 20px;border:1px solid var(--ink);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);font:700 15px/1 var(--font-body);cursor:pointer;white-space:nowrap}
+.co-coupon__apply:hover{background:var(--bg-alt)}
+.co-coupon__apply:focus-visible,.co-coupon__remove:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.co-coupon__apply[aria-disabled="true"]{opacity:.6;cursor:progress}
+.co-coupon__ok{margin-top:6px;font:600 13px/1.6 var(--font-body);color:var(--ink)}
+.co-coupon__remove{display:inline-flex;align-items:center;min-height:44px;margin:-12px 0;padding:0 4px;border:0;background:none;color:var(--ink-2);font:600 13px/1 var(--font-body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.co-coupon__remove:hover{color:var(--accent)}
+
 /* The order, right above the button */
 .co-order{padding:20px;border-radius:var(--r-lg);background:var(--bg-alt)}
 .co-order__title{font:700 15px/1.4 var(--font-body);color:var(--ink-2);margin:0 0 10px}
@@ -126,6 +145,7 @@
 .co-order__row--addon dt{display:flex;flex-wrap:wrap;align-items:center;gap:0 6px}
 .co-order__remove{display:inline-flex;align-items:center;gap:4px;min-height:44px;margin:-12px 0;padding:0 6px;border:0;background:none;color:var(--ink-2);font:600 13px/1 var(--font-body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .co-order__remove:hover{color:var(--accent)}
+.co-order__row--discount dd{color:var(--accent);font-weight:600}
 .co-order__row--total{margin-top:8px;padding-top:14px;border-top:1px solid var(--line)}
 .co-order__row--total dt{font-weight:700}
 .co-order__row--total strong{display:block;font:700 30px/1.2 var(--font-head);color:var(--accent)}
@@ -178,6 +198,11 @@
 .co-facts dt{color:var(--muted);font-size:14px;flex:none}
 .co-facts dd{margin:0;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
 .co-thanks{font-size:16px;line-height:1.7}
+/* A payment link (/checkout/pay/<token>): the order's facts, then one button. */
+.co-paylink__form{width:100%;display:grid;margin-top:8px}
+.co-paylink .co-pay{margin-top:0}
+.co-paylink .co-consent{margin-top:0}
+.co-paylink .co-problem{width:100%;text-align:left}
 .co-spinner{width:44px;height:44px;border:4px solid var(--line-soft);border-top-color:var(--accent);border-radius:50%;animation:co-spin 1s linear infinite}
 .co-pending.is-slow .co-spinner{display:none}
 @keyframes co-spin{to{transform:rotate(360deg)}}
@@ -223,3 +248,10 @@
 .co-phone.is-compact .co-phone__shown::after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;margin-top:-5px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
 .co-phone.is-compact .co-phone__cc:focus-within .co-phone__shown{outline:3px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
 .co-field.is-invalid .co-phone__shown{border-color:var(--accent)}
+
+/* Instalment plans: 일시불 / 분할 결제 under the card method (won only), the plan's note, and the "today / each month"
+   lines of the order. */
+.co-plans{margin:16px 0 0;padding:0;border:0;min-width:0}
+.co-plans__title{padding:0;margin:0 0 10px;font:700 15px/1.5 var(--font-body);color:var(--ink)}
+.co-plan-note{margin:12px 0 0;font-size:14px;line-height:1.7;color:var(--ink-2)}
+.co-order__row--plan dt,.co-order__row--plan dd{color:var(--ink-2);font-size:14px}

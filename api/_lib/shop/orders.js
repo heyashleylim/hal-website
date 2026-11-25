@@ -13,9 +13,6 @@ const pricing = require('./pricing.js');
 const ledger = require('./ledger.js');
 const config = require('./config.js');
 
-// Instalment plans are built in phase 3 (docs/commerce-plan.md). Until then the checkout only sells pay-in-full.
-const INSTALMENTS_ENABLED = false;
-
 // Orders started from one network per 10 minutes. Mobile carriers put many buyers behind one address, so it is
 // generous. There is deliberately no limit per email: anyone could type a buyer's email to lock them out.
 const RATE_LIMIT = { perNetwork: 30, minutes: 10 };
@@ -33,9 +30,10 @@ const providerFor = (currency) => (currency === 'USD' ? 'paypal' : 'ciderpay');
 
 // The ways this product can be bought right now (currency + plan), priced.
 // `providers`: the payment providers this deployment has keys for (default: both, for tests and pricing).
-function offers(product, providers = ['ciderpay', 'paypal']) {
+// `instalments`: whether the shop sells instalment plans (Shop → Settings, off until CiderPay's plans are tested).
+function offers(product, providers = ['ciderpay', 'paypal'], { instalments = false } = {}) {
   return pricing.options(product)
-    .filter((o) => o.plan === 'full' || INSTALMENTS_ENABLED)
+    .filter((o) => o.plan === 'full' || instalments)
     .filter((o) => providers.includes(providerFor(o.currency)))
     .map((o) => ({ ...pricing.quote(product, o), provider: providerFor(o.currency) }));
 }
@@ -66,17 +64,18 @@ function requestedAddons(input) {
 /*
  * Creates the order for one purchase. `billing` is the cleaned form (validate.checkoutInput).
  * `addons`: the add-on products the buyer ticked, each one of addonChoices() (checked by the caller).
+ * `coupon`: { coupon, discount } from coupons.forOrder (checked by the caller), or null.
  * The order and its items are written by one statement.
  * Throws CheckoutError('closed' | 'unavailable' | 'too_many').
  */
-async function createOrder({ product, currency, plan, option = null, billing, addons = [], source = {}, ipHash = null, now = new Date() }) {
+async function createOrder({ product, currency, plan, option = null, billing, addons = [], coupon = null, referral = null, source = {}, ipHash = null, instalments = false, now = new Date() }) {
   if (!pricing.saleState(product, now).open) throw new CheckoutError('closed');
-  if (!offers(product).some((o) => o.currency === currency && o.plan === plan)) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
+  if (!offers(product, undefined, { instalments }).some((o) => o.currency === currency && o.plan === plan)) throw new CheckoutError('unavailable', `no ${currency} ${plan} offer for ${product.slug}`);
   // A product with pricing options is only sold with one of them named: never a default the buyer didn't see.
   if (pricing.priceOptions(product).length && !option) throw new CheckoutError('option_unavailable', `no pricing option chosen for ${product.slug}`);
   let offer;
   try {
-    offer = { ...pricing.quote(product, { currency, plan, addons, option }), provider: providerFor(currency) };
+    offer = { ...pricing.quote(product, { currency, plan, addons, option, discount: coupon ? coupon.discount : 0 }), provider: providerFor(currency) };
   } catch (err) {
     if (err instanceof pricing.PricingError) {
       const code = err.code === 'bad_option' || err.code === 'option_plan' ? 'option_unavailable'
@@ -94,31 +93,69 @@ async function createOrder({ product, currency, plan, option = null, billing, ad
     if (recent.n >= RATE_LIMIT.perNetwork) throw new CheckoutError('too_many');
   }
 
+  return insertOrder({ product, offer, billing, source, ipHash, coupon, referral, now });
+}
+
+/*
+ * The terms of an instalment order (pure): { first, monthly, count, day } from its quote, the plan starting on
+ * `start` (Seoul date). `day` is the day of the month CiderPay charges (pricing.billingDay).
+ */
+function planTerms(offer, start) {
+  if (offer.plan !== 'instalment') return null;
+  const [first, ...rest] = offer.payments.map((p) => p.amount);
+  if (!rest.length || rest.some((n) => n !== rest[0])) throw new Error('an instalment plan has one first payment, then equal monthly payments');
+  return { first, monthly: rest[0], count: rest.length, day: pricing.billingDay(start) };
+}
+
+// The schedule of an instalment order: [{ number, due_date, amount }] (pure). Number 1 is paid at checkout.
+function planRows(terms, start) {
+  if (!terms) return [];
+  return pricing.schedule(start, terms.count + 1, terms.day).map((date, i) => ({ number: i + 1, due_date: date, amount: i === 0 ? terms.first : terms.monthly }));
+}
+
+/*
+ * Writes an order and its items in one statement: the customer row first (created from these details, but an
+ * existing customer's details are only replaced once a payment is confirmed: refreshCustomer). `offer` is a
+ * pricing.quote() with its `provider` (null for an order paid outside the site).
+ * Used by the checkout (createOrder) and by orders made in the admin (manual.js: origin 'manual', a note).
+ */
+async function insertOrder({ product, offer, billing, source = {}, ipHash = null, coupon = null, referral = null, origin = 'site', note = '', now = new Date() }) {
   // The customer row is created from this form, but an existing customer's details are only replaced once a
   // payment is confirmed (afterPaid): typing someone else's email must not rewrite their record.
   const customer = await db.one(
     `INSERT INTO shop_customers (email, name, phone, country, postcode, address1, address2) VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (email) DO UPDATE SET updated_at = shop_customers.updated_at RETURNING id`,
-    [billing.email, billing.name, billing.phone, billing.country, billing.postcode, billing.address1, billing.address2],
+    [billing.email, billing.name, billing.phone || '', billing.country || '', billing.postcode || '', billing.address1 || '', billing.address2 || ''],
   );
   const it = offer.items;
+  // An instalment order gets its schedule now, dated from today; the first payment dates it again (recordPayment).
+  const start = ledger.seoul(now).date;
+  const terms = planTerms(offer, start);
+  const plan = planRows(terms, start);
   const order = await db.one(
     `WITH o AS (
-       INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash, price_option)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14, $20::jsonb) RETURNING *),
+       INSERT INTO shop_orders (token, customer_id, product_id, product_name, currency, plan, subtotal, discount, total, due_today, status, provider, billing, source, ip_hash, price_option, coupon_id, coupon_code, origin, note, plan_terms, referrer_id, referral_reward)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'created', $11, $12::jsonb, $13::jsonb, $14, $20::jsonb, $21, $22, $23, $24, $25::jsonb, $29, $30::jsonb) RETURNING *),
      i AS (
        INSERT INTO shop_order_items (order_id, position, kind, product_id, name, amount, vat_rule)
        SELECT o.id, x.position - 1, x.kind, x.product_id, x.name, x.amount, x.vat_rule
          FROM o, unnest($15::text[], $16::int[], $17::text[], $18::int[], $19::text[]) WITH ORDINALITY AS x(kind, product_id, name, amount, vat_rule, position)
+       RETURNING 1),
+     s AS (
+       INSERT INTO shop_instalments (order_id, number, due_date, amount)
+       SELECT o.id, x.number, x.due_date, x.amount FROM o, unnest($26::int[], $27::date[], $28::int[]) AS x(number, due_date, amount)
        RETURNING 1)
-     SELECT o.*, (SELECT count(*)::int FROM i) AS item_count FROM o`,
+     SELECT o.*, (SELECT count(*)::int FROM i) AS item_count, (SELECT count(*)::int FROM s) AS plan_count FROM o`,
     [config.newToken(), customer.id, product.id, product.name, offer.currency, offer.plan, offer.subtotal, offer.discount, offer.total, offer.dueToday,
       offer.provider, JSON.stringify(billing), JSON.stringify(source), ipHash,
       it.map((x) => x.kind), it.map((x) => x.product_id), it.map((x) => x.name), it.map((x) => x.amount), it.map((x) => x.vatRule),
-      offer.option ? JSON.stringify(offer.option) : null],
+      offer.option ? JSON.stringify(offer.option) : null, coupon ? coupon.coupon.id : null, coupon ? coupon.coupon.code : null, origin, String(note || '').slice(0, 1000),
+      terms ? JSON.stringify(terms) : null, plan.map((x) => x.number), plan.map((x) => x.due_date), plan.map((x) => x.amount),
+      referral ? referral.referrerId : null, referral && referral.rule ? JSON.stringify(referral.rule) : null],
   );
-  if (!order || order.item_count !== it.length) throw new Error('the order and its items were not saved together');
+  if (!order || order.item_count !== it.length || order.plan_count !== plan.length) throw new Error('the order, its items and its schedule were not saved together');
   delete order.item_count;
+  delete order.plan_count;
   return order;
 }
 
@@ -135,10 +172,12 @@ async function items(orderId) {
        FROM shop_order_items i JOIN shop_products p ON p.id = i.product_id WHERE i.order_id = $1 ORDER BY i.position`, [orderId]);
 }
 
-// The provider accepted our request: the buyer is on their way to pay.
+// The provider accepted our request: the buyer is on their way to pay. A payment link (manual.js) can be opened
+// again: each time, the new request replaces the last one (an older PayPal order is then never captured; a
+// CiderPay notice finds its order by our token whichever page it came from, and a second payment is held).
 async function awaitPayment(orderId, providerRequest) {
   return db.one(
-    `UPDATE shop_orders SET provider_request = $2, status = 'awaiting_payment', updated_at = now() WHERE id = $1 AND status = 'created' RETURNING *`,
+    `UPDATE shop_orders SET provider_request = $2, status = 'awaiting_payment', updated_at = now() WHERE id = $1 AND status IN ('created', 'awaiting_payment') RETURNING *`,
     [orderId, providerRequest],
   );
 }
@@ -177,10 +216,18 @@ function decide(order, payment) {
 /*
  * Records a confirmed payment: the payment row, its tax ledger line and the order's state, in one statement.
  * → { recorded: true, order } the first time; { recorded: false, order } when this reference was already recorded.
- * payment: { provider, amount, ref, fee?, approvalNo?, refundToken?, method?, receiptUrl?, raw? }
+ * payment: { provider, amount, ref, fee?, approvalNo?, refundToken?, method?, receiptUrl?, raw?, at?, instalmentNo? }
+ * An instalment order's payments name their instalment (1 = the first, at checkout): that row of the schedule is
+ * marked paid by the same statement, and the first payment dates the whole schedule from the day it was made.
  */
 async function recordPayment(order, product, payment) {
-  const at = new Date();
+  // When the money moved: now, or the day a payment made outside the site was received (manual.js).
+  const at = payment.at ? new Date(payment.at) : new Date();
+  if (Number.isNaN(at.getTime())) throw new Error('bad payment date');
+  const instalmentNo = order.plan === 'instalment' ? (payment.instalmentNo || 1) : null;
+  // The schedule's dates: all of them from the first payment's day (then the billing day agreed with CiderPay);
+  // for a later instalment, unchanged.
+  const redate = instalmentNo === 1 && order.plan_terms ? planRows(order.plan_terms, ledger.seoul(at).date) : [];
   // One tax line per VAT rule of the order's items (normally one). An order without items (none since migration
   // 009) falls back to its product's rule.
   const sold = await items(order.id);
@@ -189,9 +236,19 @@ async function recordPayment(order, product, payment) {
   const row = await db.one(
     `WITH pay AS (
        INSERT INTO shop_payments (order_id, provider, kind, currency, amount, fee, instalment_no, provider_ref, approval_no, refund_token, method, receipt_url, raw, at)
-       VALUES ($1::int, $2::text, 'payment', $3::text, $4::int, $5::int, NULL, $6::text, $7::text, $8::text, $9::text, $10::text, $11::jsonb, $12::timestamptz)
+       VALUES ($1::int, $2::text, 'payment', $3::text, $4::int, $5::int, $19::int, $6::text, $7::text, $8::text, $9::text, $10::text, $11::jsonb, $12::timestamptz)
        ON CONFLICT (provider, kind, provider_ref) WHERE provider_ref IS NOT NULL DO NOTHING
        RETURNING id),
+     sch AS (
+       UPDATE shop_instalments i
+          SET status = CASE WHEN i.number = $19::int THEN 'paid' ELSE i.status END,
+              payment_id = CASE WHEN i.number = $19::int THEN pay.id ELSE i.payment_id END,
+              error = CASE WHEN i.number = $19::int THEN '' ELSE i.error END,
+              due_date = COALESCE(d.due_date, i.due_date),
+              updated_at = now()
+         FROM pay, shop_instalments i2 LEFT JOIN unnest($20::int[], $21::date[]) AS d(number, due_date) ON d.number = i2.number
+        WHERE i.id = i2.id AND i.order_id = $1::int AND (i.number = $19::int OR d.number IS NOT NULL)
+       RETURNING i.id),
      led AS (
        INSERT INTO shop_ledger (at, order_id, payment_id, kind, provider, method, currency, amount, supply, vat, vat_rule, fee)
        SELECT $12::timestamptz, $1::int, pay.id, l.kind, $2::text, $9::text, $3::text, l.amount, l.supply, l.vat, l.rule, l.fee
@@ -201,15 +258,18 @@ async function recordPayment(order, product, payment) {
        UPDATE shop_orders
           SET paid_total = paid_total + $4::int,
               status = CASE WHEN status IN ('created', 'awaiting_payment', 'expired', 'cancelled') THEN 'paid' ELSE status END,
+              plan_status = CASE WHEN plan = 'instalment' THEN COALESCE(plan_status, 'active') ELSE plan_status END,
               paid_at = COALESCE(paid_at, $12::timestamptz), updated_at = now()
         WHERE id = $1::int AND EXISTS (SELECT 1 FROM pay)
         RETURNING id)
-     SELECT (SELECT id FROM pay) AS payment_id, (SELECT count(*)::int FROM led) AS ledger_lines, (SELECT id FROM ord) AS order_id`,
+     SELECT (SELECT id FROM pay) AS payment_id, (SELECT count(*)::int FROM led) AS ledger_lines, (SELECT id FROM ord) AS order_id, (SELECT count(*)::int FROM sch) AS plan_rows`,
     [order.id, payment.provider, order.currency, payment.amount, payment.fee == null ? null : payment.fee, String(payment.ref),
       payment.approvalNo || null, payment.refundToken || null, payment.method || '', payment.receiptUrl || null,
       JSON.stringify(payment.raw || {}), at.toISOString(),
-      ls.map((l) => l.kind), ls.map((l) => l.amount), ls.map((l) => l.supply), ls.map((l) => l.vat), ls.map((l) => l.vat_rule), ls.map((l) => l.fee)],
+      ls.map((l) => l.kind), ls.map((l) => l.amount), ls.map((l) => l.supply), ls.map((l) => l.vat), ls.map((l) => l.vat_rule), ls.map((l) => l.fee),
+      instalmentNo, redate.map((x) => x.number), redate.map((x) => x.due_date)],
   );
+  if (row && row.payment_id && instalmentNo && !row.plan_rows) console.error(`shop: order ${order.number}: instalment ${instalmentNo} has no row in the schedule`);
   const fresh = await db.one('SELECT * FROM shop_orders WHERE id = $1', [order.id]);
   return { recorded: Boolean(row && row.payment_id), paymentId: row ? row.payment_id : null, order: fresh };
 }
@@ -232,11 +292,14 @@ async function logCallback({ provider, outcome, reason = '', orderId = null, pay
   }
 }
 
-// Orders started more than a day ago and never paid. A payment arriving later is still accepted (decide()).
+// Orders started more than a day ago and never paid; an order made in the admin, once its payment link is past
+// (manual.LINK_DAYS). A payment arriving later is still accepted (decide()).
+const LINK_DAYS = 14;
 async function expireStale() {
   const rows = await db.query(
     `UPDATE shop_orders SET status = 'expired', updated_at = now()
-      WHERE status IN ('created', 'awaiting_payment') AND created_at < now() - interval '24 hours' RETURNING id`);
+      WHERE status IN ('created', 'awaiting_payment')
+        AND created_at < now() - CASE WHEN origin = 'manual' THEN ($1 || ' days')::interval ELSE interval '24 hours' END RETURNING id`, [String(LINK_DAYS)]);
   return rows.length;
 }
 
@@ -269,7 +332,7 @@ async function payments(orderId) {
 }
 
 module.exports = {
-  INSTALMENTS_ENABLED, RATE_LIMIT, CheckoutError, providerFor, offers, productBySlug, createOrder, awaitPayment, abandon,
+  RATE_LIMIT, planTerms, planRows, CheckoutError, providerFor, offers, productBySlug, createOrder, insertOrder, awaitPayment, abandon,
   byToken, byProviderRequest, decide, recordPayment, items, orderName, addonChoices, requestedAddons, refreshCustomer, logCallback, expireStale, markTracked, payments, UNPAID,
-  paidWithoutSync, samePurchaseRecently,
+  paidWithoutSync, samePurchaseRecently, LINK_DAYS,
 };

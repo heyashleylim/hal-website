@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Coupons · Shop · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="shop">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main admin-main--wide">
+  <div class="admin-head">
+    <h1>Coupons</h1>
+    <button data-tip="Create a coupon campaign: the discount, the products it works on, its dates and its ActiveCampaign tags" class="btn-sm" type="button" id="add">New campaign</button>
+  </div>
+  <p class="muted">A <b>campaign</b> holds the discount. Its codes are either <b>shared</b> (one code anyone can type, e.g. SUMMER10) or <b>personal</b> (one code per person, used once, written to their ActiveCampaign fields <code>COUPON_CODE</code>, <code>COUPON_EXPIRES</code>, <code>COUPON_LINK</code> and tagged <code>coupon_issued_&lt;key&gt;</code>). A paid order with a code adds <code>coupon_used_&lt;key&gt;</code>. A coupon lowers the price of the product itself (not the add-ons), in pay-in-full only.</p>
+
+  <section class="admin-panel" id="editor" hidden aria-labelledby="editor-title">
+    <h2 id="editor-title">New campaign</h2>
+    <form id="form" class="admin-form" novalidate>
+      <input type="hidden" name="id">
+      <label>Name <span class="hint">for you, e.g. Black Friday 2026</span><input name="name" maxlength="100" required></label>
+      <label>Tag key <span class="hint">ActiveCampaign tags <code>coupon_issued_<b id="key-echo">…</b></code> and <code>coupon_used_…</code>. Can't be changed later</span><input name="key" maxlength="40" required autocapitalize="none" spellcheck="false" pattern="[a-z0-9]+(_[a-z0-9]+)*"></label>
+      <label>Discount
+        <select name="kind"><option value="percent">A percentage of the price</option><option value="amount">A fixed amount off</option></select>
+      </label>
+      <label data-kind="percent">Percentage off <span class="hint">1 to 99; rounded down to the won / cent</span><input name="percent" type="number" min="1" max="99" inputmode="numeric"></label>
+      <label data-kind="amount" hidden>Amount off in KRW <span class="hint">won; leave empty if it can't be used with card payments</span><input name="amount_krw" inputmode="numeric" placeholder="50000"></label>
+      <label data-kind="amount" hidden>Amount off in USD <span class="hint">dollars; leave empty if it can't be used with PayPal</span><input name="amount_usd" inputmode="decimal" placeholder="40"></label>
+      <fieldset class="admin-form__wide">
+        <legend>Products <span class="hint">none ticked = every product</span></legend>
+        <div id="products" class="check-grid"></div>
+      </fieldset>
+      <label>Checkout link <span class="hint">where <code>COUPON_LINK</code> takes people (with the code already applied)</span><select name="link_product_id"></select></label>
+      <label>Uses per person <span class="hint">paid orders one email can make with this campaign's codes</span><input name="per_person" type="number" min="1" max="100" value="1" inputmode="numeric"></label>
+      <label>Starts <span class="hint">optional, Seoul time</span><input name="starts_at" type="datetime-local"></label>
+      <label>Ends <span class="hint">optional, Seoul time: every code stops then</span><input name="ends_at" type="datetime-local"></label>
+      <label>Days a personal code works <span class="hint">counted from the day it is given (that day included); empty = until the campaign ends</span><input name="valid_days" type="number" min="1" max="3650" inputmode="numeric"></label>
+      <label>Status <select name="status"><option value="active">Active</option><option value="disabled">Disabled (no code works)</option></select></label>
+      <label class="admin-form__wide">Note <span class="hint">for you only</span><textarea name="note" rows="2" maxlength="1000"></textarea></label>
+      <div class="admin-form__actions">
+        <button data-tip="Save this campaign" class="btn-sm" type="submit">Save</button>
+        <button data-tip="Close without saving" class="btn-ghost" type="button" id="cancel">Cancel</button>
+      </div>
+      <p class="admin-form__result" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section class="admin-card" aria-label="All campaigns">
+    <div id="list" class="admin-scroll" aria-live="polite"><p class="admin-empty">Loading…</p></div>
+  </section>
+
+  <section class="admin-card" id="detail" hidden aria-labelledby="detail-title">
+    <div class="admin-head">
+      <h2 id="detail-title">Campaign</h2>
+      <button data-tip="Close this campaign" class="btn-ghost" type="button" id="close-detail">Close</button>
+    </div>
+    <div id="detail-facts"></div>
+
+    <div class="admin-cols">
+      <form id="shared" class="admin-form" novalidate>
+        <p class="admin-h3">Add a shared code</p>
+        <label>Code <span class="hint">e.g. SUMMER10; empty = made up for you</span><input name="code" maxlength="40" autocapitalize="characters" spellcheck="false"></label>
+        <label>Maximum uses <span class="hint">empty = no limit</span><input name="max_uses" type="number" min="1" inputmode="numeric"></label>
+        <div class="admin-form__actions"><button data-tip="Create this shared code: anyone who types it gets the campaign's discount" class="btn-sm" type="submit">Add code</button></div>
+        <p class="admin-form__result" role="status" aria-live="polite"></p>
+      </form>
+      <form id="issue" class="admin-form" novalidate>
+        <p class="admin-h3">Give personal codes</p>
+        <label class="admin-form__wide">Emails <span class="hint">one per line (or separated by commas)</span><textarea name="emails" rows="4"></textarea></label>
+        <label class="admin-form__wide">…or everyone with this ActiveCampaign tag <span class="hint">from the Contacts copy</span><input name="tag" maxlength="200" autocapitalize="none" spellcheck="false"></label>
+        <p class="small muted admin-form__wide">Someone who already holds a working code of this campaign keeps it (no second code). Each new code is written to that person's ActiveCampaign fields, then tagged.</p>
+        <div class="admin-form__actions"><button data-tip="Create one code per person and send it to their ActiveCampaign contact" class="btn-sm" type="submit">Give codes</button></div>
+        <p class="admin-form__result" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+
+    <div class="admin-head">
+      <p class="admin-h3">Codes</p>
+      <div class="admin-actions">
+        <label class="sr-only" for="code-q">Find a code or email</label>
+        <input id="code-q" type="search" placeholder="Find a code or email" autocapitalize="none" spellcheck="false">
+        <button data-tip="Download every code of this campaign as a spreadsheet (CSV)" class="btn-ghost" type="button" id="csv">Download CSV</button>
+      </div>
+    </div>
+    <div id="codes" class="admin-scroll" aria-live="polite"></div>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var campaigns = [], products = [], current = null, codes = [], linkSlug = '';
+  var editor = document.getElementById('editor'), form = document.getElementById('form'), out = form.querySelector('.admin-form__result');
+  var detail = document.getElementById('detail');
+  var STATE = { unused: 'badge--info', active: 'badge--ok', used: 'badge--ok', 'used up': '', expired: '', disabled: 'badge--warn', 'not started': 'badge--info' };
+
+  function esc(s) { return Admin.esc(s == null ? '' : String(s)); }
+  function dollars(c) { return c == null ? '' : (c % 100 ? (c / 100).toFixed(2) : String(c / 100)); }
+  function local(iso) { if (!iso) return ''; var k = Admin.kstParts(iso); return k.date + 'T' + k.time; }
+  function productName(id) { var p = products.find(function (x) { return x.id === id; }); return p ? p.name : '#' + id; }
+  function when(k) {
+    var a = k.starts_at ? Admin.kst(k.starts_at) : '', b = k.ends_at ? Admin.kst(k.ends_at) : '';
+    return a || b ? (a ? 'from ' + a : '') + (a && b ? '<br>' : '') + (b ? 'until ' + b : '') : '<span class="muted">no dates</span>';
+  }
+
+  function load() {
+    return Admin.get('shop-coupons').then(function (r) { campaigns = r.campaigns; products = r.products; render(); })
+      .catch(function (err) { document.getElementById('list').innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });
+  }
+
+  function render() {
+    var el = document.getElementById('list');
+    if (!campaigns.length) { el.innerHTML = '<p class="admin-empty">No campaign yet. Create the first one with “New campaign”.</p>'; return; }
+    el.innerHTML = '<table class="admin-table"><thead><tr><th style="min-width:200px">Campaign</th><th>Discount</th><th>Products</th><th>Dates</th><th>Codes</th><th>Paid orders</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+      campaigns.map(function (k) {
+        return '<tr><td>' + esc(k.name) + '<br><code class="small">' + esc(k.key) + '</code></td>' +
+          '<td>' + esc(k.value) + '</td>' +
+          '<td>' + (k.product_ids.length ? k.product_ids.map(function (id) { return esc(productName(id)); }).join('<br>') : '<span class="muted">every product</span>') + '</td>' +
+          '<td class="small">' + when(k) + '</td>' +
+          '<td class="num">' + k.shared_codes + ' shared<br>' + k.personal_codes + ' personal</td>' +
+          '<td class="num">' + k.orders + (k.discountsLabel ? '<br><span class="small muted">' + esc(k.discountsLabel) + ' off</span>' : '') + '</td>' +
+          '<td>' + (k.status === 'active' ? '<span class="badge badge--ok">Active</span>' : '<span class="badge badge--warn">Disabled</span>') + '</td>' +
+          '<td><div class="admin-actions"><button data-tip="See this campaign’s codes, add a shared code or give personal codes" class="btn-ghost" type="button" data-open="' + k.id + '">Codes</button>' +
+          '<button data-tip="Change this campaign’s discount, products, dates or status" class="btn-ghost" type="button" data-edit="' + k.id + '">Edit</button></div></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  document.getElementById('list').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button');
+    if (!b) return;
+    var k = campaigns.find(function (x) { return String(x.id) === (b.getAttribute('data-open') || b.getAttribute('data-edit')); });
+    if (!k) return;
+    if (b.hasAttribute('data-open')) openDetail(k.id); else edit(k);
+  });
+
+  // ---------- campaign editor ----------
+  function kindFields() {
+    var kind = form.elements.kind.value;
+    form.querySelectorAll('[data-kind]').forEach(function (el) { el.hidden = el.getAttribute('data-kind') !== kind; });
+  }
+  form.elements.kind.addEventListener('change', kindFields);
+  form.elements.key.addEventListener('input', function () { document.getElementById('key-echo').textContent = form.elements.key.value || '…'; });
+
+  function edit(k) {
+    form.reset();
+    Admin.say(out, '');
+    document.getElementById('editor-title').textContent = k ? 'Edit campaign · ' + k.name : 'New campaign';
+    var v = k || { kind: 'percent', per_person: 1, status: 'active', product_ids: [] };
+    form.elements.id.value = k ? k.id : '';
+    form.elements.name.value = v.name || '';
+    form.elements.key.value = v.key || '';
+    form.elements.key.readOnly = Boolean(k);
+    document.getElementById('key-echo').textContent = v.key || '…';
+    form.elements.kind.value = v.kind;
+    form.elements.percent.value = v.percent || '';
+    form.elements.amount_krw.value = v.amount_krw || '';
+    form.elements.amount_usd.value = dollars(v.amount_usd);
+    form.elements.per_person.value = v.per_person || 1;
+    form.elements.starts_at.value = local(v.starts_at);
+    form.elements.ends_at.value = local(v.ends_at);
+    form.elements.valid_days.value = v.valid_days || '';
+    form.elements.status.value = v.status;
+    form.elements.note.value = v.note || '';
+    var sellable = products.filter(function (p) { return !p.addon_only; });
+    document.getElementById('products').innerHTML = sellable.map(function (p) {
+      return '<label class="check-ac"><input type="checkbox" name="product_ids" value="' + p.id + '"' + (v.product_ids.indexOf(p.id) >= 0 ? ' checked' : '') + '> ' + esc(p.name) + ' <code class="small">/checkout/' + esc(p.slug) + '</code></label>';
+    }).join('') || '<p class="muted">No product yet.</p>';
+    form.elements.link_product_id.innerHTML = '<option value="">The only product ticked (or none)</option>' + sellable.map(function (p) {
+      return '<option value="' + p.id + '"' + (v.link_product_id === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>';
+    }).join('');
+    kindFields();
+    editor.hidden = false;
+    form.elements.name.focus();
+  }
+  document.getElementById('add').addEventListener('click', function () { edit(null); });
+  document.getElementById('cancel').addEventListener('click', function () { editor.hidden = true; });
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var submit = form.querySelector('[type=submit]'), body = {};
+    ['id', 'name', 'key', 'kind', 'percent', 'amount_krw', 'amount_usd', 'link_product_id', 'per_person', 'starts_at', 'ends_at', 'valid_days', 'status', 'note'].forEach(function (k) { body[k] = form.elements[k].value; });
+    body.product_ids = Array.prototype.filter.call(form.querySelectorAll('input[name="product_ids"]'), function (x) { return x.checked; }).map(function (x) { return Number(x.value); });
+    submit.disabled = true;
+    Admin.say(out, 'Saving…');
+    Admin.post('shop-coupon-campaign-save', body).then(function (r) {
+      editor.hidden = true;
+      return load().then(function () { openDetail(r.campaign.id); });
+    }).catch(function (err) { Admin.say(out, err.message, true); })
+      .then(function () { submit.disabled = false; });
+  });
+
+  // ---------- one campaign ----------
+  function openDetail(id) {
+    return Admin.get('shop-coupon-campaign', { id: id }).then(function (r) {
+      current = r.campaign; codes = r.codes; linkSlug = r.linkSlug;
+      document.getElementById('detail-title').textContent = current.name + ' · ' + current.value + ' off';
+      var hook = current.webhook
+        ? '<p class="small">To give a code from an ActiveCampaign automation, add a <b>Webhook</b> step that posts to:<br><code class="wrap">' + esc(current.webhook) + '</code><br>Then wait until the contact has the tag <code>coupon_issued_' + esc(current.key) + '</code> before the email that shows <code>%COUPON_CODE%</code>. A contact who still holds a working code gets the same one again.</p>'
+        : '<p class="small is-error">The ActiveCampaign webhook address can’t be shown here (SHOP_SECRET or the site address is missing).</p>';
+      document.getElementById('detail-facts').innerHTML = '<dl class="facts">' +
+        '<div><dt>Tags</dt><dd><code>coupon_issued_' + esc(current.key) + '</code>, <code>coupon_used_' + esc(current.key) + '</code></dd></div>' +
+        '<div><dt>Products</dt><dd>' + (current.product_ids.length ? current.product_ids.map(function (i) { return esc(productName(i)); }).join(', ') : 'every product') + '</dd></div>' +
+        '<div><dt>Dates</dt><dd>' + when(current) + '</dd></div>' +
+        '<div><dt>Personal codes work</dt><dd>' + (current.valid_days ? current.valid_days + ' days from the day given' : 'until the campaign ends') + '</dd></div>' +
+        '<div><dt>Uses per person</dt><dd>' + current.per_person + '</dd></div>' +
+        '<div><dt>Checkout link</dt><dd>' + (linkSlug ? '<code>/checkout/' + esc(linkSlug) + '?coupon=…</code>' : '<span class="muted">none: COUPON_LINK stays empty</span>') + '</dd></div>' +
+        '</dl>' + (current.status === 'active' ? '' : '<p class="is-error">This campaign is disabled: none of its codes works.</p>') + hook;
+      renderCodes();
+      detail.hidden = false;
+      detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }).catch(function (err) { alert(err.message); });
+  }
+  document.getElementById('close-detail').addEventListener('click', function () { detail.hidden = true; });
+
+  function linkOf(c) { return linkSlug ? location.origin + '/checkout/' + linkSlug + '?coupon=' + encodeURIComponent(c.code) : ''; }
+
+  function renderCodes() {
+    var q = document.getElementById('code-q').value.trim().toLowerCase();
+    var shown = codes.filter(function (c) { return !q || c.code.toLowerCase().indexOf(q) >= 0 || (c.owner_email || '').indexOf(q) >= 0; });
+    var el = document.getElementById('codes');
+    if (!codes.length) { el.innerHTML = '<p class="admin-empty">No code yet: add a shared code or give personal codes above.</p>'; return; }
+    el.innerHTML = '<table class="admin-table"><thead><tr><th>Code</th><th>For</th><th>State</th><th>Used</th><th>Last day</th><th>Given</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+      shown.slice(0, 500).map(function (c) {
+        var orders = (c.orders || []).map(function (o) { return '<a href="/admin/shop/orders?id=' + o.id + '">' + esc(o.number) + '</a>'; }).join(', ');
+        return '<tr><td><code>' + esc(c.code) + '</code></td>' +
+          '<td>' + (c.owner_email ? esc(c.owner_email) : '<span class="muted">anyone' + (c.max_uses ? ', ' + c.max_uses + ' uses' : '') + '</span>') + '</td>' +
+          '<td><span class="badge ' + (STATE[c.state] || '') + '">' + esc(c.state) + '</span></td>' +
+          '<td class="num">' + c.uses + (orders ? '<br><span class="small">' + orders + '</span>' : '') + '</td>' +
+          '<td class="num">' + (c.last_day ? esc(c.last_day) : '<span class="muted">–</span>') + '</td>' +
+          '<td class="small">' + Admin.kst(c.created_at) + (c.issued_by === 'ac' ? '<br>by ActiveCampaign' : '') + '</td>' +
+          '<td><div class="admin-actions">' + (linkOf(c) ? '<button data-tip="Copy the checkout link with this code already applied" class="btn-ghost" type="button" data-copy="' + c.id + '">Copy link</button>' : '') +
+          '<button data-tip="' + (c.disabled_at ? 'Make this code work again' : 'Stop this code from working (orders already paid stay as they are)') + '" class="btn-ghost" type="button" data-toggle="' + c.id + '">' + (c.disabled_at ? 'Enable' : 'Disable') + '</button></div></td></tr>';
+      }).join('') + '</tbody></table>' + (shown.length > 500 ? '<p class="small muted">Showing 500 of ' + shown.length + ': search to narrow, or download the CSV.</p>' : '');
+  }
+  document.getElementById('code-q').addEventListener('input', renderCodes);
+
+  document.getElementById('codes').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button');
+    if (!b) return;
+    var c = codes.find(function (x) { return String(x.id) === (b.getAttribute('data-copy') || b.getAttribute('data-toggle')); });
+    if (!c) return;
+    if (b.hasAttribute('data-copy')) {
+      var link = linkOf(c);
+      (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy link'; }, 1500); })
+        .catch(function () { prompt('Copy this link:', link); });
+      return;
+    }
+    if (!c.disabled_at && !confirm('Disable ' + c.code + '? Nobody will be able to use it until it is enabled again.')) return;
+    Admin.post('shop-coupon-code-state', { id: c.id, disabled: !c.disabled_at }).then(function () { return openDetail(current.id); }).then(load)
+      .catch(function (err) { alert(err.message); });
+  });
+
+  document.getElementById('csv').addEventListener('click', function () {
+    var rows = [['code', 'email', 'state', 'uses', 'orders', 'last_day', 'given_at', 'link']].concat(codes.map(function (c) {
+      return [c.code, c.owner_email || '', c.state, c.uses, (c.orders || []).map(function (o) { return o.number; }).join(' '), c.last_day || '', c.created_at, linkOf(c)];
+    }));
+    var csv = rows.map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\n');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'coupons-' + current.key + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+
+  var shared = document.getElementById('shared'), sharedOut = shared.querySelector('.admin-form__result');
+  shared.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var submit = shared.querySelector('[type=submit]');
+    submit.disabled = true;
+    Admin.post('shop-coupon-code-add', { campaign_id: current.id, code: shared.elements.code.value, max_uses: shared.elements.max_uses.value }).then(function (r) {
+      shared.reset();
+      Admin.say(sharedOut, 'Code ' + r.code.code + ' added.');
+      return openDetail(current.id).then(load);
+    }).catch(function (err) { Admin.say(sharedOut, err.message, true); }).then(function () { submit.disabled = false; });
+  });
+
+  var issue = document.getElementById('issue'), issueOut = issue.querySelector('.admin-form__result');
+  issue.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var submit = issue.querySelector('[type=submit]'), tag = issue.elements.tag.value.trim(), emails = issue.elements.emails.value.trim();
+    if (tag && emails) { Admin.say(issueOut, 'Give emails or a tag, not both.', true); return; }
+    var n = tag ? 'everyone with the tag “' + tag + '”' : emails.split(/[\s,;]+/).filter(Boolean).length + ' email(s)';
+    if (!confirm('Give a personal code of “' + current.name + '” to ' + n + '? Each new code is sent to their ActiveCampaign contact (fields, then the tag coupon_issued_' + current.key + ').')) return;
+    submit.disabled = true;
+    Admin.say(issueOut, 'Creating codes…');
+    Admin.post('shop-coupon-issue', { campaign_id: current.id, emails: emails, tag: tag }).then(function (r) {
+      issue.reset();
+      var sent = r.sent && r.sent.skipped ? ' ActiveCampaign is not configured here: nothing was sent.' : r.sent && r.sent.left ? ' ' + r.sent.left + ' ActiveCampaign update(s) still waiting: they go out with the daily job, or from Orders → “Send to ActiveCampaign now”.' : ' Sent to ActiveCampaign.';
+      Admin.say(issueOut, r.created + ' new code(s)' + (r.kept ? ', ' + r.kept + ' person(s) already had one' : '') + '.' + (r.created ? sent : ''));
+      return openDetail(current.id).then(load);
+    }).catch(function (err) { Admin.say(issueOut, err.message, true); }).then(function () { submit.disabled = false; });
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>

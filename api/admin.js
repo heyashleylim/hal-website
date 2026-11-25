@@ -23,12 +23,20 @@ const emailsTranslate = require('./_lib/emails/translate.js');
 const contactsSync = require('./_lib/contacts/ac-sync.js');
 
 // Shop daily job: unpaid orders older than a day expire; paid orders missing their ActiveCampaign updates get them;
-// updates still waiting are sent.
+// instalments late with no word from CiderPay are flagged (Slack, AC); updates still waiting are sent.
 async function shopJob() {
   const expired = await shopOrders.expireStale();
   const requeued = await require('./_lib/shop/flow.js').repairSync();
+  const refundsToCheck = await require('./_lib/shop/refunds.js').sweep();
+  const instalments = await require('./_lib/shop/instalments.js').checkLate();
+  // Referral rewards: new payments and refunds of referred orders, then the ones past the refund window approved.
+  const referrals = await require('./_lib/shop/referrals.js').sweep().catch((err) => ({ error: err.message }));
+  // Abandoned checkouts → checkout_abandoned_<product> in ActiveCampaign (only when switched on in Settings).
+  const abandoned = await require('./_lib/shop/abandoned.js').run().catch((err) => ({ error: err.message }));
   const sent = await shopSync.process({ budgetMs: 60 * 1000 });
-  return { expired, requeued, sent };
+  // The monthly ledger copies (finished months without a file); a storage problem never stops the rest of the job.
+  const backup = await require('./_lib/shop/backup.js').run({ budgetMs: 20 * 1000 }).catch((err) => ({ error: err.message }));
+  return { expired, requeued, refundsToCheck, instalments, referrals, abandoned, sent, backup };
 }
 
 const MODULES = [
@@ -40,6 +48,11 @@ const MODULES = [
   require('./_lib/admin/waitlist.js'),
   require('./_lib/admin/shop-products.js'),
   require('./_lib/admin/shop-orders.js'),
+  require('./_lib/admin/shop-coupons.js'),
+  require('./_lib/admin/shop-manual.js'),
+  require('./_lib/admin/shop-plans.js'),
+  require('./_lib/admin/shop-reports.js'),
+  require('./_lib/admin/shop-referrals.js'),
   require('./_lib/admin/emails.js'),
   require('./_lib/admin/contacts.js'),
   require('./_lib/admin/program-students.js'),
