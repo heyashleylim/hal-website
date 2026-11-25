@@ -23,13 +23,14 @@ hal-website/
 ├── api/shop*.js           ← checkout: shop-page.js (pages), shop.js (order API), shop-callback.js (CiderPay / PayPal notices)
 ├── api/_lib/shop/         ← shop rules (pricing, ledger, orders, flow, pay/ciderpay, pay/paypal, sync, copy.ko…); admin actions in api/_lib/admin/shop-*.js (docs/commerce-plan.md)
 ├── api/_lib/emails/       ← Emails section: score.js (performance score, pure), ac-sync.js (copies AC's emails and stats), translate.js (saved English translations); admin actions in api/_lib/admin/emails.js
-├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), applied with `npm run db:migrate`
+├── db/migrations/         ← database schema (Neon Postgres): podcast (001–004, 012 episode types), shop (005–006, 009 add-ons, 010 pricing options), emails (007–008), student area (011, 013), contacts + students (014), snippet "good for" categories (015), program reviews (016), applied with `npm run db:migrate`
 ├── tests/                 ← `npm test` (node:test, no extra packages)
 ├── package.json           ← API function dependencies only
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
 ├── api/_lib/contacts/     ← ac-sync.js: copies ActiveCampaign contacts (read-only on AC); admin actions in api/_lib/admin/contacts.js
-├── tools/students/        ← import.js (student spreadsheet → database), translations.js (English written in a Claude session)
+├── api/review.js          ← review form pages (/lifeartist/review) → Students section; logic in api/_lib/students/ (forms.js = the questions, reviews.js)
+├── tools/students/        ← import.js (student spreadsheet → database), translations.js (English written in a Claude session), reviews.js (review CSV export), analysis.js (an analysis round of reviews), categories.js
 ├── tools/contacts/        ← fake-ac.js: made-up AC contacts for the local server and the tests
 ├── tools/podcast/         ← podcast database migration script (npm run db:migrate)
 ├── tools/waitlist/        ← link-codes.js: terminal version of the /admin button "Give personal links to the waitlist" (api/_lib/admin/waitlist.js)
@@ -54,6 +55,7 @@ hal-website/
     ├── engine/index.html  ← /engine — ENGINE-style NSMB page (ENGINE palette, its own CSS/JS)
     ├── nsmb/index.html    ← /nsmb — rebuild of ashleylim.com/nsmb in Ashley's design system (hand-built, customised)
     ├── nsmb/waitlist/index.html ← /nsmb/waitlist — the waitlist form on its own page (noindex; personal links ?c=CODE)
+    ├── lifeartist/review/   ← /lifeartist/review — the Life Artist review form (noindex; js/review-flow.js), saved into the admin; thanks/ for posts without JS
     ├── lifeartist/, eft/, chosen/, switch/              ← generated from the live pages (tools/rebuild); /lifeartist = live /lifeartist2026
     ├── terms-and-conditions/, refund-policy/, privacy-policy/  ← generated from the live pages
     ├── preview/<page>/    ← PRIVATE copies incl. elements hidden on the live site (password + noindex)
@@ -361,6 +363,18 @@ onboarding questionnaires and testimonials, starting with NSMB. Admin section `/
   picked when saving a new snippet. Filled once from the notes by `tools/students/categories.js <mapping.json> [--preview]`
   (mapping written in a Claude session, kept in `_originals/students-reanalysis-2026-11-18/use-categories.json`; it only
   fills snippets with no category, never overwriting the admin's choices).
+- **Programs and reviews** (Alex, 2026-11-25; migration 016): `student_programs` lists the programs (NSMB, Life Artist;
+  `personas` = whether its analysis assigns P1–P6). Every list, the overview and the snippet library filter by program
+  (empty = all); the list sorts by strength, newest review or name. A person's enrolments in several programs (same
+  contact, same email, or "same as") are one profile, shown as tabs on the student page; a Life Artist student shows her
+  NSMB persona. A review = one text per answer (kind `review`, `question_key`, `submitted_at`); the questions live in
+  `api/_lib/students/forms.js` (the form page's labels must match: `npm test`). Line breaks are stored as `\n`.
+  Reviews come from the form page `/lifeartist/review` (`api/review.js`: same-site, honeypot, 5 s minimum, 10 per network
+  per hour in `review_requests`; the optional "name hidden" tick sets permission to yes unless the admin chose) or from
+  a CSV export on `/admin/students/import` (or `tools/students/reviews.js`). Each is linked to her AC contact by email,
+  and to her NSMB record when exactly one has her name and the contact has a `purchased_nsmb…` tag. Nothing goes to AC.
+  The strength of a program with one analysis round shows as "suggested · not decided" until the admin decides. Only
+  snippets of a text's current version are shown. The strength column is still `rating` in the data.
 - Sensitive snippets (health, suicide, abuse, children) are flagged and left out of the snippet library by default;
   `permission` per student says whether her words may be used publicly. Never use those details in marketing.
 
@@ -373,6 +387,13 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 - Preview either state with `?enroll=open` / `?enroll=closed`.
 
 **Timed sales on generated pages (e.g. /eft):** `"sale"` in `tools/rebuild/overrides.json` sets the deadline (KST), the texts that disappear at the deadline, the price that changes and where the countdown goes. `site/assets/js/sale.js` shows the countdown and switches the page in the browser at the deadline (test with `?sale-now=2026-10-17T00:00:00%2B09:00`); `.github/workflows/sale-end.yml` then runs `tools/rebuild/sale_end.py` just after it and pushes the regular version, so the HTML itself changes too. The WooCommerce price is scheduled in WordPress (product → Sale price → Schedule), with the same end date and the WordPress timezone set to Seoul. For a new sale: update `"sale"`, regenerate the page, and change the cron line in the workflow (UTC).
+
+**Price box on /lifeartist (Alex, 2026-11-25):** the live plan picker is replaced by a box built like the /eft one
+(`replace_section` in `overrides.json` → `tools/rebuild/partials/lifeartist-pricing.html`, styles `assets/css/price-card.css`):
+regular ₩2,220,000 crossed out, early bird ₩1,690,000 until 2026-12-06 23:59:59 KST (sale.js countdown; the
+`sale-end.yml` cron ends it in the HTML), or ₩590,000 × 3. The WooCommerce links go in `values` (`pif_link`,
+`instalment_link`); while empty, the buttons are left out and the "registration closed" note shows. Regenerate after
+changing them (`python3 tools/rebuild/gen.py lifeartist2026`).
 
 **New cohort checklist:** deadline, prices, payment links, refund-request date (guarantee section and FAQ), live-session count/day, waitlist form endpoint, `og:` image, footer year.
 
