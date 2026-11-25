@@ -195,7 +195,8 @@ async function main() {
          ON CONFLICT (student_id, round) DO UPDATE SET persona = EXCLUDED.persona, persona_alt = EXCLUDED.persona_alt, confidence = EXCLUDED.confidence,
            why = EXCLUDED.why, trigger_text = EXCLUDED.trigger_text, outcomes = EXCLUDED.outcomes, generational = EXCLUDED.generational,
            rating = EXCLUDED.rating, scores = EXCLUDED.scores, rating_why = EXCLUDED.rating_why, top_line = EXCLUDED.top_line,
-           top_line_exact = EXCLUDED.top_line_exact, suggested_use = EXCLUDED.suggested_use, flags = EXCLUDED.flags, notes = EXCLUDED.notes, extra = EXCLUDED.extra`,
+           top_line_exact = EXCLUDED.top_line_exact, suggested_use = EXCLUDED.suggested_use, flags = EXCLUDED.flags, notes = EXCLUDED.notes,
+           extra = student_analyses.extra || EXCLUDED.extra`, // || keeps keys saved later (top_line_en, the English)
         [sid, round, a.persona, a.persona_alt, a.confidence, a.why || '', a.trigger || '', JSON.stringify(a.outcomes || []), a.generational ?? null,
           a.rating, JSON.stringify(a.scores || {}), a.rating_why || '', a.top_line || '', a.top_line_exact ?? null, a.suggested_use || '',
           JSON.stringify(a.flags || []), a.notes || '', JSON.stringify(a.extra || {})]);
