@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseCsv, fromCsv, clean } = require('../../api/_lib/students/reviews.js');
+const { parseCsv, fromCsv, clean, cohortFromTags } = require('../../api/_lib/students/reviews.js');
 const { FORMS, questionLabels } = require('../../api/_lib/students/forms.js');
 
 const f = FORMS['lifeartist-2026'];
@@ -40,18 +40,37 @@ test('a review needs a name, a valid email and, from the form page, every requir
   assert.throws(() => clean({ form: 'nope' }), /unknown review form/);
 });
 
-test('the review form page asks exactly the questions of its form, in order, with their hints', () => {
-  const html = fs.readFileSync(path.join(__dirname, '../../site/lifeartist/review/index.html'), 'utf8');
-  assert.match(html, /data-form="lifeartist-2026"/);
-  const unescape = (s) => s.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-  const asked = [...html.matchAll(/<label class="wlf__q" for="rv-([a-z_]+)"><span class="wlf__n">[^<]*<\/span>([^<]*)<\/label>/g)].map((m) => [m[1], unescape(m[2])]);
-  assert.deepEqual(asked, f.questions.map((q) => [q.key, q.ko]));
-  for (const q of f.questions) {
-    assert.ok(unescape(html).includes(q.hint), `hint of ${q.key}`);
-    assert.match(html, new RegExp(`name="q_${q.key}"`));
-  }
-  assert.match(html, /GTM-MK4FNWNV/);
-  assert.match(html, /name="robots" content="noindex"/);
+for (const [key, form] of Object.entries(FORMS)) {
+  test(`the ${key} review page (/${form.page.path}) asks exactly its questions, in order, with their hints`, () => {
+    const html = fs.readFileSync(path.join(__dirname, '../../site', form.page.path, 'index.html'), 'utf8');
+    assert.match(html, new RegExp(`data-form="${key}"`));
+    const unescape = (x) => x.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    const asked = [...html.matchAll(/<label class="wlf__q" for="rv-([a-z_]+)"><span class="wlf__n">[^<]*<\/span>([^<]*)<\/label>/g)].map((m) => [m[1], unescape(m[2])]);
+    assert.deepEqual(asked, form.questions.map((q) => [q.key, q.ko]));
+    for (const q of form.questions) {
+      if (q.hint) assert.ok(unescape(html).includes(q.hint), `hint of ${q.key}`);
+      assert.match(html, new RegExp(`name="q_${q.key}"`));
+      assert.match(html, new RegExp(`id="rv-${q.key}"[^>]*${q.required ? 'data-required' : ''}`));
+    }
+    assert.match(html, /GTM-MK4FNWNV/);
+    assert.match(html, /name="robots" content="noindex"/);
+    assert.ok(fs.existsSync(path.join(__dirname, '../../site', form.page.path, 'thanks', 'index.html')), 'thanks page');
+  });
+}
+
+test('NSMB reviews take the cohort from her highest purchase tag', () => {
+  assert.equal(cohortFromTags(['purchased_nsmb_3_202311', 'purchased_nsmb_11_202609', 'purchased_lifeartist_2026'], 'nsmb'), 11);
+  assert.equal(cohortFromTags(['purchased_eft'], 'nsmb'), null);
+  assert.equal(cohortFromTags(null, 'nsmb'), null);
+  assert.equal(FORMS.nsmb.cohort, 'tags');
+});
+
+test('the NSMB form uses the old form\'s export columns', () => {
+  const head = ['Name', 'Email Address', ...FORMS.nsmb.questions.map((q) => q.csv), 'created_at'];
+  const csv = head.join(',') + '\n' + ['김', 'a@b.co', ...FORMS.nsmb.questions.map(() => '답'), '2026-07-01 09:00:00'].join(',') + '\n';
+  const [r] = fromCsv('nsmb', parseCsv(csv));
+  assert.equal(r.answers.life_before, '답');
+  assert.equal(r.answers.final_thoughts, '답');
 });
 
 test('question labels for the admin are keyed by program and question', () => {

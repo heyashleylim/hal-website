@@ -53,10 +53,10 @@
   var esc = Admin.esc, form = document.getElementById('csv-form');
   Admin.get('program-students').then(function (r) {
     var all = [];
-    r.programs.forEach(function (p) { p.forms.forEach(function (f) { all.push({ key: f.key, title: f.title, program: p }); }); });
+    r.programs.forEach(function (p) { p.forms.forEach(function (f) { all.push({ key: f.key, title: f.title, page: f.page, program: p }); }); });
     form.form.innerHTML = all.map(function (f) { return '<option value="' + esc(f.key) + '">' + esc(f.title) + '</option>'; }).join('');
     document.getElementById('forms').innerHTML = all.length ? all.map(function (f) {
-      var page = f.program.key === 'lifeartist' ? '/' + f.program.key + '/review' : '';
+      var page = f.page || '';
       return '<li style="margin-bottom:6px"><strong>' + esc(f.title) + '</strong>' + (page ? ' · form page: <a href="' + page + '" target="_blank" rel="noopener">' + page + '</a>' : '') +
         ' · <a href="/admin/students/list?program=' + encodeURIComponent(f.program.key) + '&sort=recent">see the reviews</a></li>';
     }).join('') : '<li class="muted">No review form yet.</li>';

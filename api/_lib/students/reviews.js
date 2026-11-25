@@ -2,7 +2,9 @@
  * Saving a review (one text per answer) for a program student, from the review form page (api/review.js), the CSV
  * import in the admin (api/_lib/admin/program-students.js) or tools/students/reviews.js.
  *
- * - The enrolment is found by program + cohort + email, or created (sheet_row = the next number in that program).
+ * - The cohort is the form's, or (cohort 'tags', NSMB) the highest N of her contact's purchased_<program>_N_… tags.
+ * - Her enrolment in that program and cohort is found by email or contact, else (spreadsheet records have no email)
+ *   by name when exactly one record without email fits; else it is created (sheet_row = the next number).
  * - Each answer is a student text (kind 'review', question_key). An unchanged answer is left alone; a changed one is
  *   saved as a new version and the old one is kept (the database never lets a student's words be changed).
  * - She is linked to her ActiveCampaign contact by email, and her other enrolments (e.g. NSMB, where we have no email)
@@ -41,26 +43,49 @@ function clean(input) {
   return { f, formKey: input.form, name, email, answers, submittedAt, problems };
 }
 
-async function enrolment(f, name, email) {
+// purchased_nsmb_10_202602 → 10 (the highest, when she bought several cohorts).
+function cohortFromTags(tags, program) {
+  const re = new RegExp(`^purchased_${program}_(\\d+)_`, 'i');
+  const n = (tags || []).map((t) => re.exec(t)).filter(Boolean).map((m) => Number(m[1]));
+  return n.length ? Math.max(...n) : null;
+}
+
+async function findContact(email) {
+  return db.one(`SELECT id, tags FROM contacts WHERE lower(email) = $1 ORDER BY gone_from_ac_at IS NOT NULL, id LIMIT 1`, [email]);
+}
+
+// Her existing record in this program and cohort: same email or contact, else the one record without email that has
+// her name. Gets her email and contact when it had none.
+async function existing(program, cohort, name, email, contact) {
+  let row = await db.one(
+    `SELECT id, sheet_row FROM program_students WHERE program = $1 AND cohort IS NOT DISTINCT FROM $2
+       AND (lower(email) = $3 OR ($4::int IS NOT NULL AND contact_id = $4)) ORDER BY id LIMIT 1`, [program, cohort, email, contact ? contact.id : null]);
+  if (!row) {
+    const want = squash(name);
+    const fits = (n) => { const x = squash(String(n).replace(/\(.*?\)/g, '')); return x === want || (want.length >= 2 && x.slice(1) === want); };
+    const free = (await db.query(`SELECT id, sheet_row, name FROM program_students WHERE program = $1 AND cohort IS NOT DISTINCT FROM $2 AND email = '' AND contact_id IS NULL`,
+      [program, cohort])).filter((r) => fits(r.name));
+    if (free.length === 1) row = free[0];
+  }
+  if (!row) return null;
+  await db.query(`UPDATE program_students SET email = CASE WHEN email = '' THEN $2 ELSE email END,
+                    contact_id = coalesce(contact_id, $3), updated_at = now() WHERE id = $1`, [row.id, email, contact ? contact.id : null]);
+  return { id: row.id, sheet_row: row.sheet_row, created: false };
+}
+
+async function enrolment(f, cohort, name, email) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return await db.one(
         `INSERT INTO program_students (program, cohort, sheet_row, name, email)
          SELECT $1, $2, coalesce(max(sheet_row), 0) + 1, $3, $4 FROM program_students WHERE program = $1
          ON CONFLICT (program, cohort, lower(email)) WHERE email <> '' DO UPDATE SET updated_at = now()
-         RETURNING id, sheet_row, (xmax = 0) AS created`, [f.program, f.cohort, name, email]);
+         RETURNING id, sheet_row, (xmax = 0) AS created`, [f.program, cohort, name, email]);
     } catch (err) {
       if (!/program_students_program_sheet_row_key/.test(err.message)) throw err; // two at once took the same number
     }
   }
   throw new Error('could not save the enrolment');
-}
-
-async function linkContact(student, email) {
-  const contact = await db.one(
-    `SELECT id, tags FROM contacts WHERE lower(email) = $1 ORDER BY gone_from_ac_at IS NOT NULL, id LIMIT 1`, [email]);
-  if (contact) await db.query(`UPDATE program_students SET contact_id = $2, updated_at = now() WHERE id = $1 AND contact_id IS NULL`, [student.id, contact.id]);
-  return contact;
 }
 
 // Her enrolments in other programs that have no email (the NSMB spreadsheet): link the one with her name, if the
@@ -112,13 +137,15 @@ async function save(input, { source } = {}) {
     err.status = 400; err.expose = true; err.problems = c.problems;
     throw err;
   }
-  const student = await enrolment(c.f, c.name, c.email);
-  const contact = await linkContact(student, c.email);
+  const contact = await findContact(c.email);
+  const cohort = c.f.cohort === 'tags' ? cohortFromTags(contact && contact.tags, c.f.program) : c.f.cohort;
+  const student = (await existing(c.f.program, cohort, c.name, c.email, contact)) || (await enrolment(c.f, cohort, c.name, c.email));
+  if (contact) await db.query(`UPDATE program_students SET contact_id = $2, updated_at = now() WHERE id = $1 AND contact_id IS NULL`, [student.id, contact.id]);
   const linked = await linkOtherEnrolments(student, c.name, contact, c.f.program);
   const texts = await saveAnswers(student, c, source || `review form (${c.formKey})`);
   // She agreed that her review may be introduced with her name hidden; never overrides the admin's own choice.
   if (input.share) await db.query(`UPDATE program_students SET permission = 'yes', updated_at = now() WHERE id = $1 AND permission = 'unknown'`, [student.id]);
-  return { student_id: student.id, sheet_row: student.sheet_row, created: student.created, texts, contact_id: contact ? contact.id : null, linked };
+  return { student_id: student.id, sheet_row: student.sheet_row, cohort, created: student.created, texts, contact_id: contact ? contact.id : null, linked };
 }
 
 // CSV text → [{ column: value }] (RFC 4180: quoted fields, "" inside quotes, line breaks inside quotes).
@@ -160,4 +187,4 @@ function fromCsv(formKey, records) {
   }));
 }
 
-module.exports = { save, clean, parseCsv, fromCsv };
+module.exports = { save, clean, parseCsv, fromCsv, cohortFromTags };

@@ -29,7 +29,7 @@ hal-website/
 ├── middleware.js          ← login pages for /preview/* (PREVIEW_USER / PREVIEW_PASSWORD) and /admin/* (ADMIN_USER / ADMIN_PASSWORD)
 ├── tools/rebuild/         ← capture + generator that recreates live ashleylim.com pages (see its README)
 ├── api/_lib/contacts/     ← ac-sync.js: copies ActiveCampaign contacts (read-only on AC); admin actions in api/_lib/admin/contacts.js
-├── api/review.js          ← review form pages (/lifeartist/review) → Students section; logic in api/_lib/students/ (forms.js = the questions, reviews.js)
+├── api/review.js          ← review form pages (/lifeartist/review, /nsmb/review) → Students section; logic in api/_lib/students/ (forms.js = the questions, reviews.js)
 ├── tools/students/        ← import.js (student spreadsheet → database), translations.js (English written in a Claude session), reviews.js (review CSV export), analysis.js (an analysis round of reviews), categories.js
 ├── tools/contacts/        ← fake-ac.js: made-up AC contacts for the local server and the tests
 ├── tools/podcast/         ← podcast database migration script (npm run db:migrate)
@@ -55,7 +55,7 @@ hal-website/
     ├── engine/index.html  ← /engine — ENGINE-style NSMB page (ENGINE palette, its own CSS/JS)
     ├── nsmb/index.html    ← /nsmb — rebuild of ashleylim.com/nsmb in Ashley's design system (hand-built, customised)
     ├── nsmb/waitlist/index.html ← /nsmb/waitlist — the waitlist form on its own page (noindex; personal links ?c=CODE)
-    ├── lifeartist/review/   ← /lifeartist/review — the Life Artist review form (noindex; js/review-flow.js), saved into the admin; thanks/ for posts without JS
+    ├── lifeartist/review/, nsmb/review/ ← the review forms (noindex; js/review-flow.js), saved into the admin; thanks/ for posts without JS. Written by tools/students/review-page.js
     ├── lifeartist/, eft/, chosen/, switch/              ← generated from the live pages (tools/rebuild); /lifeartist = live /lifeartist2026
     ├── terms-and-conditions/, refund-policy/, privacy-policy/  ← generated from the live pages
     ├── preview/<page>/    ← PRIVATE copies incl. elements hidden on the live site (password + noindex)
@@ -438,10 +438,14 @@ onboarding questionnaires and testimonials, starting with NSMB. Admin section `/
   contact, same email, or "same as") are one profile, shown as tabs on the student page; a Life Artist student shows her
   NSMB persona. A review = one text per answer (kind `review`, `question_key`, `submitted_at`); the questions live in
   `api/_lib/students/forms.js` (the form page's labels must match: `npm test`). Line breaks are stored as `\n`.
-  Reviews come from the form page `/lifeartist/review` (`api/review.js`: same-site, honeypot, 5 s minimum, 10 per network
-  per hour in `review_requests`; the optional "name hidden" tick sets permission to yes unless the admin chose) or from
+  Reviews come from the form pages `/lifeartist/review` and `/nsmb/review` (written from forms.js by
+  `node tools/students/review-page.js <form key>`: change a question there, then rerun it; `api/review.js`: same-site,
+  honeypot, 5 s minimum, 10 per network per hour in `review_requests`; the optional "name hidden" tick sets permission to yes unless the admin chose) or from
   a CSV export on `/admin/students/import` (or `tools/students/reviews.js`). Each is linked to her AC contact by email,
   and to her NSMB record when exactly one has her name and the contact has a `purchased_nsmb…` tag. Nothing goes to AC.
+  The NSMB form (Alex, 2026-11-25: cohort 10's questions, found in their testimonials, no hints yet) serves every cohort:
+  the cohort is read from her highest `purchased_nsmb_<N>_…` tag, and her answers join her existing record of that
+  cohort (same email or contact, else the one spreadsheet record with her name) instead of creating a duplicate.
   The strength of a program with one analysis round shows as "suggested · not decided" until the admin decides. Only
   snippets of a text's current version are shown. The strength column is still `rating` in the data.
 - Sensitive snippets (health, suicide, abuse, children) are flagged and left out of the snippet library by default;

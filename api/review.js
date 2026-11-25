@@ -1,10 +1,10 @@
 /*
- * /api/review: the review form pages (e.g. /lifeartist/review) → the Students section of the admin.
+ * /api/review: the review form pages (/lifeartist/review, /nsmb/review) → the Students section of the admin.
  *
  *   POST /api/review   { form: 'lifeartist-2026', name, email, consent, share, answers: { <question key>: text }, website, t }
  *                      ← { ok: true }  |  { ok: false, error: 'invalid', fields: [...] }  |  429 rate_limited
  *                      Without JavaScript the page posts a normal form (q_<question key> fields): the answer is then a
- *                      redirect to /lifeartist/review/thanks, or a short page saying what's missing.
+ *                      redirect to the form page's thanks/ (e.g. /nsmb/review/thanks), or a short page saying what's missing.
  *   share = she agrees that her review may be introduced with her name hidden: sets the student's "may her words be
  *           used publicly?" to yes, unless the admin already chose something.
  *
@@ -65,8 +65,9 @@ function fromPlainForm(b) {
   return { ...b, answers };
 }
 
-function plainReply(res, ok, fields) {
-  if (ok) { res.statusCode = 303; res.setHeader('Location', '/lifeartist/review/thanks'); return res.end(); }
+function plainReply(res, ok, fields, formKey) {
+  const f = FORMS[formKey];
+  if (ok) { res.statusCode = 303; res.setHeader('Location', f && f.page ? `/${f.page.path}/thanks` : '/'); return res.end(); }
   res.statusCode = 400;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">' +
@@ -84,7 +85,7 @@ module.exports = async function handler(req, res) {
   if (!sameSite(req)) return send(res, 403, { ok: false, error: 'bad_origin' });
   if (!db.separateFromProduction()) return send(res, 503, { ok: false, error: 'not_configured' });
   const b = fromPlainForm(await body(req));
-  const reply = (status, data) => (b.plain ? plainReply(res, data.ok, data.fields) : send(res, status, data));
+  const reply = (status, data) => (b.plain ? plainReply(res, data.ok, data.fields, b.form) : send(res, status, data));
   if (!FORMS[b.form]) return reply(400, { ok: false, error: 'unknown_form' });
   // Bots: pretend success so they don't retry, but store nothing.
   if (b.website) return reply(200, { ok: true });

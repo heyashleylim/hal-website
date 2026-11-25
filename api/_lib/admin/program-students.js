@@ -101,7 +101,7 @@ async function programList() {
   const rows = await db.query(
     `SELECT sp.key, sp.name, sp.name_ko, sp.personas, (SELECT count(*)::int FROM program_students p WHERE p.program = sp.key) AS students
        FROM student_programs sp ORDER BY sp.position, sp.key`);
-  for (const r of rows) r.forms = Object.entries(forms.FORMS).filter(([, f]) => f.program === r.key).map(([key, f]) => ({ key, title: f.title, cohort: f.cohort }));
+  for (const r of rows) r.forms = Object.entries(forms.FORMS).filter(([, f]) => f.program === r.key).map(([key, f]) => ({ key, title: f.title, cohort: f.cohort, page: f.page ? '/' + f.page.path : null }));
   return rows;
 }
 

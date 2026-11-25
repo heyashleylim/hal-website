@@ -1,8 +1,12 @@
 /*
- * Review forms of the Students section: their questions (Korean as asked, with the hint under each, and English for
- * the admin) and the CSV columns of the old form's export. Used by the review form page (/lifeartist/review, its
- * labels must match: tests/students/reviews.test.js), the endpoint that saves it (api/review.js), the CSV import in
- * the admin, and the admin pages. A new review form = a new entry here (and a page).
+ * Review forms of the Students section: their questions (Korean as asked, with the hint under each when there is one,
+ * and English for the admin), the CSV columns of the old form's export, and the copy of its page. Used by the review
+ * form pages (written by tools/students/review-page.js; tests/students/reviews.test.js checks they match), the endpoint
+ * that saves them (api/review.js), the CSV import in the admin, and the admin pages.
+ * A new review form = a new entry here, then `node tools/students/review-page.js <form key>`.
+ *
+ * cohort: a number, or 'tags' = read from her ActiveCampaign purchase tag (purchased_<program>_<cohort>_…, the
+ * highest one), for programs whose form serves every cohort (NSMB).
  */
 const FORMS = {
   'lifeartist-2026': {
@@ -10,6 +14,13 @@ const FORMS = {
     cohort: 1,
     title: 'Life Artist 2026 review',
     title_ko: '라이프 아티스트 2026 후기',
+    page: {
+      path: 'lifeartist/review',
+      heading: '라이프 아티스트 여정, 어떠셨나요?',
+      intro: ['12주 동안 경험한 변화와 마음을 편하게 들려주세요.'],
+      email_hint: '라이프 아티스트를 신청하실 때 사용한 이메일을 적어 주세요.',
+      description: '라이프 아티스트 2026 후기를 들려주세요.',
+    },
     questions: [
       {
         key: 'why_continue', csv: 'review_why_continue_after_nsmb', required: true, short: 'Why she continued after NSMB',
@@ -65,6 +76,42 @@ const FORMS = {
         hint: '내성만방 후 다시 함께한 소감, 아직 나누지 못한 감정이나 배움, 혹은 애슐리에게 전하고 싶은 말 — 무엇이든 자유롭게 적어주세요 :)',
         en: 'Anything else you’d like to say?',
       },
+    ],
+    csv: { name: 'Name', email: 'Email Address', submitted_at: 'created_at' },
+  },
+  // The questions of the NSMB review form as cohort 10 answered them (in their testimonials, with the export's
+  // column names), Alex 2026-11-25. No hints were found: add them here when Ashley has them.
+  'nsmb': {
+    program: 'nsmb',
+    cohort: 'tags',
+    title: 'NSMB review',
+    title_ko: '내성만방 후기',
+    page: {
+      path: 'nsmb/review',
+      heading: '내성만방 여정, 어떠셨나요?',
+      intro: ['12주 동안 경험한 변화와 마음을 편하게 들려주세요.'],
+      email_hint: '내성만방을 신청하실 때 사용한 이메일을 적어 주세요.',
+      description: '내성만방 후기를 들려주세요.',
+    },
+    questions: [
+      { key: 'life_before', csv: 'review-life-before-nsmb', required: true, short: 'Her life 12 weeks before',
+        ko: '12주 전으로 돌아가 보세요. 그때의 일상은 어떤 모습이었나요?', en: 'Go back 12 weeks. What did your everyday life look like then?' },
+      { key: 'hesitation', csv: 'review-hesitation-before-purchase', required: true, short: 'What made her hesitate, and what decided her',
+        ko: '내성만방을 신청하기 전, 가장 망설였던 이유는 무엇이었나요? 그리고 그 망설임을 넘어서게 만든 결정적인 계기는요?',
+        en: 'Before signing up for NSMB, what made you hesitate most? And what finally got you past it?' },
+      { key: 'how_different', csv: 'review-how-different-now', required: true, short: 'What changed most',
+        ko: '지금의 나는, 12주 전의 나와 비교해 무엇이 가장 달라졌나요?', en: 'Compared with yourself 12 weeks ago, what has changed most?' },
+      { key: 'recommend', csv: 'review-recommend-friend', required: true, short: 'Her message to someone hesitating',
+        ko: '그때의 나처럼 내성만방을 망설이고 있는 사람에게, 꼭 전하고 싶은 말이 있다면 자유롭게 적어주세요.',
+        en: 'If someone is hesitating about NSMB the way you once did, what would you most like to tell them?' },
+      { key: 'worth_it', csv: 'review-nsmb-worth-it', required: true, short: 'Was it worth the time, energy and money',
+        ko: '내성만방은 시간, 에너지, 비용을 들일 만큼 가치 있는 여정이었나요?', en: 'Was NSMB a journey worth the time, energy and money you put in?' },
+      { key: 'best_part', csv: 'review_best_about_nsmb', required: true, short: 'The best part',
+        ko: '내성만방에서 특히 가장 좋았던 점, 혹은 가장 크게 도움이 되었던 부분은 무엇이었나요?', en: 'What did you like most about NSMB, or what helped you most?' },
+      { key: 'improve', csv: 'review_advice_better_nsmb', required: true, short: 'What could be better',
+        ko: '더 좋아질 수 있는 점이 있다면 무엇일까요?', en: 'What could be better?' },
+      { key: 'final_thoughts', csv: 'review-final-thoughts', required: false, short: 'Last words',
+        ko: '💌 마지막으로 남기고 싶은 말이 있다면?', en: 'Anything else you’d like to say?' },
     ],
     csv: { name: 'Name', email: 'Email Address', submitted_at: 'created_at' },
   },
