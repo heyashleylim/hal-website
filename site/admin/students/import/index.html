@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Import reviews · Students · Admin</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/brand.css">
+<link rel="stylesheet" href="/assets/css/admin/admin.css">
+</head>
+<body class="admin" data-section="students">
+<a class="skip" href="#main">Skip to content</a>
+<header class="admin-bar"></header>
+<main id="main" class="admin-main">
+  <h1>Import reviews</h1>
+
+  <section class="admin-card" aria-labelledby="form-title">
+    <h2 id="form-title">From the review form</h2>
+    <p class="muted" style="margin-bottom:12px">Reviews sent with the review form on the site are saved here straight away: nothing to import.</p>
+    <ul class="plain" id="forms"><li class="muted">Loading…</li></ul>
+  </section>
+
+  <section class="admin-card" aria-labelledby="csv-title">
+    <h2 id="csv-title">From an export (CSV)</h2>
+    <p class="muted" style="margin-bottom:16px;max-width:720px">For reviews collected with the old form: upload its CSV export. Each row becomes a review of that student (found by her email, or added). Importing the same file again changes nothing; an answer that changed in the file is saved as a newer version, and the earlier one is kept. Each student is linked to her ActiveCampaign contact by email, and to her NSMB record when exactly one has her name. Nothing is sent to ActiveCampaign.</p>
+    <form class="admin-form" id="csv-form">
+      <div class="row-edit__grid">
+        <label>Review form <select name="form" required></select></label>
+        <label>CSV file <input type="file" name="file" accept=".csv,text/csv" required></label>
+      </div>
+      <p class="admin-actions" style="margin-top:12px">
+        <button data-tip="Read the file and save every review in it" class="btn-sm" type="submit">Import</button>
+        <span class="muted" id="out" role="status"></span>
+      </p>
+    </form>
+    <div id="results" aria-live="polite"></div>
+  </section>
+
+  <section class="admin-card explain" aria-labelledby="after-title">
+    <h2 id="after-title">After an import</h2>
+    <ul>
+      <li><strong>English:</strong> new answers have no English yet. Ask Claude to “translate the new student texts”; the Overview says how many are waiting.</li>
+      <li><strong>Strength and snippets:</strong> set the strength on each student’s page, and select passages of her answers to save snippets.</li>
+    </ul>
+  </section>
+</main>
+<script src="/assets/js/admin/admin.js"></script>
+<script>
+(function () {
+  var esc = Admin.esc, form = document.getElementById('csv-form');
+  Admin.get('program-students').then(function (r) {
+    var all = [];
+    r.programs.forEach(function (p) { p.forms.forEach(function (f) { all.push({ key: f.key, title: f.title, program: p }); }); });
+    form.form.innerHTML = all.map(function (f) { return '<option value="' + esc(f.key) + '">' + esc(f.title) + '</option>'; }).join('');
+    document.getElementById('forms').innerHTML = all.length ? all.map(function (f) {
+      var page = f.program.key === 'lifeartist' ? '/' + f.program.key + '/review' : '';
+      return '<li style="margin-bottom:6px"><strong>' + esc(f.title) + '</strong>' + (page ? ' · form page: <a href="' + page + '" target="_blank" rel="noopener">' + page + '</a>' : '') +
+        ' · <a href="/admin/students/list?program=' + encodeURIComponent(f.program.key) + '&sort=recent">see the reviews</a></li>';
+    }).join('') : '<li class="muted">No review form yet.</li>';
+  }).catch(function (err) { document.getElementById('forms').innerHTML = '<li class="is-error">' + esc(err.message) + '</li>'; });
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var out = document.getElementById('out'), file = form.file.files[0];
+    if (!file) return Admin.say(out, 'Choose the CSV file first.', true);
+    Admin.say(out, 'Importing…');
+    file.text().then(function (csv) {
+      return Admin.post('program-reviews-import', { form: form.form.value, csv: csv, file_name: file.name });
+    }).then(function (r) {
+      var s = r.summary;
+      Admin.say(out, s.reviews + ' reviews saved' + (s.failed ? ', ' + s.failed + ' not saved' : '') + '.');
+      document.getElementById('results').innerHTML =
+        '<p style="margin:16px 0 8px">' + s.new_students + ' new students · ' + s.answers_added + ' answers added · ' + s.answers_changed + ' answers changed (earlier version kept) · ' +
+          s.unchanged + ' unchanged · ' + s.linked_to_contact + ' linked to their ActiveCampaign contact</p>' +
+        '<div class="admin-scroll"><table class="admin-table"><thead><tr><th>Name</th><th>Result</th></tr></thead><tbody>' +
+        r.results.map(function (x) {
+          return '<tr><td>' + (x.ok ? '<a href="/admin/students/student?id=' + x.student_id + '">' + esc(x.name) + '</a>' : esc(x.name || '–')) + '</td><td>' +
+            (x.ok ? (x.created ? 'New student · ' : '') + x.texts.added + ' added, ' + x.texts.new_version + ' changed, ' + x.texts.unchanged + ' unchanged' +
+              (x.contact_id ? ' · contact linked' : ' · <span class="muted">no contact with this email yet</span>') + (x.linked.length ? ' · linked to her other enrolment' : '')
+              : '<span class="is-error">' + esc(x.error) + '</span>') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }).catch(function (err) { Admin.say(out, err.message, true); });
+  });
+})();
+</script>
+</body>
+</html>

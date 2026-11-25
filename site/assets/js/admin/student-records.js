@@ -9,9 +9,10 @@ window.StudentRecords = (function () {
     onboarding: 'Onboarding questionnaire',
     testimonial: 'Written testimonial',
     video_testimonial: 'Video testimonial (transcript)',
+    review: 'Review',
   };
-  var SHORT = { sales_call_form: 'Form', sales_call: 'Call', onboarding: 'Onboarding', testimonial: 'Testimonial', video_testimonial: 'Video' };
-  var ROUNDS = { 'v2-2026-07': 'Spreadsheet analysis (Jul 2026)', 'reread-2026-11': 'Second read (Nov 2026)', 'third-read-2026-11': 'Third read (Nov 2026, another model)' };
+  var SHORT = { sales_call_form: 'Form', sales_call: 'Call', onboarding: 'Onboarding', testimonial: 'Testimonial', video_testimonial: 'Video', review: 'Review' };
+  var ROUNDS = { 'v2-2026-07': 'Spreadsheet analysis (Jul 2026)', 'reread-2026-11': 'Second read (Nov 2026)', 'third-read-2026-11': 'Third read (Nov 2026, another model)', 'la-read-2026-11': 'Review read (Nov 2026)' };
   var ROUND_ORDER = Object.keys(ROUNDS);
   // Rounds in the order they were made (unknown ones last, by name).
   function byRound(a, b) {
@@ -22,7 +23,7 @@ window.StudentRecords = (function () {
   var CONFIDENCE = { H: 'high', M: 'medium', L: 'low' };
 
   function round(r) { return ROUNDS[r] || r; }
-  function roundShort(r) { return r === 'v2-2026-07' ? 'Sheet' : r === 'reread-2026-11' ? 'Re-read' : r === 'third-read-2026-11' ? '3rd read' : r; }
+  function roundShort(r) { return r === 'v2-2026-07' ? 'Sheet' : r === 'reread-2026-11' ? 'Re-read' : r === 'third-read-2026-11' ? '3rd read' : r === 'la-read-2026-11' ? 'Read' : r; }
   function persona(id, labels, long) {
     if (!id) return '<span class="muted">–</span>';
     var l = labels && labels[id];
@@ -30,7 +31,7 @@ window.StudentRecords = (function () {
   }
   function stars(n) {
     if (n == null) return '<span class="muted">–</span>';
-    return '<span class="stars" aria-label="' + n + ' out of 5">' + '★★★★★'.slice(0, n) + '<span class="stars__off">' + '★★★★★'.slice(n) + '</span></span>';
+    return '<span class="stars" aria-label="Strength ' + n + ' out of 5">' + '★★★★★'.slice(0, n) + '<span class="stars__off">' + '★★★★★'.slice(n) + '</span></span>';
   }
   function permission(p) {
     var cls = p === 'yes' ? 'badge--ok' : p === 'no' ? 'badge--warn' : p === 'ask' ? 'badge--info' : '';
@@ -64,6 +65,17 @@ window.StudentRecords = (function () {
   function catsIn(card) {
     return Array.prototype.map.call(card.querySelectorAll('input[data-cat]:checked'), function (i) { return i.dataset.cat; });
   }
-  return { goodFor: goodFor, catsIn: catsIn, KINDS: KINDS, SHORT: SHORT, ROUNDS: ROUNDS, PERMISSION: PERMISSION, CONFIDENCE: CONFIDENCE, round: round, roundShort: roundShort, byRound: byRound,
+  // "Life Artist", from the API's program list ({ key: { name } } or an array of them).
+  function programName(key, programs) {
+    var p = programs && (programs[key] || (Array.isArray(programs) ? programs.filter(function (x) { return x.key === key; })[0] : null));
+    return p ? p.name : key === 'nsmb' ? 'NSMB' : key;
+  }
+  // Where a text comes from: "Written testimonial", or "Review · Q2 · The moment she felt she was changing".
+  function textLabel(kind, questionKey, program, questions) {
+    if (kind !== 'review') return KINDS[kind] || kind;
+    var q = questions && questions[program + ':' + questionKey];
+    return 'Review · ' + (q ? 'Q' + q.n + ' · ' + q.short : questionKey);
+  }
+  return { programName: programName, textLabel: textLabel, goodFor: goodFor, catsIn: catsIn, KINDS: KINDS, SHORT: SHORT, ROUNDS: ROUNDS, PERMISSION: PERMISSION, CONFIDENCE: CONFIDENCE, round: round, roundShort: roundShort, byRound: byRound,
     persona: persona, stars: stars, permission: permission, name: name, bilingual: bilingual };
 })();

@@ -18,11 +18,13 @@
   <h1>All students</h1>
 
   <form class="filters" id="filters" role="search">
-    <label>Search <input type="search" name="q" placeholder="Name (English or Korean), occupation" maxlength="100"></label>
+    <label>Search <input type="search" name="q" placeholder="Name (English or Korean), occupation, email" maxlength="100"></label>
+    <label>Program <select name="program"><option value="">All programs</option></select></label>
     <label>Cohort <select name="cohort"><option value="">All</option></select></label>
     <label>Persona <select name="persona"><option value="">All</option><option value="none">Not decided</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option></select></label>
-    <label>Testimonial <select name="testimonial"><option value="">Any</option><option value="yes">Has one</option><option value="no">None</option><option value="5">Rated 5</option><option value="4">Rated 4 or more</option></select></label>
-    <label>Show <select name="decide"><option value="">Everyone</option><option value="1">Waiting for my decision</option></select></label>
+    <label>Testimonial or review <select name="testimonial"><option value="">Any</option><option value="yes">Has one</option><option value="no">None</option><option value="5">Strength 5</option><option value="4">Strength 4 or more</option></select></label>
+    <label>Show <select name="decide"><option value="">Everyone</option><option value="1">Waiting for my decision</option><option value="multi">In several programs</option></select></label>
+    <label>Sort by <select name="sort"><option value="">Program, cohort, #</option><option value="strength">Strength (strongest first)</option><option value="recent">Newest review first</option><option value="name">Name</option></select></label>
     <button data-tip="Clear the search and every filter" class="btn-ghost" type="button" id="clear-filters">Reset</button>
   </form>
 
@@ -37,40 +39,59 @@
 (function () {
   var S = StudentRecords, esc = Admin.esc;
   var form = document.getElementById('filters'), list = document.getElementById('list'), count = document.getElementById('count');
-  var FIELDS = ['q', 'cohort', 'persona', 'testimonial', 'decide'], all = [], labels = {};
+  var FIELDS = ['q', 'program', 'cohort', 'persona', 'testimonial', 'decide', 'sort'], all = [], labels = {}, programs = {};
   var params = new URLSearchParams(location.search);
 
-  function hasTestimonial(s) { return (s.kinds || []).some(function (k) { return k === 'testimonial' || k === 'video_testimonial'; }); }
+  function hasTestimonial(s) { return (s.kinds || []).some(function (k) { return k === 'testimonial' || k === 'video_testimonial' || k === 'review'; }); }
+  function persona(s) { return s.persona || s.other_persona || null; }
+  // Strength: your decision, else what the analyses suggest when they all agree (e.g. a single read of a review).
+  function suggested(s) {
+    var r = (s.rounds || []).map(function (x) { return x.rating; }).filter(function (x) { return x != null; });
+    return r.length && r.every(function (x) { return x === r[0]; }) ? r[0] : null;
+  }
+  function strength(s) { return s.rating != null ? s.rating : suggested(s); }
+  var SORTS = {
+    strength: function (a, b) { return (strength(b) || 0) - (strength(a) || 0) || byDefault(a, b); },
+    recent: function (a, b) { return String(b.submitted_at || '').localeCompare(String(a.submitted_at || '')) || byDefault(a, b); },
+    name: function (a, b) { return String(a.name_en || a.name).localeCompare(String(b.name_en || b.name)); },
+  };
+  function byDefault(a, b) { return (a.program_position || 99) - (b.program_position || 99) || (a.cohort || 0) - (b.cohort || 0) || a.sheet_row - b.sheet_row; }
   function keep(s) {
     var v = {};
     FIELDS.forEach(function (f) { v[f] = form[f].value.trim(); });
     var q = v.q.toLowerCase();
-    if (q && (s.name + ' ' + s.name_en + ' ' + s.occupation + ' ' + s.occupation_en).toLowerCase().indexOf(q) < 0) return false;
-    if (v.cohort && String(s.cohort) !== v.cohort) return false;
-    if (v.persona === 'none' ? s.persona : v.persona && s.persona !== v.persona) return false;
+    if (q && (s.name + ' ' + s.name_en + ' ' + s.occupation + ' ' + s.occupation_en + ' ' + (s.email || '')).toLowerCase().indexOf(q) < 0) return false;
+    if (v.program && s.program !== v.program) return false;
+    if (v.cohort && s.program + ':' + s.cohort !== v.cohort) return false;
+    if (v.persona === 'none' ? persona(s) : v.persona && persona(s) !== v.persona) return false;
     if (v.testimonial === 'yes' && !hasTestimonial(s)) return false;
     if (v.testimonial === 'no' && hasTestimonial(s)) return false;
-    if ((v.testimonial === '5' || v.testimonial === '4') && !(s.rating >= Number(v.testimonial))) return false;
-    if (v.decide && !(s.decide.persona || s.decide.rating)) return false;
+    if ((v.testimonial === '5' || v.testimonial === '4') && !(strength(s) >= Number(v.testimonial))) return false;
+    if (v.decide === '1' && !(s.decide.persona || s.decide.rating)) return false;
+    if (v.decide === 'multi' && !(s.also || []).length) return false;
     return true;
   }
   function draw() {
     var q = new URLSearchParams();
     FIELDS.forEach(function (f) { if (form[f].value) q.set(f, form[f].value); });
     history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
-    var shown = all.filter(keep);
+    var shown = all.filter(keep).sort(SORTS[form.sort.value] || byDefault);
     count.textContent = shown.length === all.length ? all.length + ' students' : shown.length + ' of ' + all.length + ' students';
     if (!shown.length) { list.innerHTML = '<p class="admin-empty">' + (all.length ? 'No student matches. Try fewer filters.' : 'No student imported yet.') + '</p>'; return; }
-    list.innerHTML = '<table class="admin-table"><thead><tr><th class="num">#</th><th>Cohort</th><th>Student</th><th>Persona</th><th>Testimonial</th><th>What she wrote</th><th>Use</th></tr></thead><tbody>' +
+    list.innerHTML = '<table class="admin-table"><thead><tr><th>Program</th><th class="num">#</th><th>Student</th><th>Persona</th><th>Strength</th><th>What she wrote</th><th>Use</th></tr></thead><tbody>' +
       shown.map(function (s) {
         var personaCell = s.decide.persona ?
           '<span class="badge st-decide">Decide</span><div class="st-rounds">' + s.rounds.map(function (r) { return '<span>' + S.roundShort(r.round) + ': ' + esc(r.persona || '–') + '</span>'; }).join('') + '</div>' :
-          S.persona(s.persona, labels) + (s.persona_alt ? ' <span class="muted small">alt ' + esc(s.persona_alt) + '</span>' : '');
+          s.persona ? S.persona(s.persona, labels) + (s.persona_alt ? ' <span class="muted small">alt ' + esc(s.persona_alt) + '</span>' : '') :
+          s.other_persona ? S.persona(s.other_persona, labels) + ' <span class="muted small">from her NSMB</span>' : S.persona(null);
         var ratingCell = !hasTestimonial(s) ? '<span class="muted">None</span>' : s.decide.rating ?
-          '<span class="badge st-decide">Decide</span><div class="st-rounds">' + s.rounds.map(function (r) { return '<span>' + S.roundShort(r.round) + ': ' + (r.rating || '–') + '</span>'; }).join('') + '</div>' : S.stars(s.rating);
-        return '<tr><td class="num">' + s.sheet_row + '</td><td class="num">' + s.cohort + '</td>' +
+          '<span class="badge st-decide">Decide</span><div class="st-rounds">' + s.rounds.map(function (r) { return '<span>' + S.roundShort(r.round) + ': ' + (r.rating || '–') + '</span>'; }).join('') + '</div>' :
+          s.rating != null ? S.stars(s.rating) : suggested(s) != null ? S.stars(suggested(s)) + '<span class="vs">suggested · not decided</span>' : S.stars(null);
+        var also = (s.also || []).map(function (o) { return '<a href="/admin/students/student?id=' + o.id + '">' + esc(S.programName(o.program, programs)) + (o.cohort ? ' ' + o.cohort : '') + '</a>'; }).join(', ');
+        return '<tr><td>' + esc(S.programName(s.program, programs)) + (s.cohort ? ' <span class="muted">· ' + (s.program === 'lifeartist' ? 'cohort ' : '') + s.cohort + '</span>' : '') +
+            (s.submitted_at ? '<span class="vs">' + esc(String(s.submitted_at).slice(0, 10)) + '</span>' : '') + '</td><td class="num">' + s.sheet_row + '</td>' +
           '<td><a href="/admin/students/student?id=' + s.id + '">' + S.name(s) + '</a>' +
-            '<span class="vs">' + esc(s.occupation_en || s.occupation || '') + (s.age ? ' · ' + esc(s.age) : '') + (s.same_as ? ' · also took another cohort' : '') + '</span></td>' +
+            '<span class="vs">' + esc(s.occupation_en || s.occupation || '') + (s.age ? ' · ' + esc(s.age) : '') + '</span>' + (also ? '<span class="vs">Also: ' + also + '</span>' : '') + '</td>' +
           '<td>' + personaCell + '</td><td>' + ratingCell + '</td>' +
           '<td class="st-kinds">' + (s.kinds || []).map(function (k) { return S.SHORT[k]; }).join(' · ') + (s.untranslated ? ' <span class="badge badge--warn">' + s.untranslated + ' not translated</span>' : '') + '</td>' +
           '<td>' + S.permission(s.permission) + '</td></tr>';
@@ -79,8 +100,11 @@
 
   Admin.get('program-students').then(function (r) {
     all = r.students; labels = r.labels;
-    var cohorts = all.map(function (s) { return s.cohort; }).filter(function (c, i, a) { return c != null && a.indexOf(c) === i; }).sort(function (a, b) { return a - b; });
-    form.cohort.insertAdjacentHTML('beforeend', cohorts.map(function (c) { return '<option value="' + c + '">Cohort ' + c + '</option>'; }).join(''));
+    r.programs.forEach(function (p) { programs[p.key] = p; });
+    form.program.insertAdjacentHTML('beforeend', r.programs.map(function (p) { return '<option value="' + esc(p.key) + '">' + esc(p.name) + ' (' + p.students + ')</option>'; }).join(''));
+    var cohorts = all.filter(function (s) { return s.cohort != null; }).map(function (s) { return s.program + ':' + s.cohort; })
+      .filter(function (c, i, a) { return a.indexOf(c) === i; }).sort(function (a, b) { var x = a.split(':'), y = b.split(':'); return x[0].localeCompare(y[0]) || x[1] - y[1]; });
+    form.cohort.insertAdjacentHTML('beforeend', cohorts.map(function (c) { var x = c.split(':'); return '<option value="' + esc(c) + '">' + esc(S.programName(x[0], programs)) + ' · cohort ' + x[1] + '</option>'; }).join(''));
     FIELDS.forEach(function (f) { if (params.get(f)) form[f].value = params.get(f); });
     draw();
   }).catch(function (err) { list.innerHTML = '<p class="is-error">' + esc(err.message) + '</p>'; });

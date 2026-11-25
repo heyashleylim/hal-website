@@ -303,6 +303,16 @@ button.email-name:hover,a.email-name:hover{color:var(--accent);text-decoration:u
 .st-pick{position:sticky;bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;padding:10px 14px;border-radius:var(--r-sm);background:var(--ink);color:var(--surface);font-size:14px}
 .st-pick[hidden]{display:none}
 .st-pick .btn-ghost{background:var(--surface)}
+.st-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:-8px 0 20px}
+.st-tab{display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-pill);font-size:14px;color:var(--ink);text-decoration:none;background:var(--surface)}
+.st-tab:hover{border-color:var(--ink-2)}
+.st-tab.is-current{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.st-tab.is-current .muted{color:inherit;opacity:.75}
+.st-qa{padding:20px 0;border-top:1px solid var(--line)}
+.st-qa h3{font:700 16px/1.5 var(--font-body);margin:0 0 4px}
+.st-qa__n{display:inline-block;min-width:32px;color:var(--accent)}
+.st-qa__ko{font-size:13px;color:var(--muted);margin:0 0 12px;word-break:keep-all}
+.st-program{display:flex;align-items:center;gap:8px;font-size:14px}
 .snip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
 .snip{display:flex;flex-direction:column;gap:10px;padding:18px 20px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface)}
 .snip.is-starred{border-color:var(--accent)}

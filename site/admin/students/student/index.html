@@ -66,8 +66,8 @@
       (a.trigger_text ? '<dt>Why she bought now</dt><dd>' + esc(a.trigger_text) + '</dd>' : '') +
       ((a.outcomes || []).length ? '<dt>Results she names</dt><dd>' + a.outcomes.map(esc).join('<br>') + '</dd>' : '') +
       (a.generational != null ? '<dt>For her child / family line</dt><dd>' + (a.generational ? 'Yes' : 'No') + '</dd>' : '') +
-      '<dt>Testimonial rating</dt><dd><span' + differs('rating') + '>' + S.stars(a.rating) + '</span>' + (scores ? '<br><span class="muted small">' + esc(scores) + '</span>' : '') + '</dd>' +
-      (a.rating_why ? '<dt>Rating reason</dt><dd>' + esc(a.rating_why) + '</dd>' : '') +
+      '<dt>Strength</dt><dd><span' + differs('rating') + '>' + S.stars(a.rating) + '</span>' + (scores ? '<br><span class="muted small">' + esc(scores) + '</span>' : '') + '</dd>' +
+      (a.rating_why ? '<dt>Why this strength</dt><dd>' + esc(a.rating_why) + '</dd>' : '') +
       (top ? '<dt>Top line</dt><dd>' + top + '</dd>' : '') +
       (a.suggested_use ? '<dt>Suggested use</dt><dd>' + esc(a.suggested_use) + '</dd>' : '') +
       (flags ? '<dt>Sensitive</dt><dd>' + flags + '</dd>' : '') +
@@ -79,7 +79,7 @@
     return '<article class="snip' + (sn.starred ? ' is-starred' : '') + (sn.sensitive ? ' is-sensitive' : '') + (sn.hidden ? ' is-hidden' : '') + '" data-snip="' + sn.id + '">' +
       (sn.quote_en ? '<p class="snip__en">“' + esc(sn.quote_en) + '”</p>' : '<p class="muted small">English not saved yet</p>') +
       '<p class="snip__ko" lang="ko">' + esc(sn.quote) + '</p>' +
-      '<p class="snip__meta"><span>' + esc(S.KINDS[sn.kind]) + '</span><span>· picked by ' + esc(sn.origin === 'admin' ? 'you' : S.round(sn.origin)) + '</span>' +
+      '<p class="snip__meta"><span>' + esc(S.textLabel(sn.kind, sn.question_key, data.student.program, data.questions)) + '</span><span>· picked by ' + esc(sn.origin === 'admin' ? 'you' : S.round(sn.origin)) + '</span>' +
         (sn.sensitive ? '<span class="badge badge--warn">Sensitive: not for marketing</span>' : '') + '</p>' +
       S.goodFor(sn, data.use_cats) +
       '<div class="snip__tools">' +
@@ -98,7 +98,7 @@
         '<p class="admin-actions"><a class="btn-ghost" href="/admin/contacts/browse?open=' + c.id + '">Open the contact</a>' +
         '<button data-tip="Remove the link between this student and the contact (nothing changes in ActiveCampaign)" class="btn-ghost" type="button" id="unlink">Unlink</button></p>';
     }
-    return '<p class="muted">Not linked to an ActiveCampaign contact yet. The spreadsheet has no email, so the link is made here.</p>' +
+    return '<p class="muted">Not linked to an ActiveCampaign contact yet.' + (data.student.email ? ' No contact has her email (' + esc(data.student.email) + ') yet: the daily sync may not have copied it.' : ' The spreadsheet has no email, so the link is made here.') + '</p>' +
       (data.suggestions.length ? '<p style="margin:12px 0 6px"><strong>Contacts with the same name</strong></p><ul class="plain">' + data.suggestions.map(function (c) {
         var nsmb = (c.tags || []).filter(function (t) { return /nsmb|내성/i.test(t); });
         return '<li style="margin-bottom:8px">' + esc((c.first_name + ' ' + c.last_name).trim()) + ' · ' + esc(c.email) +
@@ -109,30 +109,55 @@
       '<button data-tip="Search the contacts copied from ActiveCampaign" class="btn-sm" type="submit">Search</button></form><div id="found"></div>';
   }
 
+  // A review: one block, each answer under its question (Korean as asked, English for reading).
+  function reviewBlock(answers) {
+    if (!answers.length) return '';
+    var s = data.student, sent = answers.map(function (t) { return t.submitted_at; }).filter(Boolean).sort().pop();
+    var first = data.questions[s.program + ':' + answers[0].question_key];
+    return '<section class="st-section" id="review" aria-labelledby="h-review"><h2 id="h-review">Review' + (first ? ' <span class="muted small">' + esc(S.programName(s.program, null)) + ' · ' +
+        answers.length + ' answers' + (sent ? ' · sent ' + esc(String(sent).slice(0, 10)) : '') + '</span>' : '') + '</h2>' +
+      answers.map(function (t) {
+        var q = data.questions[s.program + ':' + t.question_key] || {};
+        return '<article class="st-qa" id="text-' + t.id + '"><h3><span class="st-qa__n">Q' + (q.n || '?') + '</span> ' + esc(q.en || t.question_key) + '</h3>' +
+          (q.ko ? '<p class="st-qa__ko" lang="ko">' + esc(q.ko) + '</p>' : '') +
+          S.bilingual(t.translated ? t.text_en : '', t.text_ko, { textId: t.id }) + '</article>';
+      }).join('') + '</section>';
+  }
+
   function draw() {
     var s = data.student, rounds = data.analyses;
     document.title = (s.name_en || s.name) + ' · Students · Admin';
-    var textNav = data.texts.map(function (t) { return '<a href="#text-' + t.id + '">' + esc(S.KINDS[t.kind]) + '</a>'; }).join(' · ');
+    var answers = data.texts.filter(function (t) { return t.kind === 'review'; }), others = data.texts.filter(function (t) { return t.kind !== 'review'; });
+    var textNav = others.map(function (t) { return '<a href="#text-' + t.id + '">' + esc(S.KINDS[t.kind]) + '</a>'; })
+      .concat(answers.length ? ['<a href="#review">Review (' + answers.length + ' answers)</a>'] : []).join(' · ');
+    var me = { id: s.id, program: s.program, program_name: s.program_name, program_position: s.program_position, cohort: s.cohort };
+    var tabs = [me].concat(data.others).sort(function (a, b) { return (a.program_position || 99) - (b.program_position || 99) || (a.cohort || 0) - (b.cohort || 0); });
+    var tabNav = data.others.length ? '<nav class="st-tabs" aria-label="Her programs">' + tabs.map(function (o) {
+      var label = esc(o.program_name || S.programName(o.program)) + (o.cohort ? ' <span class="muted">· cohort ' + o.cohort + '</span>' : '');
+      return o.id === s.id ? '<span class="st-tab is-current" aria-current="page">' + label + '</span>' : '<a class="st-tab" href="/admin/students/student?id=' + o.id + '">' + label + '</a>';
+    }).join('') + '</nav>' : '';
     page.innerHTML =
       '<h1>' + esc(s.name_en || s.name) + (s.name_en ? ' <span class="muted" lang="ko" style="font-size:.6em">' + esc(s.name) + '</span>' : '') + '</h1>' +
+      tabNav +
       '<dl class="facts">' +
-        '<div><dt>Program</dt><dd>' + esc(s.program.toUpperCase()) + ' · cohort ' + s.cohort + ' · row ' + s.sheet_row + '</dd></div>' +
+        '<div><dt>Program</dt><dd>' + esc(s.program_name || s.program) + (s.program_name_ko ? ' <span class="muted" lang="ko">' + esc(s.program_name_ko) + '</span>' : '') + (s.cohort ? ' · cohort ' + s.cohort : '') + ' · #' + s.sheet_row + '</dd></div>' +
+        (s.email ? '<div><dt>Email</dt><dd>' + esc(s.email) + '</dd></div>' : '') +
         '<div><dt>Occupation</dt><dd>' + esc(s.occupation_en || s.occupation || '–') + (s.occupation_en && s.occupation ? ' <span class="muted" lang="ko">' + esc(s.occupation) + '</span>' : '') + '</dd></div>' +
         '<div><dt>Age</dt><dd>' + esc(s.age || '–') + '</dd></div>' +
         '<div><dt>Texts</dt><dd>' + (textNav || '–') + '</dd></div>' +
-        (data.others.length ? '<div><dt>Same person, other enrolment</dt><dd>' + data.others.map(function (o) { return '<a href="/admin/students/student?id=' + o.id + '">Cohort ' + o.cohort + ' (row ' + o.sheet_row + ')</a>'; }).join(', ') + '</dd></div>' : '') +
+        (!s.has_personas && s.other_persona ? '<div><dt>Persona (from her NSMB)</dt><dd>' + S.persona(s.other_persona, data.labels, true) + '</dd></div>' : '') +
       '</dl>' +
 
       '<section class="admin-card" aria-labelledby="decision-title"><h2 id="decision-title">Your decision</h2>' +
-        ((s.decide.persona || s.decide.rating) ? '<p class="is-error" style="margin-bottom:12px">The analyses disagree on ' + [s.decide.persona && 'the persona', s.decide.rating && 'the rating'].filter(Boolean).join(' and ') + ': compare them below and choose.</p>' : '') +
+        ((s.decide.persona || s.decide.rating) ? '<p class="is-error" style="margin-bottom:12px">The analyses disagree on ' + [s.decide.persona && 'the persona', s.decide.rating && 'the strength'].filter(Boolean).join(' and ') + ': compare them below and choose.</p>' : '') +
         '<form class="admin-form" id="decision"><div class="row-edit__grid">' +
-          '<label>Persona <select name="persona">' + personaOptions(s.persona, 'Not decided') + '</select></label>' +
-          '<label>Alternate persona <select name="persona_alt">' + personaOptions(s.persona_alt, 'None') + '</select></label>' +
-          '<label>Testimonial rating <select name="rating">' + options([[5, '5 · hero'], [4, '4 · strong'], [3, '3 · adequate'], [2, '2 · single lines only'], [1, '1 · unusable']], s.rating, 'No rating') + '</select></label>' +
+          (s.has_personas ? '<label>Persona <select name="persona">' + personaOptions(s.persona, 'Not decided') + '</select></label>' +
+          '<label>Alternate persona <select name="persona_alt">' + personaOptions(s.persona_alt, 'None') + '</select></label>' : '') +
+          '<label>Strength <select name="rating">' + options([[5, '5 · hero'], [4, '4 · strong'], [3, '3 · adequate'], [2, '2 · single lines only'], [1, '1 · unusable']], s.rating, 'No rating') + '</select></label>' +
           '<label>May her words be used publicly? <select name="permission">' + options(Object.keys(S.PERMISSION).map(function (k) { return [k, S.PERMISSION[k]]; }), s.permission) + '</select></label>' +
           '<label class="row-edit__wide">Why this decision <input name="decided_note" maxlength="2000" value="' + esc(s.decided_note || '') + '"></label>' +
           '<label class="row-edit__wide">Note <textarea name="note" rows="2" maxlength="5000">' + esc(s.note || '') + '</textarea></label>' +
-        '</div><p class="admin-actions" style="margin-top:12px"><button data-tip="Save the persona, rating, permission and notes of this student" class="btn-sm" type="submit">Save</button><span class="muted" id="decision-out" role="status"></span></p></form>' +
+        '</div><p class="admin-actions" style="margin-top:12px"><button data-tip="Save the persona, strength, permission and notes of this student" class="btn-sm" type="submit">Save</button><span class="muted" id="decision-out" role="status"></span></p></form>' +
       '</section>' +
 
       '<section class="st-section" aria-labelledby="analyses-title"><h2 id="analyses-title">The analyses <span class="muted small">' + (rounds.length > 1 ? 'side by side; outlined where they differ' : '') + '</span></h2>' +
@@ -143,7 +168,8 @@
         (data.snippets.length ? '<div class="snip-grid" id="snips">' + data.snippets.map(snippetCard).join('') + '</div>' : '<p class="muted">No snippet yet.</p>') +
       '</section>' +
 
-      data.texts.map(function (t) {
+      reviewBlock(answers) +
+      others.map(function (t) {
         return '<section class="st-section" id="text-' + t.id + '" aria-labelledby="h-text-' + t.id + '"><h2 id="h-text-' + t.id + '">' + esc(S.KINDS[t.kind]) +
           ' <span class="muted small">' + t.text_ko.length.toLocaleString('en-US') + ' characters' + (t.translated ? '' : ' · English not saved yet') + '</span></h2>' +
           S.bilingual(t.translated ? t.text_en : '', t.text_ko, { textId: t.id }) + '</section>';
@@ -170,7 +196,7 @@
     if (f.id === 'decision') {
       var out = document.getElementById('decision-out');
       Admin.say(out, 'Saving…');
-      Admin.post('program-student-save', { id: id, persona: f.persona.value, persona_alt: f.persona_alt.value, rating: f.rating.value, permission: f.permission.value, decided_note: f.decided_note.value, note: f.note.value })
+      Admin.post('program-student-save', { id: id, persona: f.persona ? f.persona.value : undefined, persona_alt: f.persona_alt ? f.persona_alt.value : undefined, rating: f.rating.value, permission: f.permission.value, decided_note: f.decided_note.value, note: f.note.value })
         .then(function () { return load(); }).then(function () { Admin.say(document.getElementById('decision-out'), 'Saved.'); })
         .catch(function (err) { Admin.say(out, err.message, true); });
     } else if (f.id === 'find-contact') {

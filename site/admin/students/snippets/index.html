@@ -20,10 +20,11 @@
 
   <form class="filters" id="filters" role="search">
     <label>Search <input type="search" name="q" placeholder="Words (English or Korean), name, use" maxlength="100"></label>
+    <label>Program <select name="program"><option value="">All programs</option><option value="nsmb">NSMB</option><option value="lifeartist">Life Artist</option></select></label>
     <label>Good for <select name="use_cat"><option value="">Anything</option></select></label>
     <label>Persona <select name="persona"><option value="">All</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option></select></label>
-    <label>Testimonial rating <select name="min_rating"><option value="">Any</option><option value="5">5 only</option><option value="4">4 or more</option><option value="3">3 or more</option></select></label>
-    <label>From <select name="kind"><option value="">Everything she wrote</option><option value="testimonials">Testimonials only</option><option value="intake">Before the program (call, questionnaire)</option></select></label>
+    <label>Strength <select name="min_rating"><option value="">Any</option><option value="5">5 only</option><option value="4">4 or more</option><option value="3">3 or more</option></select></label>
+    <label>From <select name="kind"><option value="">Everything she wrote</option><option value="testimonials">Testimonials and reviews</option><option value="reviews">Reviews only</option><option value="intake">Before the program (call, questionnaire)</option></select></label>
     <label>Permission <select name="permission"><option value="usable">Not marked “Do not use”</option><option value="yes">“May be used” only</option><option value="">Everyone</option></select></label>
     <label>Show <select name="starred"><option value="">All</option><option value="1">Starred only</option></select></label>
     <label><span><input type="checkbox" name="include_sensitive" value="1"> Include sensitive</span></label>
@@ -40,8 +41,8 @@
 <script>
 (function () {
   var S = StudentRecords, esc = Admin.esc;
-  var form = document.getElementById('filters'), list = document.getElementById('list'), snippets = [], labels = {}, cats = null;
-  var FIELDS = ['q', 'use_cat', 'persona', 'min_rating', 'kind', 'permission', 'starred'];
+  var form = document.getElementById('filters'), list = document.getElementById('list'), snippets = [], labels = {}, cats = null, questions = {};
+  var FIELDS = ['q', 'program', 'use_cat', 'persona', 'min_rating', 'kind', 'permission', 'starred'];
   var params = new URLSearchParams(location.search);
 
   function values() {
@@ -54,9 +55,9 @@
     return '<article class="snip' + (sn.starred ? ' is-starred' : '') + (sn.sensitive ? ' is-sensitive' : '') + (sn.hidden ? ' is-hidden' : '') + '" data-snip="' + sn.id + '">' +
       (sn.quote_en ? '<p class="snip__en">“' + esc(sn.quote_en) + '”</p>' : '<p class="muted small">English not saved yet</p>') +
       '<p class="snip__ko" lang="ko">' + esc(sn.quote) + '</p>' +
-      '<p class="snip__meta"><a href="/admin/students/student?id=' + sn.student_id + '">' + esc(sn.name_en || sn.name) + '</a><span>· cohort ' + sn.cohort + '</span>' +
+      '<p class="snip__meta"><a href="/admin/students/student?id=' + sn.student_id + '">' + esc(sn.name_en || sn.name) + '</a><span>· ' + esc(sn.program_name || sn.program) + (sn.cohort ? ' ' + sn.cohort : '') + '</span>' +
         (sn.persona ? '<span>' + S.persona(sn.persona, labels) + '</span>' : '') + (sn.rating ? '<span>' + S.stars(sn.rating) + '</span>' : '') +
-        '<span>· ' + esc(S.KINDS[sn.kind]) + '</span>' + S.permission(sn.permission) +
+        '<span>· ' + esc(S.textLabel(sn.kind, sn.question_key, sn.program, questions)) + '</span>' + S.permission(sn.permission) +
         (sn.sensitive ? '<span class="badge badge--warn">Sensitive: not for marketing</span>' : '') + '</p>' +
       S.goodFor(sn, cats) +
       '<div class="snip__tools">' +
@@ -71,7 +72,7 @@
     var v = values();
     history.replaceState(null, '', location.pathname + (Object.keys(v).length ? '?' + new URLSearchParams(v) : ''));
     Admin.get('program-snippets', v).then(function (r) {
-      snippets = r.snippets; labels = r.labels;
+      snippets = r.snippets; labels = r.labels; questions = r.questions || {};
       if (!cats) {
         cats = r.use_cats;
         var sel = form.use_cat, want = params.get('use_cat') || sel.value;

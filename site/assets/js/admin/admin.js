@@ -53,6 +53,7 @@ window.Admin = (function () {
         ['/admin/students/snippets', 'Snippets'],
       ] },
       { title: 'Research', items: [['/admin/students/reference', 'Personas & method']] },
+      { title: 'Data', items: [['/admin/students/import', 'Import reviews']] },
     ] },
   ];
   var COLLAPSE_KEY = 'admin-menu-collapsed';
