@@ -461,7 +461,7 @@ Sales pages keep cohort-specific values in one place: the `data-state` and `data
 (`replace_section` in `overrides.json` → `tools/rebuild/partials/lifeartist-pricing.html`, styles `assets/css/price-card.css`):
 regular ₩2,220,000 crossed out, early bird ₩1,690,000 until 2026-12-06 23:59:59 KST (sale.js countdown; the
 `sale-end.yml` cron ends it in the HTML), or ₩590,000 × 3. The WooCommerce links go in `values` (`pif_link`,
-`instalment_link`); while empty, the buttons are left out and the "registration closed" note shows. Regenerate after
+`instalment_link`); while empty, the buttons open an email to hello@ashleylim.com (and the "secure payment" line is hidden). Regenerate after
 changing them (`python3 tools/rebuild/gen.py lifeartist2026`).
 
 **New cohort checklist:** deadline, prices, payment links, refund-request date (guarantee section and FAQ), live-session count/day, waitlist form endpoint, `og:` image, footer year.

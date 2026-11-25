@@ -221,7 +221,8 @@ def apply_overrides():
       nodes[root]['c'].insert(k + 1, extra); nodes[nid] = extra; parent[nid] = root
   for rule in OVR.get('replace_section', []):
       # A whole section of the live page replaced by hand-written markup (tools/rebuild/partials/<file>), e.g. the
-      # /lifeartist price box built like the /eft one. {{key}} in the partial = rule["values"][key]; blocks marked
+      # /lifeartist price box built like the /eft one. {{key}} in the partial = rule["values"][key] ({{key|fallback}}:
+      # the fallback while the value is empty); blocks marked
       # data-needs="key" are dropped when that value is empty, and data-unless="key" ones when it is set.
       hits = [i for i, n in nodes.items() if rule['anchor'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
       if not hits: sys.exit('overrides.json: replace_section anchor not found on %s: %s' % (slug, rule['anchor']))
@@ -234,7 +235,7 @@ def apply_overrides():
               raw = re.sub(r'<(\w+)[^>]*\bdata-needs="%s"[^>]*>.*?</\1>' % re.escape(key), '', raw, flags=re.S)
           else:
               raw = re.sub(r'<(\w+)[^>]*\bdata-unless="%s"[^>]*>.*?</\1>' % re.escape(key), '', raw, flags=re.S)
-          raw = raw.replace('{{%s}}' % key, html.escape(val, quote=True))
+          raw = re.sub(r'\{\{%s(?:\|([^}]*))?\}\}' % re.escape(key), lambda m: html.escape(val or m.group(1) or '', quote=True), raw)
       raw = re.sub(r'\s*data-(?:needs|unless)="[^"]*"', '', raw)
       if '{{' in raw: sys.exit('overrides.json: %s has a {{value}} without a value' % rule['partial'])
       nid = max(nodes) + 1
