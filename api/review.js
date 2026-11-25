@@ -43,7 +43,8 @@ function send(res, status, data) {
 
 const MAX_BODY = 512 * 1024;
 async function body(req) {
-  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return req.body;
+  const plainForm = /application\/x-www-form-urlencoded/.test(String(req.headers['content-type'] || ''));
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return plainForm ? { ...req.body, plain: true } : req.body;
   let text = typeof req.body === 'string' ? req.body : Buffer.isBuffer(req.body) ? req.body.toString('utf8') : null;
   if (text == null) {
     // not parsed by the platform (the local dev server): read the stream
@@ -52,16 +53,16 @@ async function body(req) {
     for await (const chunk of req) { size += chunk.length; if (size > MAX_BODY) return {}; chunks.push(chunk); }
     text = Buffer.concat(chunks).toString('utf8');
   }
-  if (/application\/x-www-form-urlencoded/.test(String(req.headers['content-type'] || ''))) return Object.fromEntries(new URLSearchParams(text));
+  if (/application\/x-www-form-urlencoded/.test(String(req.headers['content-type'] || ''))) return { ...Object.fromEntries(new URLSearchParams(text)), plain: true };
   try { return JSON.parse(text); } catch { return {}; }
 }
 
-// A plain form post (no JavaScript): q_<key> fields → answers.
+// A plain form post (no JavaScript, marked plain by body()): q_<key> fields → answers. JSON bodies pass unchanged.
 function fromPlainForm(b) {
-  if (b.answers) return b;
+  if (!b.plain) return b;
   const answers = {};
   for (const [k, v] of Object.entries(b)) if (k.startsWith('q_')) answers[k.slice(2)] = v;
-  return { ...b, answers, plain: true };
+  return { ...b, answers };
 }
 
 function plainReply(res, ok, fields) {
