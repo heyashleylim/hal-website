@@ -2,13 +2,15 @@
 # The page already switches in the browser at the deadline (site/assets/js/sale.js); this makes the regular version
 # permanent for visitors without JavaScript and for search engines. The push to main triggers a Vercel deploy.
 #
-# Current sale: /eft, ends 2026-10-16 23:59:59 KST = 14:59:59 UTC. GitHub's scheduler can run late or skip a run,
-# so it tries three times after the deadline; the script does nothing if the sale has already been ended.
-# For a new sale: update "sale" in tools/rebuild/overrides.json, regenerate the page, and change the cron line below (UTC).
+# Current sale: /lifeartist early bird (tools/rebuild/partials/lifeartist-pricing.html), ends 2026-12-06 23:59:59 KST
+# = 14:59:59 UTC. GitHub's scheduler can run late or skip a run, so it tries three times after the deadline; the script
+# does nothing on a page whose sale has already ended or hasn't reached its deadline (the /eft one ended 2026-10-16).
+# For a new sale: set its deadline on the page (overrides.json "sale", or the partial), regenerate the page, add the
+# page to the list below and change the cron line (UTC).
 name: End timed sale
 on:
   schedule:
-    - cron: '2,20,45 15 16 10 *'
+    - cron: '2,20,45 15 6 12 *'
   workflow_dispatch:
 permissions:
   contents: write
@@ -18,11 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Remove the sale from the HTML (only once the deadline has passed)
-        run: python3 tools/rebuild/sale_end.py site/eft/index.html site/preview/eft/index.html
+        run: python3 tools/rebuild/sale_end.py site/eft/index.html site/preview/eft/index.html site/lifeartist/index.html site/preview/lifeartist/index.html
       - name: Commit and push
         run: |
           if git diff --quiet; then echo "Nothing to change."; exit 0; fi
           git config user.name "heyashleylim"
           git config user.email "heyashleylim@gmail.com"
-          git commit -am "End the /eft sale (scheduled)"
+          git commit -am "End the timed sale (scheduled)"
           git push

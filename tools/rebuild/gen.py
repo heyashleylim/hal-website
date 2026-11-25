@@ -13,7 +13,7 @@ import hashlib, html, json, os, re, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sitelinks import localize_html
 from gtm import add_gtm, add_vercel_analytics
-from sale_end import end_sale
+from sale_end import end_sale, deadline_of
 import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -219,6 +219,29 @@ def apply_overrides():
       extra = {'i': nid, 't': 'section', 'a': {}, 'c': [], 's': {}, 'raw': raw}
       k = next(k for k, c in enumerate(nodes[root]['c']) if isinstance(c, dict) and c['i'] == sec)
       nodes[root]['c'].insert(k + 1, extra); nodes[nid] = extra; parent[nid] = root
+  for rule in OVR.get('replace_section', []):
+      # A whole section of the live page replaced by hand-written markup (tools/rebuild/partials/<file>), e.g. the
+      # /lifeartist price box built like the /eft one. {{key}} in the partial = rule["values"][key]; blocks marked
+      # data-needs="key" are dropped when that value is empty, and data-unless="key" ones when it is set.
+      hits = [i for i, n in nodes.items() if rule['anchor'] in ''.join(c for c in n.get('c', []) if isinstance(c, str))]
+      if not hits: sys.exit('overrides.json: replace_section anchor not found on %s: %s' % (slug, rule['anchor']))
+      sec = top_section(hits[0]); par = parent[sec]
+      raw = open(os.path.join(HERE, 'partials', rule['partial']), encoding='utf-8').read()
+      raw = re.sub(r'<!--.*?-->\s*', '', raw, flags=re.S)
+      vals = rule.get('values', {})
+      for key, val in vals.items():
+          if not val:
+              raw = re.sub(r'<(\w+)[^>]*\bdata-needs="%s"[^>]*>.*?</\1>' % re.escape(key), '', raw, flags=re.S)
+          else:
+              raw = re.sub(r'<(\w+)[^>]*\bdata-unless="%s"[^>]*>.*?</\1>' % re.escape(key), '', raw, flags=re.S)
+          raw = raw.replace('{{%s}}' % key, html.escape(val, quote=True))
+      raw = re.sub(r'\s*data-(?:needs|unless)="[^"]*"', '', raw)
+      if '{{' in raw: sys.exit('overrides.json: %s has a {{value}} without a value' % rule['partial'])
+      nid = max(nodes) + 1
+      extra = {'i': nid, 't': 'section', 'a': {}, 'c': [], 's': {}, 'raw': raw.strip()}
+      sib = nodes[par]['c']
+      k = next(k for k, c in enumerate(sib) if isinstance(c, dict) and c['i'] == sec)
+      sib[k] = extra; nodes[nid] = extra; parent[nid] = par
   sale = OVR.get('sale')
   if sale:
       # Timed sale: elements to hide at the deadline, the price that changes, and a countdown (sale.js / sale_end.py).
@@ -1055,6 +1078,7 @@ def page(body, css, preview, nhidden):
                 if 'data-lv-carousel' in body else '') +
                ('<script src="/assets/js/lv-masonry.js" defer></script>\n' if 'data-lv-masonry' in body else '') +
                ('<link rel="stylesheet" href="/assets/css/sale.css">\n<script src="/assets/js/sale.js" defer></script>\n' if 'data-sale=' in body else '') +
+               ('<link rel="stylesheet" href="/assets/css/price-card.css">\n' if 'class="price-card' in body else '') +
                ('<script src="/assets/js/anchors.js" defer></script>\n' if 'href="#' in body else ''), fl,
                meta['path'].replace('/p/', '/'), base, pcss, css, banner, body, tabs_js))
 
@@ -1069,7 +1093,8 @@ for preview in MODES:
     if DEBUG: out = os.path.join(SITE, '_debug', PAGE)
     os.makedirs(out, exist_ok=True)
     html_out = localize_html(page(body, css, preview, nh))   # ashleylim.com page links → /paths
-    if OVR.get('sale') and datetime.datetime.now(datetime.timezone.utc) >= datetime.datetime.fromisoformat(OVR['sale']['deadline']):
+    ended = deadline_of(html_out)   # a sale in overrides.json or in a partial (replace_section)
+    if ended and datetime.datetime.now(datetime.timezone.utc) >= ended:
         html_out = end_sale(html_out)   # regenerated after the sale ended: regular version only
     if not preview: html_out = add_vercel_analytics(add_gtm(html_out))   # GTM + Vercel Web Analytics, public pages only
     open(os.path.join(out, 'index.html'), 'w').write(html_out)

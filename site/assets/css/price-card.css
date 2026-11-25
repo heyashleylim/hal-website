@@ -1,0 +1,61 @@
+/* Price box on generated pages, built like the /eft one (tools/rebuild/partials/*.html, "replace_section" in
+   overrides.json). Self-contained like footer.css: generated pages don't load brand.css, so its tokens are repeated
+   here (values from docs/DESIGN.md). Measured on /eft: 2px accent border, 30px radius, 40px padding, 560px wide,
+   price Gmarket Sans 46px, steps and notice boxes #F4F2EE with a 20px radius, 68px full-width button. */
+.price-card-section{
+  --pc-accent:#DB4A2B; --pc-accent-hover:#F16344; --pc-rose:#C37568; --pc-ink:#222222; --pc-ink-2:#555555; --pc-muted:#777777;
+  --pc-soft:#F4F2EE; --pc-line:#D7D7D7; --pc-bg:#FFFDF7; --pc-surface:#FFFFFF;
+  --pc-head:"GmarketSans","Pretendard","Noto Sans KR",sans-serif; --pc-body:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,sans-serif;
+  background:var(--pc-bg);padding:100px 20px;font-family:var(--pc-body);color:var(--pc-ink);word-break:keep-all;overflow-wrap:break-word
+}
+.price-card-section *{box-sizing:border-box}
+.price-card__title{font:500 32px/1.4 var(--pc-head);text-align:center;margin:0 0 32px;color:var(--pc-ink)}
+.price-card{max-width:560px;margin:0 auto;background:var(--pc-surface);border:2px solid var(--pc-accent);border-radius:30px;padding:40px;text-align:center}
+.price-card__badge{display:inline-block;margin:0 0 14px;padding:5px 14px;border-radius:999px;background:var(--pc-accent);color:#fff;font:700 13px/1.4 var(--pc-body);letter-spacing:.06em}
+.price-card__name{font:500 22px/1.4 var(--pc-head);margin:0 0 18px;color:var(--pc-ink)}
+.price-card__was{margin:0;font:400 46px/1.4 var(--pc-head);color:#BBBBBB;text-decoration:line-through;text-decoration-thickness:2px}
+.price-card__price{margin:0;font:400 46px/1.4 var(--pc-head);color:var(--pc-accent)}
+.price-card__price small{font-size:20px;color:var(--pc-ink-2);margin-left:4px}
+.price-card__until{margin:14px 0 4px;font:600 17px/1.5 var(--pc-body);color:var(--pc-ink)}
+.price-card .sale-cd{margin:12px 0 4px}
+.price-card__desc{margin:28px 0 0;font-size:16px;line-height:1.6;color:var(--pc-ink)}
+.price-card__list{list-style:none;margin:26px 0 0;padding:0;text-align:left;display:grid;gap:14px}
+.price-card__list li{display:grid;grid-template-columns:14px 1fr;gap:10px;align-items:start;font-size:16px;line-height:1.5}
+.price-card__list li::before{content:"";width:14px;height:14px;margin-top:4px;background:var(--pc-rose);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath d='M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath d='M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z'/%3E%3C/svg%3E") center/contain no-repeat}
+.price-card__steps{margin:26px 0 0;padding:20px;background:var(--pc-soft);border-radius:20px;text-align:left;font-size:16px;line-height:1.5}
+.price-card__steps p{margin:0}
+.price-card__steps p+p{margin-top:10px}
+.price-card__btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:68px;margin:26px 0 0;padding:16px 28px;border-radius:30px;
+  background:var(--pc-accent);color:#fff;font:700 20px/1.4 var(--pc-body);text-decoration:none;transition:background-color .2s}
+.price-card__btn:hover,.price-card__btn:focus-visible{background:var(--pc-accent-hover);color:#fff}
+.price-card__btn:focus-visible{outline:3px solid var(--pc-ink);outline-offset:3px}
+.price-card__btn--line{min-height:56px;margin-top:14px;background:var(--pc-surface);color:var(--pc-accent);border:2px solid var(--pc-accent);font-size:17px}
+.price-card__btn--line:hover,.price-card__btn--line:focus-visible{background:var(--pc-accent);color:#fff}
+.price-card__secure{margin:12px 0 0;font-size:14px;color:var(--pc-muted)}
+.price-card__or{display:flex;align-items:center;gap:12px;margin:30px 0 18px;font-size:14px;color:var(--pc-muted)}
+.price-card__or::before,.price-card__or::after{content:"";flex:1;height:1px;background:var(--pc-line)}
+.price-card__alt-price{margin:0;font:400 30px/1.4 var(--pc-head);color:var(--pc-ink)}
+.price-card__alt-price small{font-size:17px;color:var(--pc-ink-2);margin-left:2px}
+.price-card__alt-note{margin:6px 0 0;font-size:14px;line-height:1.5;color:var(--pc-muted)}
+.price-card__closed{margin:26px 0 0;padding:20px;border-radius:20px;background:var(--pc-soft);font-size:16px;line-height:1.6}
+.price-card__closed p{margin:0}
+.price-card__closed p+p{margin-top:8px}
+.price-card__closed a{color:var(--pc-ink)}
+.price-card__notice{margin:26px 0 0;padding:20px;background:var(--pc-soft);border:1px solid var(--pc-line);border-radius:20px;text-align:left;font-size:14px;line-height:1.6;color:var(--pc-muted)}
+.price-card__notice p{margin:0}
+.price-card__notice strong{color:var(--pc-muted)}
+.price-card__notice a{color:var(--pc-muted)}
+@media (max-width:1024px){.price-card-section{padding:80px 20px}}
+@media (max-width:767px){
+  .price-card-section{padding:60px 16px}
+  .price-card__title{font-size:24px;margin-bottom:24px}
+  .price-card{padding:32px 20px;border-radius:24px}
+  .price-card__was,.price-card__price{font-size:36px}
+  .price-card__alt-price{font-size:26px}
+  .price-card__btn{min-height:60px;font-size:18px}
+  .price-card__btn--line{min-height:52px;font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){.price-card__btn{transition:none}}
+.price-card .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
