@@ -118,7 +118,7 @@
         '<h3 class="admin-h3">Student record</h3>' +
         (r.students.length ? '<ul>' + r.students.map(function (s) {
           return '<li><a href="/admin/students/student?id=' + s.id + '">' + esc(s.name_en || s.name) + ' · ' + esc(s.program.toUpperCase()) + ' cohort ' + s.cohort + '</a>' +
-            (s.persona ? ' · ' + esc(s.persona) : '') + (s.rating ? ' · testimonial ' + s.rating + '/5' : '') + '</li>';
+            (s.persona ? ' · ' + esc(s.persona) : '') + (s.rating ? ' · strength ' + s.rating + '/5' : '') + '</li>';
         }).join('') + '</ul>' : '<p class="muted">None linked. Link one from the student’s page in Students.</p>') +
         '<h3 class="admin-h3">Shop orders <a class="small" href="/admin/shop/orders">(all orders)</a></h3>' +
         (r.orders.length ? '<table class="admin-table"><thead><tr><th>Order</th><th>Product</th><th>Total</th><th>Status</th><th>Date</th></tr></thead><tbody>' + r.orders.map(function (o) {
