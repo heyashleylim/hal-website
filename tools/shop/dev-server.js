@@ -121,6 +121,7 @@ async function start({ port = Number(process.env.PORT || 8793), quiet = false } 
     '/api/shop-callback': require(path.join(root, 'api', 'shop-callback.js')),
     '/api/shop-page': require(path.join(root, 'api', 'shop-page.js')),
     '/api/learn': require(path.join(root, 'api', 'learn.js')),
+    '/api/review': require(path.join(root, 'api', 'review.js')),
   };
   const cookie = `${auth.ADMIN_COOKIE}=${auth.adminSessionToken(fakeEnv.ADMIN_USER, fakeEnv.ADMIN_PASSWORD)}`;
   const fake = fakes.create({ base, memberId: fakeEnv.CIDERPAY_MEMBER_ID, apiToken: fakeEnv.CIDERPAY_API_TOKEN });
