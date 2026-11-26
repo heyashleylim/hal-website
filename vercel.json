@@ -286,6 +286,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/learning-ac",
+      "destination": "/api/podcast-ac"
+    },
+    {
       "source": "/learn",
       "destination": "/api/learn?path="
     },

@@ -5,7 +5,7 @@
  *   GET  /learn                    home: continue listening, one card per program (sign-in required)
  *   GET  /learn/login, POST        sign-in step 1: email → a 6-digit code by email (api/_lib/learn/auth.js, mail.js)
  *   POST /learn/verify             sign-in step 2: the code → session cookie (30 days from the last visit)
- *   GET  /learn/start/<token>      one-tap sign-in from the welcome email (PODCAST_LINK; old /podcast/<token> links redirect here)
+ *   GET  /learn/start/<token>      one-tap sign-in from the welcome email (LEARNINGLINK; old /podcast/<token> links redirect here)
  *   GET  /learn/help               how to sign in, save to the home screen and listen (no sign-in needed)
  *   POST /learn/logout
  *   GET  /learn/<program>[?e=<guid>]  the player, chapters and modules of one program
@@ -159,10 +159,10 @@ async function saveProgress(req, res, student, data) {
   const episode = await audibleEpisode(student, guid);
   if (!episode) return sendJson(res, 404, { error: 'not-available' });
   const row = await progress.save(student.id, episode, { position: data.position, played: data.played, ended: data.ended === true || data.ended === 'true' });
-  // First play of a Week episode: the same AC tags as a first download in a podcast app (queued, never blocking).
-  if (row.first) {
+  // A Week lesson just finished: <prefix>_completed once all are (queued for AC, never blocking).
+  if (row.justFinished) {
     const show = await db.one('SELECT * FROM shows WHERE id = $1', [episode.show_id]);
-    await automation.onDownload(student.id, show, episode).catch((err) => console.error('learn automation', err.message));
+    await automation.onFinished(student.id, show, episode).catch((err) => console.error('learn automation', err.message));
   }
   return sendJson(res, 200, { ok: true, done: Boolean(row.completed_at) });
 }

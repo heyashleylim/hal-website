@@ -2,7 +2,7 @@
  * Admin API, Podcast section: students (people), their enrolments (one per cohort, any program), CSV import and
  * Sync from ActiveCampaign. Actions are routed by api/admin.js.
  *
- * A student has one token: their one-tap sign-in link to the student area (/learn/start/<token>, sent as PODCAST_LINK).
+ * A student has one token: their one-tap sign-in link to the student area (/learn/start/<token>, sent as LEARNINGLINK).
  * (Their private podcast feeds used it too, until the feed was retired on 2026-11-15.)
  * What they can hear in a show follows release.showAccess (all their running enrolments in that show combined).
  */
@@ -308,7 +308,7 @@ const actions = {
     await loadRow(id);
     await db.query(`UPDATE students SET token = $2, first_seen_at = NULL, updated_at = now() WHERE id = $1`, [id, auth.newToken()]);
     await db.query(`UPDATE learn_sessions SET ended_at = now() WHERE student_id = $1 AND ended_at IS NULL`, [id]);
-    // AC gets the new link and podcast-link-reset (an automation can email it).
+    // AC gets the new link and learning_link_reset (an automation can email it).
     await automation.pushNewLink(id);
     const ac = automation.acConfigured() ? await automation.processOutbox({ budgetMs: 8000 }) : null;
     return { student: describe(await context(), await loadRow(id), req), ac, target: `student ${id}` };

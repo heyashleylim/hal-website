@@ -190,12 +190,14 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
 - ActiveCampaign automation (`api/_lib/automation.js`, page `/admin/podcast/automation`): the site never calls AC during a
   student's request; it queues updates in `ac_outbox` (dedupe keys: each tag once per student and program) and sends them
   right after admin actions/webhooks, on "Send pending now", or in the daily job (`vercel.json` crons, 09:10 KST,
-  production only, `CRON_SECRET`). Webhook `POST /api/podcast-ac?key=…` (key derived from PODCAST_SECRET) enrols on purchase
-  tags (set up as AC's account webhook "Contact Tag Added": it fires for every tag, non-cohort tags are ignored); `&action=revoke&tag=…` for refunds. Tags per program (underscores, like Ashley's other AC tags): `<prefix>_enrolled`,
-  `_subscribed`, `_not_subscribed_3d/7d`, `_epNN_released`, `_epNN_downloaded`, `_completed`, `_expiring_30d`, `_expired`,
-  `_revoked` (prefix e.g. `podcast_nsmb`), plus `podcast_link_reset`; field `PODCAST_LINK` (the one-tap sign-in link).
-  With the feed retired, `_subscribed` is no longer added; `_not_subscribed_3d/7d` mean "nothing played in the student area
-  yet", and `_epNN_downloaded` / `_completed` come from first plays there (names kept for Ashley's automations). Welcome and link-reset email drafts: `docs/emails/learn-welcome.md`.
+  production only, `CRON_SECRET`). Webhook `POST /api/learning-ac?key=…` (same function as the older `/api/podcast-ac`,
+  which keeps working; key derived from PODCAST_SECRET) enrols on purchase tags (set up as AC's account webhook
+  "Contact Tag Added": it fires for every tag, non-cohort tags are ignored); `&action=revoke&tag=…` for refunds.
+  **Tags (renamed from `podcast_…` on 2026-11-26, Alex; migration 021 changed the prefixes)**, per program with prefix
+  e.g. `learning_nsmb`: `<prefix>_enrolled`, `_not_started_3d/7d` (nothing played yet), `_weekNN_released`, `_completed`
+  (every Week lesson finished, 90%), `_expiring_30d`, `_expired`, `_revoked`; plus `learning_link_reset`. Field
+  `LEARNINGLINK` (the one-tap sign-in link; `AC_FIELD_LEARNING_LINK` overrides it). Removed: `_subscribed`,
+  `_epNN_downloaded`. The Automation page lists old → new names. Email drafts: `docs/emails/learn-welcome.md`.
   Students added by hand only reach AC when "Tell ActiveCampaign" is ticked.
 
 ## Student area "내 강의실" (/learn)

@@ -32,6 +32,9 @@
     <h2 id="tags-title">Tags the site adds · <span data-show-title></span></h2>
     <p class="muted">Use them as triggers in your ActiveCampaign automations (“Tag is added”). Each tag is added once per student. Every program has its own prefix (Programs page → AC tag prefix).</p>
     <div class="admin-scroll" id="tags"></div>
+    <h3 class="admin-h3">Renamed on 26 Nov 2026</h3>
+    <p class="muted">The tags used to start with <code>podcast_</code>. An ActiveCampaign automation started by an old tag must be switched to the new one (open the automation → its “Tag is added” start → pick the new tag). Tags already on contacts stay as they are.</p>
+    <div class="admin-scroll" id="renamed"></div>
   </section>
 
   <section class="admin-card" aria-labelledby="queue-title">
@@ -51,7 +54,7 @@
       <h2 id="daily-title">Daily job</h2>
       <button data-tip="Run the daily job now: release, reminder and expiry tags for every student" class="btn-ghost" type="button" id="daily-run">Run now</button>
     </div>
-    <p class="muted">Every day around 09:10 (Seoul) on the live site: adds the date-based tags (new week released, nothing played after 3/7 days, access ending or ended), retries failed updates, and deletes listening data older than 13 months. On preview links it only runs with “Run now”.</p>
+    <p class="muted">Every day around 09:10 (Seoul) on the live site: adds the date-based tags (new week opened, nothing played after 3/7 days, access ending or ended), retries failed updates, and deletes old sign-in codes and records. On preview links it only runs with “Run now”.</p>
     <div id="daily"></div>
   </section>
 
@@ -81,23 +84,25 @@
         row(rd.ac, rd.ac ? 'ActiveCampaign connected (AC_API_URL, AC_API_KEY).' : 'Add <code>AC_API_URL</code> and <code>AC_API_KEY</code> to this environment in Vercel (Production and Preview).') +
         row(rd.field.ok, rd.field.ok ? 'Contact field “' + Admin.esc(rd.field.title) + '” found: it receives each student’s one-tap sign-in link to the student area (내 강의실). In AC emails, type <code>%' + Admin.esc(rd.field.perstag) + '%</code>.' :
           'Create a contact field in ActiveCampaign with the personalization tag <code>' + Admin.esc(rd.field.name) + '</code> (Contacts → Fields, type text).' + (rd.field.error ? ' <span class="muted">(' + Admin.esc(rd.field.error) + ')</span>' : '')) +
-        row(rd.webhook, rd.webhook ? 'Webhook ready (key derived from PODCAST_SECRET).' : 'PODCAST_SECRET is missing.') +
+        row(rd.webhook, rd.webhook ? 'Webhook ready (its key comes from the site secret <code>PODCAST_SECRET</code> in Vercel).' : 'The site secret <code>PODCAST_SECRET</code> is missing in Vercel.') +
         (rd.production || rd.cron
           ? row(rd.cron, rd.cron ? 'Daily job secured (CRON_SECRET).' : 'Add <code>CRON_SECRET</code> (any long random text) to Production in Vercel so the daily job can run.')
           : row('info', 'Daily job: <code>CRON_SECRET</code> lives in Production only, so it can’t be checked from this preview. Here, use “Run now” below.')) +
-        row(true, 'Students’ links start with <code>' + Admin.esc(rd.public_url) + '</code>' + (rd.public_url_set ? ' (set by <code>PODCAST_PUBLIC_URL</code>).' : ' (default).'));
+        row(true, 'Students’ sign-in links start with <code>' + Admin.esc(rd.public_url) + '</code>' + (rd.public_url_set ? ' (set in Vercel).' : ' (default).'));
 
       $('hooks').innerHTML = r.webhook ?
-        '<h3 class="admin-h3">1. Purchase → enrol</h3><p class="muted">Set it up once for all programs and cohorts: in ActiveCampaign, <strong>Settings → Developer → Manage Webhooks → Add</strong>, list “All Lists”, event <strong>Contact Tag Added</strong>, every source ticked, and this address. Tags that aren’t a cohort tag are ignored. (On plans with the automation <strong>Webhook</strong> action, that works too.) The student is enrolled in every cohort whose tag they have, gets their link in <code>%' + Admin.esc(rd.field.perstag || rd.field.name) + '%</code> and the tag <code>' + Admin.esc(r.tags[0].tag) + '</code>.</p>' +
+        '<h3 class="admin-h3">1. Purchase → enrol</h3><p class="muted">Set it up once for all programs and cohorts: in ActiveCampaign, <strong>Settings → Developer → Manage Webhooks → Add</strong>, list “All Lists”, event <strong>Contact Tag Added</strong>, every source ticked, and this address. Tags that aren’t a cohort tag are ignored. (On plans with the automation <strong>Webhook</strong> action, that works too.) A webhook already set up with the older <code>/api/podcast-ac</code> address keeps working. The student is enrolled in every cohort whose tag they have, gets their link in <code>%' + Admin.esc(rd.field.perstag || rd.field.name) + '%</code> and the tag <code>' + Admin.esc(r.tags[0].tag) + '</code>.</p>' +
         copyField('hook-enroll', r.webhook.enroll) +
         '<h3 class="admin-h3">2. Refund → revoke</h3><p class="muted">In a refund automation: action <strong>Webhook</strong> with this address followed by the cohort’s tag, e.g. <code>…&amp;tag=' + Admin.esc(r.cohorts[0] ? r.cohorts[0].ac_tag : 'nsmb-2기') + '</code>.</p>' +
         copyField('hook-revoke', r.webhook.revoke + (r.cohorts[0] ? encodeURIComponent(r.cohorts[0].ac_tag) : '')) +
         '<p class="muted">Cohort tags in <strong>' + Admin.esc(r.program.title) + '</strong>: ' + (r.cohorts.length ? r.cohorts.map(function (c) { return Admin.esc(c.name) + ' = <code>' + Admin.esc(c.ac_tag) + '</code>'; }).join(' · ') : 'none yet (Cohorts page)') + '.</p>' +
         '<p class="muted">Keep these addresses private: anyone with them can enrol people.</p>'
-        : '<p class="is-error">Set PODCAST_SECRET first.</p>';
+        : '<p class="is-error">Set the site secret (PODCAST_SECRET in Vercel) first.</p>';
 
       $('tags').innerHTML = '<table class="admin-table"><thead><tr><th>Tag</th><th>Added when</th></tr></thead><tbody>' +
         r.tags.map(function (t) { return '<tr><td><code>' + Admin.esc(t.tag) + '</code></td><td>' + Admin.esc(t.when) + '</td></tr>'; }).join('') + '</tbody></table>';
+      $('renamed').innerHTML = '<table class="admin-table"><thead><tr><th>Old tag</th><th>Now</th></tr></thead><tbody>' +
+        r.renamed.map(function (x) { return '<tr><td><code>' + Admin.esc(x[0]) + '</code></td><td>' + (x[1] ? '<code>' + Admin.esc(x[1]) + '</code>' : '<span class="muted">No longer added</span>') + '</td></tr>'; }).join('') + '</tbody></table>';
 
       var c = r.counts;
       $('counts').textContent = c.pending + ' waiting · ' + c.failed + ' failed · ' + c.done + ' sent';

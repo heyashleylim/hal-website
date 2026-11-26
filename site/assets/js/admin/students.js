@@ -226,7 +226,7 @@
       $('d-ac').innerHTML = r.outbox.length ? '<ol class="timeline">' + r.outbox.map(function (o) {
         return '<li><span class="num">' + Admin.kst(o.created_at) + '</span> ' + Admin.esc(o.op) + ' ' + Admin.esc(JSON.stringify(o.payload)) + ' · ' + Admin.esc(o.status) + (o.last_error ? ' <span class="is-error">' + Admin.esc(o.last_error) + '</span>' : '') + '</li>';
       }).join('') + '</ol>' : '<p class="muted">Nothing sent to ActiveCampaign yet.</p>';
-      $('d-ac-actions').innerHTML = '<button data-tip="Put this student’s sign-in link in their PODCAST_LINK field in ActiveCampaign" class="btn-ghost" type="button" data-ac-push>Send link to AC</button>' +
+      $('d-ac-actions').innerHTML = '<button data-tip="Put this student’s sign-in link in their LEARNINGLINK field in ActiveCampaign" class="btn-ghost" type="button" data-ac-push>Send link to AC</button>' +
         s.shows.map(function (x) { return '<button data-tip="Remove and add the ‘enrolled’ tag again in ActiveCampaign, so your welcome automation can send the email again" class="btn-ghost" type="button" data-ac-welcome="' + x.id + '">Resend welcome · ' + Admin.esc(x.title) + '</button>'; }).join('');
       $('d-history').innerHTML = r.history.length ? r.history.map(function (h) {
         return '<li><span class="num">' + Admin.kst(h.at) + '</span> ' + Admin.esc(h.action) + ' <span class="muted">by ' + Admin.esc(h.admin) + '</span></li>';
@@ -271,7 +271,7 @@
   });
   $('d-reset').addEventListener('click', function () {
     if (!current || !confirm('Give ' + current.email + ' a new sign-in link? The old link and every device signed in to the student area stop working; they sign in again with a code or the new link.')) return;
-    Admin.post('student-reset-link', { id: current.id }).then(function (r) { return refreshDetail('New link created.' + (r.ac ? acNote(r.ac) + ' Their AC field has the new link and the tag podcast-link-reset was added.' : ' ActiveCampaign isn’t connected: send the new link yourself.')); })
+    Admin.post('student-reset-link', { id: current.id }).then(function (r) { return refreshDetail('New link created.' + (r.ac ? acNote(r.ac) + ' Their AC field has the new link and the tag learning_link_reset was added.' : ' ActiveCampaign isn’t connected: send the new link yourself.')); })
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
   $('d-revoke').addEventListener('click', function () {
@@ -380,7 +380,7 @@
     var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'podcast-students-' + Admin.kstParts(new Date()).date + '.csv';
+    a.download = 'learning-students-' + Admin.kstParts(new Date()).date + '.csv';
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   });

@@ -1,7 +1,7 @@
 /*
  * Student sign-in for the student area (/learn): a 6-digit code sent by email, then a session cookie remembered on
  * that device for 30 days from the last visit (Alex, 2026-11-15). The link in the welcome email (/learn/start/<token>,
- * PODCAST_LINK) also signs them in; old /podcast/<token> links redirect there.
+ * LEARNINGLINK) also signs them in; old /podcast/<token> links redirect there.
  *
  * - Who may sign in (Alex, 2026-11-15): purchasers, i.e. emails whose ActiveCampaign contact has a tag starting with
  *   "purchased" (purchased_eft, purchased_nsmb_…), plus students enrolled in a cohort in the admin (enrolled by the

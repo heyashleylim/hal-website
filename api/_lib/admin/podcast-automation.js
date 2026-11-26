@@ -1,6 +1,6 @@
 /*
- * Podcast admin API: the Automation page (ActiveCampaign) — setup status, webhook addresses, tag names, the queue
- * of pending AC updates, the webhook log, retries and the daily job. Podcast section; actions are routed by api/admin.js.
+ * Learning admin API: the Automation page (ActiveCampaign) — setup status, webhook addresses, tag names, the queue
+ * of pending AC updates, the webhook log, retries and the daily job. Actions are routed by api/admin.js.
  */
 const db = require('../db.js');
 const ac = require('../ac.js');
@@ -23,7 +23,7 @@ const actions = {
       try {
         const f = await ac.findField(field.name);
         field.ok = true;
-        field.perstag = f.perstag; // what to type in AC emails, e.g. %PODCASTLINK%
+        field.perstag = f.perstag; // what to type in AC emails, e.g. %LEARNINGLINK%
         field.title = f.title;
       } catch (err) {
         field.error = err.message;
@@ -33,7 +33,8 @@ const actions = {
     try { key = auth.webhookKey(); } catch (_) { /* PODCAST_SECRET missing: shown as not ready */ }
     // On preview deployments AC must pass Vercel's login too: add the bypass secret (never on production).
     const bypass = podcast.linkQuery().replace(/^\?/, '&');
-    const hook = key ? `${baseUrl(req)}/api/podcast-ac?key=${key}${bypass}` : null;
+    // /api/learning-ac (vercel.json) is the same function as the older /api/podcast-ac, which keeps working.
+    const hook = key ? `${baseUrl(req)}/api/learning-ac?key=${key}${bypass}` : null;
     const cohorts = await db.query(`SELECT name, ac_tag FROM cohorts WHERE show_id = $1 ORDER BY start_date`, [show.id]);
     const modules = await db.query(`SELECT number FROM episodes WHERE show_id = $1 AND kind = 'week' AND number IS NOT NULL GROUP BY number ORDER BY number`, [show.id]);
     const [counts, outbox, webhooks, daily] = await Promise.all([
@@ -51,7 +52,7 @@ const actions = {
         ac: configured, field, webhook: Boolean(key),
         cron: Boolean((process.env.CRON_SECRET || '').trim()),
         production: process.env.VERCEL_ENV === 'production',
-        public_url: automation.publicBase(), public_url_set: Boolean((process.env.PODCAST_PUBLIC_URL || '').trim()),
+        public_url: automation.publicBase(), public_url_set: Boolean((process.env.LEARNING_PUBLIC_URL || process.env.PODCAST_PUBLIC_URL || '').trim()),
       },
       webhook: hook && {
         enroll: hook,
@@ -60,15 +61,28 @@ const actions = {
       cohorts,
       tags: [
         { tag: t.enrolled, when: 'Enrolled in this program (purchase webhook, or added here with "Tell ActiveCampaign"). Use it to send the welcome email with %' + (field.perstag || automation.linkField()) + '%.' },
-        { tag: t.notSubscribed3, when: '3 days after enrolling (and after the first release) with nothing played in the student area yet. Reminder email.' },
-        { tag: t.notSubscribed7, when: 'Same after 7 days.' },
-        { tag: t.released(sample).replace(/_ep\d+_/, '_epNN_'), when: 'Week NN was released for them (e.g. ' + t.released(sample) + '). "New week" email. Not added for weeks already out when they enrolled.' },
-        { tag: t.downloaded(sample).replace(/_ep\d+_/, '_epNN_'), when: 'They played an episode of week NN (type Week) in the student area for the first time.' },
-        { tag: t.completed, when: 'They played every published Week episode (Q&A, Live and Bonus don’t count).' },
+        { tag: t.notStarted3, when: '3 days after enrolling (and after the first lesson opened) with nothing played yet. Reminder email.' },
+        { tag: t.notStarted7, when: 'Same after 7 days.' },
+        { tag: t.released(sample).replace(/_week\d+_/, '_weekNN_'), when: 'Week NN opened for them (e.g. ' + t.released(sample) + '). "New week" email. Not added for weeks already open when they enrolled.' },
+        { tag: t.completed, when: 'They finished (90%) every published Week lesson (Q&A, Live and Bonus don’t count).' },
         { tag: t.expiring, when: 'Their access ends within 30 days.' },
         { tag: t.expired, when: 'Their access ended (in the last 7 days).' },
         { tag: t.revoked, when: 'Access revoked by the refund webhook.' },
         { tag: automation.LINK_RESET_TAG, when: 'Their sign-in link was reset in the admin (re-added each time). Email the new %' + (field.perstag || automation.linkField()) + '%.' },
+      ],
+      // Renamed on 2026-11-26 (podcast → learning): AC automations started by an old name must switch to the new one.
+      renamed: [
+        ['podcast_<program>_enrolled', t.enrolled],
+        ['podcast_<program>_not_subscribed_3d', t.notStarted3],
+        ['podcast_<program>_not_subscribed_7d', t.notStarted7],
+        ['podcast_<program>_epNN_released', t.released(sample).replace(/_week\d+_/, '_weekNN_')],
+        ['podcast_<program>_completed', t.completed],
+        ['podcast_<program>_expiring_30d', t.expiring],
+        ['podcast_<program>_expired', t.expired],
+        ['podcast_<program>_revoked', t.revoked],
+        ['podcast_link_reset', automation.LINK_RESET_TAG],
+        ['podcast_<program>_subscribed', null],
+        ['podcast_<program>_epNN_downloaded', null],
       ],
       counts, outbox, webhooks,
       daily: daily ? { ...daily.value, updated_at: daily.updated_at } : null,

@@ -1,21 +1,21 @@
 /*
- * ActiveCampaign automation (phase 5). The site never calls AC in the middle of a student's request: it writes
- * pending operations to ac_outbox (each with a dedupe key, so it happens once), and processOutbox() sends them,
- * retrying failures with a growing delay. Ashley's AC automations react to the tags.
+ * ActiveCampaign automation for the student area (Learning section). The site never calls AC in the middle of a
+ * student's request: it writes pending operations to ac_outbox (each with a dedupe key, so it happens once), and
+ * processOutbox() sends them, retrying failures with a growing delay. Ashley's AC automations react to the tags.
  *
- * Tags use underscores, like the rest of Ashley's AC tags. Per program (prefix = show.ac_tag_prefix, e.g. podcast_nsmb):
- *   <prefix>_enrolled            enrolled (from the webhook, or by hand with "Tell ActiveCampaign")  → welcome email
- *   <prefix>_subscribed          no longer added: it meant "a podcast app fetched the feed", retired 2026-11-15
- *   <prefix>_not_subscribed_3d   enrolled 3 days ago, an episode is out, still nothing played in the student area → reminder
- *   <prefix>_not_subscribed_7d   same after 7 days
- *   <prefix>_epNN_released       week NN released for them (daily job, not for catch-up weeks)      → "new week" email
- *   <prefix>_epNN_downloaded     first play of a week NN episode in the student area (name kept for Ashley's automations)
- *   <prefix>_completed           every published Week episode played
- * Only "week" episodes count (not Q&A, Live or Bonus); several episodes of the same week give the tag once.
+ * Tags (Alex, 2026-11-26: renamed from podcast_…, unused ones removed). Per program, prefix = show.ac_tag_prefix
+ * (e.g. learning_nsmb):
+ *   <prefix>_enrolled            enrolled (purchase webhook, or by hand with "Tell ActiveCampaign")  → welcome email
+ *   <prefix>_not_started_3d      enrolled 3 days ago, a lesson is out, nothing played yet            → reminder
+ *   <prefix>_not_started_7d      same after 7 days
+ *   <prefix>_weekNN_released     week NN opened for them (daily job, not for weeks already out when they enrolled)
+ *   <prefix>_completed           finished (90%) every published Week lesson
  *   <prefix>_expiring_30d        access ends within 30 days
  *   <prefix>_expired             access ended
- *   <prefix>_revoked             access revoked through the webhook (refund)
- * Global: podcast_link_reset (re-added after a link reset) and the contact field PODCAST_LINK (their personal page).
+ *   <prefix>_revoked             access revoked by the refund webhook
+ * Only "week" episodes count (not Q&A, Live or Bonus); several episodes of the same week give the tag once.
+ * Global: learning_link_reset (re-added after a link reset) and the contact field LEARNINGLINK (one-tap sign-in link).
+ * Removed 2026-11-26: <prefix>_subscribed (podcast apps) and <prefix>_epNN_downloaded (first play of a week).
  */
 const db = require('./db.js');
 const ac = require('./ac.js');
@@ -23,19 +23,20 @@ const release = require('./release.js');
 
 const DAY = 24 * 60 * 60 * 1000;
 
-function linkField() {
-  return (process.env.AC_FIELD_PODCAST_LINK || 'PODCAST_LINK').replace(/%/g, '').trim();
+// The AC contact field that receives each student's sign-in link (Alex renamed it in AC on 2026-11-26).
+function linkField(env = process.env) {
+  return (env.AC_FIELD_LEARNING_LINK || env.AC_FIELD_PODCAST_LINK || 'LEARNINGLINK').replace(/%/g, '').trim();
 }
 
-// The address students receive. PODCAST_PUBLIC_URL wins (set it at launch); previews use their own address.
+// The address students receive. LEARNING_PUBLIC_URL (or the older PODCAST_PUBLIC_URL) wins; previews use their own.
 function publicBase(env = process.env) {
-  const explicit = (env.PODCAST_PUBLIC_URL || '').trim().replace(/\/$/, '');
+  const explicit = (env.LEARNING_PUBLIC_URL || env.PODCAST_PUBLIC_URL || '').trim().replace(/\/$/, '');
   if (explicit) return explicit;
   if (env.VERCEL_ENV !== 'production' && env.VERCEL_BRANCH_URL) return `https://${env.VERCEL_BRANCH_URL}`;
   return 'https://www.ashleylim.com';
 }
 
-// The link in PODCAST_LINK (welcome email): one tap signs the student into the student area (/learn).
+// The link in LEARNINGLINK (welcome email): one tap signs the student into the student area (/learn).
 function pageUrl(token) {
   return `${publicBase()}/learn/start/${token}`;
 }
@@ -46,22 +47,24 @@ function acConfigured() {
 
 const pad = (n) => String(n).padStart(2, '0');
 
+function defaultPrefix(slug) {
+  return `learning_${String(slug).replace(/-/g, '_')}`;
+}
+
 function tags(show) {
-  const p = show.ac_tag_prefix || `podcast_${show.slug.replace(/-/g, '_')}`;
+  const p = show.ac_tag_prefix || defaultPrefix(show.slug);
   return {
     enrolled: `${p}_enrolled`,
-    subscribed: `${p}_subscribed`,
-    notSubscribed3: `${p}_not_subscribed_3d`,
-    notSubscribed7: `${p}_not_subscribed_7d`,
-    released: (n) => `${p}_ep${pad(n)}_released`,
-    downloaded: (n) => `${p}_ep${pad(n)}_downloaded`,
+    notStarted3: `${p}_not_started_3d`,
+    notStarted7: `${p}_not_started_7d`,
+    released: (n) => `${p}_week${pad(n)}_released`,
     completed: `${p}_completed`,
     expiring: `${p}_expiring_30d`,
     expired: `${p}_expired`,
     revoked: `${p}_revoked`,
   };
 }
-const LINK_RESET_TAG = 'podcast_link_reset';
+const LINK_RESET_TAG = 'learning_link_reset';
 
 // Adds one pending operation; with a dedupe key it is only ever added once.
 async function enqueue({ op, studentId, showId = null, payload, dedupe = null }) {
@@ -83,7 +86,7 @@ async function notifyEnrolled(studentId, showId) {
   await enqueue({ op: 'tag_add', studentId, showId, payload: { tag: tags(show).enrolled }, dedupe: `s${studentId}:p${showId}:enrolled` });
 }
 
-// After a link reset: the new link in the field, and podcast_link_reset re-added (an automation can email it).
+// After a link reset: the new link in the field, and learning_link_reset re-added (an automation can email it).
 async function pushNewLink(studentId) {
   const student = await db.one('SELECT id, token FROM students WHERE id = $1', [studentId]);
   if (!student) return;
@@ -99,21 +102,16 @@ async function resendWelcome(studentId, showId) {
   await enqueue({ op: 'tag_readd', studentId, showId, payload: { tag: tags(show).enrolled } });
 }
 
-async function onDownload(studentId, show, episode) {
-  if (episode.kind !== 'week' || !episode.number) return;
-  const t = tags(show);
-  await enqueue({ op: 'tag_add', studentId, showId: show.id, payload: { tag: t.downloaded(episode.number) }, dedupe: `s${studentId}:p${show.id}:ep${episode.number}-downloaded` });
-  const done = await db.one(
-    `SELECT (SELECT count(*) FROM episodes WHERE show_id = $2 AND kind = 'week' AND status = 'published')::int AS total,
-            (SELECT count(DISTINCT e.episode_id) FROM events e JOIN episodes ep ON ep.id = e.episode_id
-              WHERE e.student_id = $1 AND ep.show_id = $2 AND ep.kind = 'week' AND e.kind = 'download')::int
-            + (SELECT count(*) FROM listening l JOIN episodes ep ON ep.id = l.episode_id
-              WHERE l.student_id = $1 AND ep.show_id = $2 AND ep.kind = 'week' AND ep.status = 'published'
-                AND NOT EXISTS (SELECT 1 FROM events e WHERE e.student_id = $1 AND e.episode_id = l.episode_id AND e.kind = 'download'))::int AS downloaded`,
-    [studentId, show.id],
-  );
-  if (done.total > 0 && done.downloaded >= done.total) {
-    await enqueue({ op: 'tag_add', studentId, showId: show.id, payload: { tag: t.completed }, dedupe: `s${studentId}:p${show.id}:completed` });
+// A Week lesson was just finished (90%) in the student area: <prefix>_completed once every published Week lesson is.
+async function onFinished(studentId, show, episode) {
+  if (episode.kind !== 'week') return;
+  const left = await db.one(
+    `SELECT count(*)::int AS n FROM episodes ep
+      WHERE ep.show_id = $2 AND ep.kind = 'week' AND ep.status = 'published' AND ep.blob_pathname IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM listening l WHERE l.student_id = $1 AND l.episode_id = ep.id AND l.completed_at IS NOT NULL)`,
+    [studentId, show.id]);
+  if (left.n === 0) {
+    await enqueue({ op: 'tag_add', studentId, showId: show.id, payload: { tag: tags(show).completed }, dedupe: `s${studentId}:p${show.id}:completed` });
   }
 }
 
@@ -194,8 +192,8 @@ function dailyTags({ show, access, enrolledAt, subscribed, now }) {
     const firstRelease = access.episodes.length ? access.episodes[0].releaseAt : null;
     if (!subscribed && firstRelease && firstRelease <= now) {
       const since = now - Math.max(enrolledAt.getTime(), firstRelease.getTime());
-      if (since >= 3 * DAY) out.push({ tag: t.notSubscribed3, key: 'not-subscribed-3d' });
-      if (since >= 7 * DAY) out.push({ tag: t.notSubscribed7, key: 'not-subscribed-7d' });
+      if (since >= 3 * DAY) out.push({ tag: t.notStarted3, key: 'not-subscribed-3d' }); // keys kept: never sent twice
+      if (since >= 7 * DAY) out.push({ tag: t.notStarted7, key: 'not-subscribed-7d' });
     }
     if (access.expires && access.expires - now <= 30 * DAY) out.push({ tag: t.expiring, key: `expiring:${day(access.expires)}` });
   } else if (access.state === 'expired' && access.expires && now - access.expires < 7 * DAY) {
@@ -262,7 +260,7 @@ async function dailyJob(now = new Date()) {
 }
 
 module.exports = {
-  linkField, publicBase, pageUrl, acConfigured, tags, LINK_RESET_TAG, enqueue,
-  notifyEnrolled, pushNewLink, resendWelcome, onDownload, onRevokedByWebhook,
+  linkField, publicBase, pageUrl, acConfigured, tags, defaultPrefix, LINK_RESET_TAG, enqueue,
+  notifyEnrolled, pushNewLink, resendWelcome, onFinished, onRevokedByWebhook,
   processOutbox, backoffMs, dailyTags, dailyJob,
 };
