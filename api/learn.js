@@ -5,7 +5,7 @@
  *   GET  /learn                    home: continue listening, one card per program (sign-in required)
  *   GET  /learn/login, POST        sign-in step 1: email → a 6-digit code by email (api/_lib/learn/auth.js, mail.js)
  *   POST /learn/verify             sign-in step 2: the code → session cookie (30 days from the last visit)
- *   GET  /learn/start/<token>      one-tap sign-in from the welcome email (LEARNINGLINK; old /podcast/<token> links redirect here)
+ *   GET  /learn/start/<token>      retired personal sign-in link (2026-11-26): goes to /learn, which asks to sign in
  *   GET  /learn/help               how to sign in, save to the home screen and listen (no sign-in needed)
  *   POST /learn/logout
  *   GET  /learn/<program>[?e=<guid>]  the player, chapters and modules of one program
@@ -203,14 +203,8 @@ module.exports = async function handler(req, res) {
       await learnAuth.endSession(req, res);
       return redirect(res, 303, '/learn/login?m=signed-out');
     }
-    const start = /^start\/([A-Za-z0-9_-]{22})$/.exec(route);
-    if (start && method === 'GET') {
-      const student = await db.one(`SELECT id FROM students WHERE token = $1 AND status = 'active'`, [start[1]]);
-      if (!student) return sendHtml(res, 404, pages.loginPage({ message: 'link-invalid' }));
-      const first = await learnAuth.isFirstSession(student.id);
-      await learnAuth.startSession(res, student.id, { via: 'link', userAgent: req.headers['user-agent'] });
-      return redirect(res, 303, first ? '/learn?welcome=1' : '/learn');
-    }
+    // Personal sign-in links were removed (Alex, 2026-11-26): links in emails already sent open the sign-in page.
+    if (/^start\/[A-Za-z0-9_-]{22}$/.test(route) && method === 'GET') return redirect(res, 303, '/learn');
 
     if (route === 'help' && (method === 'GET' || method === 'HEAD')) return sendHtml(res, 200, pages.helpPage());
 

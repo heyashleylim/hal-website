@@ -394,7 +394,7 @@ function helpPage() {
     <li>메일로 온 <strong>6자리 코드</strong>를 입력해요. 코드는 10분 동안 쓸 수 있어요.</li>
     <li>비밀번호는 없어요. 한 번 로그인하면 그 기기에서 30일 동안 로그인이 유지되고, 들어올 때마다 다시 30일로 늘어나요.</li>
   </ol>
-  <p>수강 안내 메일의 <strong>내 강의실 열기</strong> 버튼을 누르면 코드 없이 바로 들어갈 수 있어요.</p>
+  <p>휴대폰, 태블릿, 컴퓨터마다 처음 한 번씩 로그인해 주세요.</p>
 </section>
 
 <section class="pod__card" aria-labelledby="app">

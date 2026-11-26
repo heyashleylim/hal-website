@@ -17,14 +17,9 @@ test('tag names per program (renamed from podcast_… on 2026-11-26; unused ones
   assert.equal(t.downloaded, undefined);
   assert.equal(automation.tags({ slug: 'eft-test', ac_tag_prefix: '' }).completed, 'learning_eft_test_completed');
   assert.equal(automation.defaultPrefix('eft-test'), 'learning_eft_test');
-  assert.equal(automation.LINK_RESET_TAG, 'learning_link_reset');
+  assert.equal(automation.LINK_RESET_TAG, undefined, 'no link-reset tag: there is no personal link');
 });
 
-test('the sign-in link goes to the LEARNINGLINK field unless Vercel names another', () => {
-  assert.equal(automation.linkField({}), 'LEARNINGLINK');
-  assert.equal(automation.linkField({ AC_FIELD_LEARNING_LINK: '%MY_LINK%' }), 'MY_LINK');
-  assert.equal(automation.linkField({ AC_FIELD_PODCAST_LINK: 'OLD' }), 'OLD');
-});
 
 test('public address: explicit, preview, production default', () => {
   assert.equal(automation.publicBase({ LEARNING_PUBLIC_URL: 'https://www.ashleylim.com/' }), 'https://www.ashleylim.com');

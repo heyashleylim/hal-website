@@ -82,7 +82,6 @@
       <div class="admin-actions">
         <button data-tip="Change this student’s name or email" class="btn-ghost" type="button" id="d-edit">Edit</button>
         <button data-tip="Sign this student out of the student area on every device. They sign in again with a code" class="btn-ghost" type="button" id="d-signout">Sign out everywhere</button>
-        <button data-tip="Give this student a new sign-in link. The old link and every signed-in device stop working: they sign in again" class="btn-ghost" type="button" id="d-reset">Reset link</button>
         <button data-tip="Stop this student’s access to every program. You can restore it later" class="btn-ghost" type="button" id="d-revoke">Revoke all access</button>
         <button data-tip="Delete this student with their enrolments and listening history. This cannot be undone" class="btn-danger" type="button" id="d-delete">Delete</button>
         <button data-tip="Close this student" class="btn-ghost" type="button" data-close="detail">Close</button>
@@ -90,10 +89,6 @@
     </div>
     <p class="admin-form__result" id="d-out" role="status" aria-live="polite"></p>
     <dl class="facts" id="d-facts"></dl>
-    <div class="link-row">
-      <label for="d-link">Sign-in link (one tap signs them into the student area; it is the LEARNINGLINK in their welcome email)</label>
-      <div class="inline-edit"><input id="d-link" readonly><button data-tip="Copy this link" class="btn-ghost" type="button" data-copy="d-link">Copy</button></div>
-    </div>
     <h3 class="admin-h3">Enrolments</h3>
     <div class="admin-scroll" id="d-enrollments"></div>
     <div class="inline-edit enrol-add">

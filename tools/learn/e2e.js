@@ -154,12 +154,13 @@ async function main() {
     check('student revoked: no code is sent', learnMail.length === mailsBefore);
     await sql(`UPDATE students SET status = 'active' WHERE id = $1`, [student.id]);
 
-    console.log('Personal link and sign-out');
+    console.log('Old personal links and sign-out');
     r = await get(`/learn/start/${student.token}`);
+    check('an old personal link no longer signs in: it opens /learn (sign-in page)', r.status === 303 && r.headers.get('location') === '/learn' && !cookieOf(r));
+    r = await form('/learn/login', { email: 'e2e.learner@example.com' }, from());
+    r = await form('/learn/verify', { email: 'e2e.learner@example.com', code: lastCode() });
     const cookie2 = `hal_learn=${cookieOf(r)}`;
-    check('/learn/start/<token> signs in (not the first time: straight home)', r.status === 303 && r.headers.get('location') === '/learn' && cookie2.length > 20);
-    r = await get('/learn/start/AAAAAAAAAAAAAAAAAAAAAA');
-    check('an unknown token does not', r.status === 404 && !cookieOf(r));
+    check('signing in again with a code: straight home (not the first time)', r.status === 303 && r.headers.get('location') === '/learn' && cookie2.length > 20);
     r = await fetch(base + '/learn/logout', { method: 'POST', redirect: 'manual', headers: { cookie: cookie2, ...origin } });
     check('sign out clears the cookie', r.status === 303 && /Max-Age=0/.test(r.headers.get('set-cookie')));
     r = await get('/learn', cookie2);
@@ -207,8 +208,9 @@ async function main() {
     const real = await one(`SELECT en.student_id, ep.guid FROM episodes ep JOIN cohorts c ON c.show_id = ep.show_id JOIN enrollments en ON en.cohort_id = c.id JOIN students st ON st.id = en.student_id
       WHERE ep.status = 'published' AND ep.blob_pathname NOT LIKE 'podcast/e2e/%' AND ep.day_offset = 0 AND st.status = 'active' AND en.status = 'active' LIMIT 1`);
     if (real && process.env.BLOB_READ_WRITE_TOKEN) {
-      const tok = await one('SELECT token FROM students WHERE id = $1', [real.student_id]);
-      r = await get(`/learn/start/${tok.token}`);
+      const st = await one('SELECT email FROM students WHERE id = $1', [real.student_id]);
+      await form('/learn/login', { email: st.email }, from());
+      r = await form('/learn/verify', { email: st.email, code: lastCode() });
       const c3 = `hal_learn=${cookieOf(r)}`;
       r = await fetch(`${base}/learn/audio/${real.guid}.mp3`, { headers: { cookie: c3, range: 'bytes=0-1023' } });
       check('streams a byte range (206, audio/mpeg)', r.status === 206 && r.headers.get('content-type') === 'audio/mpeg' && (await r.arrayBuffer()).byteLength === 1024);

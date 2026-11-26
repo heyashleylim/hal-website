@@ -2,8 +2,8 @@
  * Admin API, Podcast section: students (people), their enrolments (one per cohort, any program), CSV import and
  * Sync from ActiveCampaign. Actions are routed by api/admin.js.
  *
- * A student has one token: their one-tap sign-in link to the student area (/learn/start/<token>, sent as LEARNINGLINK).
- * (Their private podcast feeds used it too, until the feed was retired on 2026-11-15.)
+ * Students sign in to the student area (/learn) with their email and a code. Their token is left from the retired
+ * podcast feed and the retired personal sign-in link; nothing uses it any more.
  * What they can hear in a show follows release.showAccess (all their running enrolments in that show combined).
  */
 const db = require('../db.js');
@@ -130,7 +130,6 @@ function describe(ctx, row, req, now = new Date()) {
     // Student area (/learn)
     last_visit_at: row.last_visit_at || null, devices: Number(row.devices || 0), finished: Number(row.finished || 0),
     started: Number(row.started || 0), last_listen_at: row.last_listen_at || null, listened_seconds: Number(row.listened_seconds || 0),
-    signin_url: `${baseUrl(req)}/learn/start/${s.token}`,
   };
 }
 
@@ -301,19 +300,6 @@ const actions = {
     return { ended: ended.length, student: describe(await context(), await loadRow(id), req), target: `student ${id}` };
   },
 
-  // New sign-in link: the old one stops working at once, and every device signed in to the student area is signed out
-  // (they sign in again with a code, or the new link).
-  async 'student-reset-link'(input, { req }) {
-    const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
-    await loadRow(id);
-    await db.query(`UPDATE students SET token = $2, first_seen_at = NULL, updated_at = now() WHERE id = $1`, [id, auth.newToken()]);
-    await db.query(`UPDATE learn_sessions SET ended_at = now() WHERE student_id = $1 AND ended_at IS NULL`, [id]);
-    // AC gets the new link and learning_link_reset (an automation can email it).
-    await automation.pushNewLink(id);
-    const ac = automation.acConfigured() ? await automation.processOutbox({ budgetMs: 8000 }) : null;
-    return { student: describe(await context(), await loadRow(id), req), ac, target: `student ${id}` };
-  },
-
   async 'student-delete'(input) {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'id' });
     const row = await db.one('DELETE FROM students WHERE id = $1 RETURNING email', [id]);
@@ -461,6 +447,6 @@ actions['learn-devices'] = async function learnDevices() {
 };
 
 const writes = ['student-save', 'students-status', 'students-enroll', 'enrollment-save', 'enrollments-status', 'enrollment-delete',
-  'student-reset-link', 'student-sign-out', 'student-delete', 'students-import', 'ac-sync'];
+  'student-sign-out', 'student-delete', 'students-import', 'ac-sync'];
 
 module.exports = { section: 'podcast', actions, writes, parseCsv };

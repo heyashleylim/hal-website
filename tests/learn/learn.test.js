@@ -222,8 +222,8 @@ test('help page, and no podcast feed anywhere in the student area (retired 2026-
 test('old personal links (/podcast/<token>) and the old help page go to the student area', () => {
   const v = require('../../vercel.json');
   const to = (src) => (v.redirects.find((r) => r.source === src) || {}).destination;
-  assert.equal(to('/podcast/:token([A-Za-z0-9_-]{22})'), '/learn/start/:token');
-  assert.equal(to('/podcast/:token([A-Za-z0-9_-]{22})/listen'), '/learn/start/:token');
+  assert.equal(to('/podcast/:token([A-Za-z0-9_-]{22})'), '/learn');
+  assert.equal(to('/podcast/:token([A-Za-z0-9_-]{22})/listen'), '/learn');
   assert.equal(to('/podcast/help'), '/learn/help');
   assert.ok(!v.rewrites.some((r) => /podcast-page/.test(r.destination)));
   const manifest = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '../../site/learn.webmanifest'), 'utf8'));

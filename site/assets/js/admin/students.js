@@ -199,7 +199,6 @@
       var s = r.student; current = s;
       $('detail-title').textContent = s.name ? s.name + ' · ' + s.email : s.email;
       $('d-revoke').textContent = s.status === 'revoked' ? 'Restore access' : 'Revoke all access';
-      $('d-link').value = s.signin_url;
       $('d-facts').innerHTML =
         fact('Access', STATE[s.state] + (s.revoked_at ? ' <span class="muted">since ' + Admin.kst(s.revoked_at, false) + '</span>' : '')) +
         s.shows.map(function (x) {
@@ -226,7 +225,7 @@
       $('d-ac').innerHTML = r.outbox.length ? '<ol class="timeline">' + r.outbox.map(function (o) {
         return '<li><span class="num">' + Admin.kst(o.created_at) + '</span> ' + Admin.esc(o.op) + ' ' + Admin.esc(JSON.stringify(o.payload)) + ' · ' + Admin.esc(o.status) + (o.last_error ? ' <span class="is-error">' + Admin.esc(o.last_error) + '</span>' : '') + '</li>';
       }).join('') + '</ol>' : '<p class="muted">Nothing sent to ActiveCampaign yet.</p>';
-      $('d-ac-actions').innerHTML = '<button data-tip="Put this student’s sign-in link in their LEARNINGLINK field in ActiveCampaign" class="btn-ghost" type="button" data-ac-push>Send link to AC</button>' +
+      $('d-ac-actions').innerHTML = '' +
         s.shows.map(function (x) { return '<button data-tip="Remove and add the ‘enrolled’ tag again in ActiveCampaign, so your welcome automation can send the email again" class="btn-ghost" type="button" data-ac-welcome="' + x.id + '">Resend welcome · ' + Admin.esc(x.title) + '</button>'; }).join('');
       $('d-history').innerHTML = r.history.length ? r.history.map(function (h) {
         return '<li><span class="num">' + Admin.kst(h.at) + '</span> ' + Admin.esc(h.action) + ' <span class="muted">by ' + Admin.esc(h.admin) + '</span></li>';
@@ -267,11 +266,6 @@
   $('d-signout').addEventListener('click', function () {
     if (!current || !confirm('Sign ' + current.email + ' out of the student area on every device? They sign in again with a code.')) return;
     Admin.post('student-sign-out', { id: current.id }).then(function (r) { return refreshDetail(r.ended + ' device' + (r.ended === 1 ? '' : 's') + ' signed out.'); })
-      .catch(function (err) { Admin.say($('d-out'), err.message, true); });
-  });
-  $('d-reset').addEventListener('click', function () {
-    if (!current || !confirm('Give ' + current.email + ' a new sign-in link? The old link and every device signed in to the student area stop working; they sign in again with a code or the new link.')) return;
-    Admin.post('student-reset-link', { id: current.id }).then(function (r) { return refreshDetail('New link created.' + (r.ac ? acNote(r.ac) + ' Their AC field has the new link and the tag learning_link_reset was added.' : ' ActiveCampaign isn’t connected: send the new link yourself.')); })
       .catch(function (err) { Admin.say($('d-out'), err.message, true); });
   });
   $('d-revoke').addEventListener('click', function () {
@@ -371,11 +365,11 @@
   function csvCell(v) { v = v == null ? '' : String(v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   $('export').addEventListener('click', function () {
     var rows = filtered();
-    var head = ['email', 'name', 'enrolments', 'access', 'last_visit', 'released', 'finished', 'minutes_listened', 'listen_until', 'sign_in_link'];
+    var head = ['email', 'name', 'enrolments', 'access', 'last_visit', 'released', 'finished', 'minutes_listened', 'listen_until'];
     var lines = [head.join(',')].concat(rows.map(function (s) {
       return [s.email, s.name, s.enrollments.map(function (e) { return e.show.slug + ':' + e.cohort.name + (e.state !== 'active' ? ' (' + STATE_TEXT[e.state] + ')' : ''); }).join(' | '),
         STATE_TEXT[s.state], s.last_visit_at ? Admin.kstParts(s.last_visit_at).date : '', s.released, s.finished, Math.round(s.listened_seconds / 60),
-        s.expires_at ? Admin.kstParts(new Date(new Date(s.expires_at).getTime() - 1)).date : '', s.signin_url].map(csvCell).join(',');
+        s.expires_at ? Admin.kstParts(new Date(new Date(s.expires_at).getTime() - 1)).date : ''].map(csvCell).join(',');
     }));
     var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
@@ -391,11 +385,5 @@
   $('d-ac-actions').addEventListener('click', function (ev) {
     if (!current) return;
     var w = ev.target.closest('[data-ac-welcome]');
-    if (ev.target.closest('[data-ac-push]')) {
-      Admin.post('student-ac-push', { id: current.id }).then(function (r) { return refreshDetail('Link sent.' + acNote(r)); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
-    } else if (w) {
-      if (!confirm('Send the welcome email again? This removes and re-adds the “enrolled” tag in ActiveCampaign, so the welcome automation runs again.')) return;
-      Admin.post('student-resend-welcome', { id: current.id, show_id: w.dataset.acWelcome }).then(function (r) { return refreshDetail('Welcome re-triggered.' + acNote(r)); }).catch(function (err) { Admin.say($('d-out'), err.message, true); });
-    }
   });
 })();

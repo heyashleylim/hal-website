@@ -14,8 +14,10 @@
  *   <prefix>_expired             access ended
  *   <prefix>_revoked             access revoked by the refund webhook
  * Only "week" episodes count (not Q&A, Live or Bonus); several episodes of the same week give the tag once.
- * Global: learning_link_reset (re-added after a link reset) and the contact field LEARNINGLINK (one-tap sign-in link).
- * Removed 2026-11-26: <prefix>_subscribed (podcast apps) and <prefix>_epNN_downloaded (first play of a week).
+ * No link field and no link-reset tag (Alex, 2026-11-26): emails point to www.ashleylim.com/learn, where students sign
+ * in with their email and a code.
+ * Removed 2026-11-26: <prefix>_subscribed (podcast apps), <prefix>_epNN_downloaded (first play of a week) and
+ * learning_link_reset (with the personal sign-in link).
  */
 const db = require('./db.js');
 const ac = require('./ac.js');
@@ -23,22 +25,12 @@ const release = require('./release.js');
 
 const DAY = 24 * 60 * 60 * 1000;
 
-// The AC contact field that receives each student's sign-in link (Alex renamed it in AC on 2026-11-26).
-function linkField(env = process.env) {
-  return (env.AC_FIELD_LEARNING_LINK || env.AC_FIELD_PODCAST_LINK || 'LEARNINGLINK').replace(/%/g, '').trim();
-}
-
-// The address students receive. LEARNING_PUBLIC_URL (or the older PODCAST_PUBLIC_URL) wins; previews use their own.
+// The site's public address. LEARNING_PUBLIC_URL (or the older PODCAST_PUBLIC_URL) wins; previews use their own.
 function publicBase(env = process.env) {
   const explicit = (env.LEARNING_PUBLIC_URL || env.PODCAST_PUBLIC_URL || '').trim().replace(/\/$/, '');
   if (explicit) return explicit;
   if (env.VERCEL_ENV !== 'production' && env.VERCEL_BRANCH_URL) return `https://${env.VERCEL_BRANCH_URL}`;
   return 'https://www.ashleylim.com';
-}
-
-// The link in LEARNINGLINK (welcome email): one tap signs the student into the student area (/learn).
-function pageUrl(token) {
-  return `${publicBase()}/learn/start/${token}`;
 }
 
 function acConfigured() {
@@ -64,7 +56,6 @@ function tags(show) {
     revoked: `${p}_revoked`,
   };
 }
-const LINK_RESET_TAG = 'learning_link_reset';
 
 // Adds one pending operation; with a dedupe key it is only ever added once.
 async function enqueue({ op, studentId, showId = null, payload, dedupe = null }) {
@@ -78,27 +69,17 @@ async function showById(id) {
   return db.one('SELECT * FROM shows WHERE id = $1', [id]);
 }
 
-// Newly enrolled in a program: fill their link field, add <prefix>_enrolled (once per program).
+// Newly enrolled in a program: add <prefix>_enrolled (once per program). The welcome email links to /learn.
 async function notifyEnrolled(studentId, showId) {
-  const [student, show] = await Promise.all([db.one('SELECT id, token FROM students WHERE id = $1', [studentId]), showById(showId)]);
+  const [student, show] = await Promise.all([db.one('SELECT id FROM students WHERE id = $1', [studentId]), showById(showId)]);
   if (!student || !show) return;
-  await enqueue({ op: 'fields', studentId, payload: { fields: { [linkField()]: pageUrl(student.token) } }, dedupe: `s${studentId}:link:${student.token}` });
   await enqueue({ op: 'tag_add', studentId, showId, payload: { tag: tags(show).enrolled }, dedupe: `s${studentId}:p${showId}:enrolled` });
 }
 
-// After a link reset: the new link in the field, and learning_link_reset re-added (an automation can email it).
-async function pushNewLink(studentId) {
-  const student = await db.one('SELECT id, token FROM students WHERE id = $1', [studentId]);
-  if (!student) return;
-  await enqueue({ op: 'fields', studentId, payload: { fields: { [linkField()]: pageUrl(student.token) } }, dedupe: `s${studentId}:link:${student.token}` });
-  await enqueue({ op: 'tag_readd', studentId, payload: { tag: LINK_RESET_TAG }, dedupe: `s${studentId}:reset:${student.token}` });
-}
-
-// "Resend welcome": the link field again, and <prefix>_enrolled removed then added so the welcome automation runs again.
+// "Resend welcome": <prefix>_enrolled removed then added so the welcome automation runs again.
 async function resendWelcome(studentId, showId) {
-  const [student, show] = await Promise.all([db.one('SELECT id, token FROM students WHERE id = $1', [studentId]), showById(showId)]);
+  const [student, show] = await Promise.all([db.one('SELECT id FROM students WHERE id = $1', [studentId]), showById(showId)]);
   if (!student || !show) return;
-  await enqueue({ op: 'fields', studentId, payload: { fields: { [linkField()]: pageUrl(student.token) } } });
   await enqueue({ op: 'tag_readd', studentId, showId, payload: { tag: tags(show).enrolled } });
 }
 
@@ -260,7 +241,7 @@ async function dailyJob(now = new Date()) {
 }
 
 module.exports = {
-  linkField, publicBase, pageUrl, acConfigured, tags, defaultPrefix, LINK_RESET_TAG, enqueue,
-  notifyEnrolled, pushNewLink, resendWelcome, onFinished, onRevokedByWebhook,
+  publicBase, acConfigured, tags, defaultPrefix, enqueue,
+  notifyEnrolled, resendWelcome, onFinished, onRevokedByWebhook,
   processOutbox, backoffMs, dailyTags, dailyJob,
 };

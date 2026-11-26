@@ -18,17 +18,6 @@ const actions = {
     const show = await getShow(input.show);
     const t = automation.tags(show);
     const configured = automation.acConfigured();
-    let field = { name: automation.linkField(), ok: false, error: null, perstag: null };
-    if (configured) {
-      try {
-        const f = await ac.findField(field.name);
-        field.ok = true;
-        field.perstag = f.perstag; // what to type in AC emails, e.g. %LEARNINGLINK%
-        field.title = f.title;
-      } catch (err) {
-        field.error = err.message;
-      }
-    }
     let key = null;
     try { key = auth.webhookKey(); } catch (_) { /* PODCAST_SECRET missing: shown as not ready */ }
     // On preview deployments AC must pass Vercel's login too: add the bypass secret (never on production).
@@ -49,7 +38,7 @@ const actions = {
     return {
       program: { slug: show.slug, title: show.title, prefix: show.ac_tag_prefix },
       ready: {
-        ac: configured, field, webhook: Boolean(key),
+        ac: configured, webhook: Boolean(key),
         cron: Boolean((process.env.CRON_SECRET || '').trim()),
         production: process.env.VERCEL_ENV === 'production',
         public_url: automation.publicBase(), public_url_set: Boolean((process.env.LEARNING_PUBLIC_URL || process.env.PODCAST_PUBLIC_URL || '').trim()),
@@ -60,7 +49,7 @@ const actions = {
       },
       cohorts,
       tags: [
-        { tag: t.enrolled, when: 'Enrolled in this program (purchase webhook, or added here with "Tell ActiveCampaign"). Use it to send the welcome email with %' + (field.perstag || automation.linkField()) + '%.' },
+        { tag: t.enrolled, when: 'Enrolled in this program (purchase webhook, or added here with "Tell ActiveCampaign"). Use it to send the welcome email (link: www.ashleylim.com/learn).' },
         { tag: t.notStarted3, when: '3 days after enrolling (and after the first lesson opened) with nothing played yet. Reminder email.' },
         { tag: t.notStarted7, when: 'Same after 7 days.' },
         { tag: t.released(sample).replace(/_week\d+_/, '_weekNN_'), when: 'Week NN opened for them (e.g. ' + t.released(sample) + '). "New week" email. Not added for weeks already open when they enrolled.' },
@@ -68,7 +57,6 @@ const actions = {
         { tag: t.expiring, when: 'Their access ends within 30 days.' },
         { tag: t.expired, when: 'Their access ended (in the last 7 days).' },
         { tag: t.revoked, when: 'Access revoked by the refund webhook.' },
-        { tag: automation.LINK_RESET_TAG, when: 'Their sign-in link was reset in the admin (re-added each time). Email the new %' + (field.perstag || automation.linkField()) + '%.' },
       ],
       // Renamed on 2026-11-26 (podcast → learning): AC automations started by an old name must switch to the new one.
       renamed: [
@@ -80,7 +68,7 @@ const actions = {
         ['podcast_<program>_expiring_30d', t.expiring],
         ['podcast_<program>_expired', t.expired],
         ['podcast_<program>_revoked', t.revoked],
-        ['podcast_link_reset', automation.LINK_RESET_TAG],
+        ['podcast_link_reset', null],
         ['podcast_<program>_subscribed', null],
         ['podcast_<program>_epNN_downloaded', null],
       ],
@@ -108,15 +96,6 @@ const actions = {
     return { ...(await automation.dailyJob()), target: 'daily job' };
   },
 
-  // Fill their link field in AC again (e.g. after fixing the field), without any tag.
-  async 'student-ac-push'(input) {
-    const id = int(input.id, { min: 1, max: 2147483647, label: 'student' });
-    const st = await db.one('SELECT id, token FROM students WHERE id = $1', [id]);
-    if (!st) throw userError('student not found', 404);
-    await automation.enqueue({ op: 'fields', studentId: id, payload: { fields: { [automation.linkField()]: automation.pageUrl(st.token) } } });
-    return { ...(await automation.processOutbox({ budgetMs: 8000 })), target: `student ${id}` };
-  },
-
   // Re-adds <prefix>_enrolled for one program so AC's welcome automation runs again.
   async 'student-resend-welcome'(input) {
     const id = int(input.id, { min: 1, max: 2147483647, label: 'student' });
@@ -127,6 +106,6 @@ const actions = {
   },
 };
 
-const writes = ['outbox-process', 'outbox-retry', 'daily-run', 'student-ac-push', 'student-resend-welcome'];
+const writes = ['outbox-process', 'outbox-retry', 'daily-run', 'student-resend-welcome'];
 
 module.exports = { section: 'podcast', actions, writes };

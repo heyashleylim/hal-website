@@ -275,12 +275,12 @@
     },
     {
       "source": "/podcast/:token([A-Za-z0-9_-]{22})/listen",
-      "destination": "/learn/start/:token",
+      "destination": "/learn",
       "permanent": false
     },
     {
       "source": "/podcast/:token([A-Za-z0-9_-]{22})",
-      "destination": "/learn/start/:token",
+      "destination": "/learn",
       "permanent": false
     }
   ],

@@ -178,7 +178,8 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
 - Uploads go straight from the browser to the private Blob store through a short-lived signed URL (`upload-url`), so
   there's no 4.5 MB function limit. Cover art is served publicly at `/a/art/<show>.<ext>`.
 - The admin API only runs on Vercel deployments: the local `site` preview serves static files only.
-- Student URLs (token = the student's 22 random characters): `/learn/start/<token>` one-tap sign-in (PODCAST_LINK).
+- No personal links (Alex, 2026-11-26): students go to `/learn` and sign in with email + code. Old `/learn/start/<token>`
+  links (the former one-tap sign-in) open `/learn`.
   Retired 2026-11-15: the personal page (`/podcast/<token>` and `/podcast/help` redirect into `/learn`), the feeds
   `/f/<token>/<show>` (podcast apps still following one get a valid feed with no episodes and a notice pointing to
   `/learn`, `api/podcast-feed.js`) and their audio `/a/<token>/…` (404). `/a/art/<show>.<ext>` still serves cover art.
@@ -195,8 +196,8 @@ Plan, decisions and phases: `docs/podcast-plan.md`. Built on the `podcast` branc
   "Contact Tag Added": it fires for every tag, non-cohort tags are ignored); `&action=revoke&tag=…` for refunds.
   **Tags (renamed from `podcast_…` on 2026-11-26, Alex; migration 021 changed the prefixes)**, per program with prefix
   e.g. `learning_nsmb`: `<prefix>_enrolled`, `_not_started_3d/7d` (nothing played yet), `_weekNN_released`, `_completed`
-  (every Week lesson finished, 90%), `_expiring_30d`, `_expired`, `_revoked`; plus `learning_link_reset`. Field
-  `LEARNINGLINK` (the one-tap sign-in link; `AC_FIELD_LEARNING_LINK` overrides it). Removed: `_subscribed`,
+  (every Week lesson finished, 90%), `_expiring_30d`, `_expired`, `_revoked`. No link field: emails link to
+  https://www.ashleylim.com/learn. Removed: `learning_link_reset` (2026-11-26, with the personal link), `_subscribed`,
   `_epNN_downloaded`. The Automation page lists old → new names. Email drafts: `docs/emails/learn-welcome.md`.
   Students added by hand only reach AC when "Tell ActiveCampaign" is ticked.
 
@@ -207,7 +208,7 @@ Plan and decisions: `docs/student-area-plan.md`. Built on the `podcast` branch. 
   styles `site/assets/css/pages/learn.css` (on top of `podcast.css`). Private: noindex, no GTM / analytics, in robots.txt.
 - Sign-in (`api/_lib/learn/auth.js`): email → 6-digit code (10 min, used once, 5 tries, 5 per hour per student, 20 requests
   per hour per network, `learn_requests`), then an HttpOnly cookie `hal_learn` for 30 days from the last visit (Alex,
-  2026-11-15). Only hashes are stored (`learn_codes`, `learn_sessions`). `/learn/start/<token>` also signs in.
+  2026-11-15). Only hashes are stored (`learn_codes`, `learn_sessions`). Email + code is the only way in.
   **Who gets a code** (Alex, 2026-11-15): purchasers (an ActiveCampaign tag starting with `purchased`, looked up only for
   emails not enrolled here; a purchaser without a row gets one), students enrolled in a cohort, and shop customers with a
   paid order (for `/my`, 2026-11-21). Revoked students never.
