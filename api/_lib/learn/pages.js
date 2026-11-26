@@ -65,7 +65,7 @@ function layout({ title, body, script = '', bodyClass = '' }) {
 <meta name="referrer" content="same-origin">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="내 강의실">
+<meta name="apple-mobile-web-app-title" content="애슐리 림의 수업">
 <title>${esc(title)}</title>
 <link rel="icon" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -242,20 +242,22 @@ ${signOut()}`,
 }
 
 // How to save the student area on a phone or tablet's home screen. Mobile and tablet only (said in the heading).
+// The icon's default name is 애슐리 림의 수업 (Alex, 2026-11-26); students can rename it before adding.
 function installSteps() {
   return `<h3 class="learn__h3">iPhone · iPad (Safari)</h3>
   <ol class="pod__steps">
     <li>Safari에서 이 페이지를 연 채로 <strong>공유 버튼</strong>(네모에 위쪽 화살표)을 눌러요. 화면 아래에 없으면 주소창 옆 <strong>⋯</strong> 버튼을 먼저 눌러요.</li>
     <li>목록을 아래로 내려 <strong>홈 화면에 추가</strong>를 골라요.</li>
-    <li>오른쪽 위 <strong>추가</strong>를 누르면 홈 화면에 ‘내 강의실’ 아이콘이 생겨요.</li>
+    <li>이름 칸에 <strong>‘애슐리 림의 수업’</strong>이 들어가 있어요. 원하는 이름으로 바꿔도 괜찮아요.</li>
+    <li>오른쪽 위 <strong>추가</strong>를 누르면 홈 화면에 아이콘이 생겨요.</li>
   </ol>
   <h3 class="learn__h3">Android (Chrome)</h3>
   <ol class="pod__steps">
     <li>Chrome에서 이 페이지를 연 채로 오른쪽 위 <strong>⋮</strong> 메뉴를 눌러요.</li>
-    <li><strong>홈 화면에 추가</strong> 또는 <strong>앱 설치</strong>를 골라요.</li>
-    <li><strong>추가</strong>(또는 설치)를 누르면 홈 화면에 아이콘이 생겨요. 삼성 인터넷은 <strong>≡</strong> 메뉴 › <strong>페이지 추가</strong> › <strong>홈 화면</strong>이에요.</li>
+    <li><strong>홈 화면에 추가</strong>를 골라요. (<strong>앱 설치</strong>로 보일 수도 있어요.)</li>
+    <li>이름을 원하는 대로 바꾼 뒤 <strong>추가</strong>를 눌러요. 삼성 인터넷은 <strong>≡</strong> 메뉴 › <strong>페이지 추가</strong> › <strong>홈 화면</strong>이에요.</li>
   </ol>
-  <p class="pod__note">홈 화면 아이콘으로 처음 열면 로그인을 한 번 더 해 주세요. 그다음부터는 바로 열려요.</p>`;
+  <p class="pod__note">홈 화면 아이콘으로 처음 열면 로그인을 한 번 더 해 주세요. 휴대폰이 브라우저와 따로 기억하기 때문이에요. 그다음부터는 바로 열려요.</p>`;
 }
 
 function installCard({ first = false } = {}) {
@@ -381,49 +383,56 @@ function helpPage() {
 <section class="pod__card">
   <p class="pod__eyebrow">내 강의실</p>
   <h1 class="pod__title">이용 안내</h1>
-  <p class="pod__lead">내 강의실에서 프로그램의 모든 강의를 듣고, 어디까지 들었는지도 자동으로 기억돼요. 휴대폰, 태블릿, 컴퓨터 어디서든 같은 진도로 이어 들을 수 있어요.</p>
-  <p class="pod__jump"><a href="#login">로그인</a> · <a href="#app">홈 화면에 저장하기</a> · <a href="#listen">듣기</a> · <a href="#faq">자주 묻는 질문</a></p>
+  <p class="pod__lead">내 강의실은 신청한 프로그램의 강의를 듣는 곳이에요. 어디까지 들었는지 자동으로 기억돼서, 휴대폰이든 컴퓨터든 멈춘 곳부터 이어 들을 수 있어요.</p>
+  <p class="pod__jump"><a href="#login">로그인</a> · <a href="#app">홈 화면에 저장하기</a> · <a href="#listen">강의 듣기</a> · <a href="#orders">주문 · 영수증</a> · <a href="#faq">자주 묻는 질문</a></p>
 </section>
 
 <section class="pod__card" aria-labelledby="login">
   <h2 class="pod__h2" id="login">로그인</h2>
   <ol class="pod__steps">
-    <li><a href="/learn/login">www.ashleylim.com/learn</a>에서 <strong>프로그램을 신청할 때 쓴 이메일</strong>을 입력해요.</li>
+    <li><a href="/learn/login">www.ashleylim.com/learn</a>에 들어가 <strong>프로그램을 신청할 때 쓴 이메일</strong>을 입력해요.</li>
     <li>메일로 온 <strong>6자리 코드</strong>를 입력해요. 코드는 10분 동안 쓸 수 있어요.</li>
-    <li>한 번 로그인하면 그 기기에서는 30일 동안 로그인 상태가 유지되고, 들어올 때마다 다시 30일로 늘어나요.</li>
+    <li>비밀번호는 없어요. 한 번 로그인하면 그 기기에서 30일 동안 로그인이 유지되고, 들어올 때마다 다시 30일로 늘어나요.</li>
   </ol>
-  <p>메일이 오지 않으면 스팸함과 프로모션함을 확인해 주세요. 신청할 때 쓴 이메일이 아니면 코드가 가지 않아요.</p>
+  <p>수강 안내 메일의 <strong>내 강의실 열기</strong> 버튼을 누르면 코드 없이 바로 들어갈 수 있어요.</p>
 </section>
 
 <section class="pod__card" aria-labelledby="app">
   <p class="pod__eyebrow">휴대폰 · 태블릿 전용</p>
   <h2 class="pod__h2" id="app">홈 화면에 저장하기</h2>
-  <p>홈 화면에 저장하면 앱처럼 아이콘으로 바로 열리고, 화면을 꺼도 계속 들으면서 잠금 화면에서 재생을 조절할 수 있어요. 컴퓨터에서는 저장할 필요가 없어요.</p>
+  <p>홈 화면에 저장하면 앱처럼 아이콘을 눌러 바로 열 수 있어요. 화면을 꺼도 계속 들을 수 있고, 잠금 화면에서 재생과 멈춤, 앞뒤 이동을 조절할 수 있어요.</p>
+  <p>아이콘 이름은 <strong>‘애슐리 림의 수업’</strong>으로 들어가 있지만, 저장할 때 원하는 이름으로 바꿀 수 있어요. 컴퓨터에서는 따로 저장하지 않아도 돼요.</p>
   ${installSteps()}
 </section>
 
 <section class="pod__card" aria-labelledby="listen">
-  <h2 class="pod__h2" id="listen">듣기</h2>
+  <h2 class="pod__h2" id="listen">강의 듣기</h2>
   <ul class="pod__steps">
-    <li>강의는 기수 일정에 맞춰 공개돼요. 공개 예정인 강의는 날짜와 함께 목록에 보여요.</li>
-    <li><strong>Chapters</strong>에서 듣고 싶은 부분을 누르면 바로 그 부분부터 재생돼요.</li>
+    <li>강의는 기수 일정에 맞춰 하나씩 열려요. 아직 열리지 않은 강의는 공개 날짜와 함께 목록에 보여요.</li>
+    <li><strong>Chapters</strong>에서 듣고 싶은 부분을 누르면 바로 그 부분부터 들을 수 있어요. 지금 듣고 있는 챕터는 색으로 표시돼요.</li>
     <li>−15초, +30초 버튼과 재생 속도(0.75–2배)를 쓸 수 있어요. 한 강의가 끝나면 다음 강의가 이어서 재생돼요.</li>
-    <li>90% 넘게 들으면 ‘다 들음’으로 표시돼요.</li>
+    <li>90% 넘게 들으면 ‘다 들음’으로 표시되고, 내 강의실 첫 화면의 <strong>이어 듣기</strong>에서 멈춘 곳부터 다시 시작할 수 있어요.</li>
+    <li>인터넷 연결이 필요해요. 팟캐스트 앱이나 오프라인으로는 들을 수 없어요.</li>
   </ul>
+</section>
+
+<section class="pod__card" aria-labelledby="orders">
+  <h2 class="pod__h2" id="orders">주문 · 영수증</h2>
+  <p>내 강의실 아래쪽 <a href="/my">내 주문 · 영수증</a>에서 주문 내역과 결제 영수증을 볼 수 있어요. 같은 로그인으로 들어가요.</p>
 </section>
 
 <section class="pod__card" aria-labelledby="faq">
   <h2 class="pod__h2" id="faq">자주 묻는 질문</h2>
+  <h3 class="learn__h3">코드 메일이 오지 않아요.</h3>
+  <p>스팸함과 프로모션함을 먼저 확인해 주세요. 프로그램을 신청할 때 쓴 이메일로만 코드가 가요. 다른 이메일로 신청했던 것 같다면 그 이메일로 다시 해 보거나, 아래 주소로 알려 주세요.</p>
   <h3 class="learn__h3">새 강의가 보이지 않아요.</h3>
-  <p>강의는 정해진 날짜와 시간에 공개돼요. 시간이 지났는데 보이지 않으면 페이지를 새로고침해 주세요.</p>
+  <p>강의는 정해진 날짜와 시간에 열려요. 시간이 지났는데 보이지 않으면 페이지를 새로고침해 주세요.</p>
   <h3 class="learn__h3">다른 기기에서도 들을 수 있나요?</h3>
   <p>네. 같은 이메일로 로그인하면 어느 기기에서든 들은 곳부터 이어서 들을 수 있어요.</p>
-  <h3 class="learn__h3">팟캐스트 앱이나 오프라인으로 들을 수 있나요?</h3>
-  <p>아니요. 강의는 내 강의실에서만 들을 수 있고, 인터넷 연결이 필요해요. 휴대폰 홈 화면에 저장하면 앱처럼 열리고, 화면을 꺼도 계속 들을 수 있어요.</p>
   <h3 class="learn__h3">언제까지 들을 수 있나요?</h3>
-  <p>수강 기간은 내 강의실의 프로그램 카드에 적혀 있어요.</p>
+  <p>수강 기간은 내 강의실 첫 화면의 프로그램 카드에 적혀 있어요.</p>
   <h3 class="learn__h3">그 밖의 문의</h3>
-  <p><a href="mailto:${SUPPORT}">${SUPPORT}</a>으로 보내 주세요.</p>
+  <p><a href="mailto:${SUPPORT}">${SUPPORT}</a>으로 편하게 보내 주세요.</p>
 </section>`,
   });
 }

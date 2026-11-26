@@ -1,6 +1,6 @@
 {
-  "name": "내 강의실 · 애슐리 림",
-  "short_name": "내 강의실",
+  "name": "애슐리 림의 수업",
+  "short_name": "애슐리 림의 수업",
   "lang": "ko",
   "start_url": "/learn",
   "scope": "/learn",
@@ -8,7 +8,17 @@
   "background_color": "#FFFDF7",
   "theme_color": "#FFFDF7",
   "icons": [
-    { "src": "/assets/img/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/assets/img/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    {
+      "src": "/assets/img/app/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/img/app/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ]
 }

@@ -230,3 +230,13 @@ test('old personal links (/podcast/<token>) and the old help page go to the stud
   assert.equal(manifest.start_url, '/learn');
   assert.equal(manifest.display, 'standalone');
 });
+
+test('home-screen app: default name 애슐리 림의 수업, students may rename it (Alex, 2026-11-26)', () => {
+  const manifest = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '../../site/learn.webmanifest'), 'utf8'));
+  assert.equal(manifest.short_name, '애슐리 림의 수업');
+  const help = pages.helpPage();
+  assert.match(help, /<meta name="apple-mobile-web-app-title" content="애슐리 림의 수업">/);
+  assert.match(help, /원하는 이름으로 바꿀 수 있어요/);
+  assert.match(help, /id="orders"/);
+  assert.match(pages.installCard({ first: true }), /원하는 이름으로 바꿔도 괜찮아요/);
+});
